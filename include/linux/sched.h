@@ -516,6 +516,54 @@ struct wake_q_node {
 	struct wake_q_node *next;
 };
 
+enum ipanema_state {
+	IPANEMA_NOT_QUEUED,
+	IPANEMA_MIGRATING,
+	IPANEMA_RUNNING,
+	IPANEMA_READY,
+	IPANEMA_BLOCKED,
+	IPANEMA_TERMINATED,
+	/*
+	 * A special state that is equivalent to IPANEMA_READY, but makes it
+	 * possible to figure out that the state change came from tick().
+	 */
+	IPANEMA_READY_TICK
+};
+
+static inline const char *
+ipanema_state_to_str(const enum ipanema_state s)
+{
+	switch (s) {
+	case IPANEMA_NOT_QUEUED:
+		return "IPANEMA_NOT_QUEUED";
+	case IPANEMA_MIGRATING:
+		return "IPANEMA_MIGRATING";
+	case IPANEMA_RUNNING:
+		return "IPANEMA_RUNNING";
+	case IPANEMA_READY:
+		return "IPANEMA_READY";
+	case IPANEMA_BLOCKED:
+		return "IPANEMA_BLOCKED";
+	case IPANEMA_TERMINATED:
+		return "IPANEMA_TERMINATED";
+	case IPANEMA_READY_TICK:
+		return "IPANEMA_READY_TICK";
+	}
+
+	return "UNKNOWN_STATE";
+}
+
+struct ipanema_metadata {
+	int seen;
+	struct rb_node node_runqueue;
+	struct list_head ipa_tasks;
+
+	/* Metadata used by the runtime */
+	struct ipanema_runtime_metadata *runtime_metadata;
+	/* Policy-specific metadata */
+	void *policy_metadata;
+};
+
 struct task_struct {
 #ifdef CONFIG_THREAD_INFO_IN_TASK
 	/*
@@ -1072,6 +1120,9 @@ struct task_struct {
 #ifdef CONFIG_MMU
 	struct task_struct		*oom_reaper_list;
 #endif
+	struct ipanema_metadata ipanema_metadata;
+	int nopreempt;                  /* Used by Ipanema */
+	int switching_classes;          /* Used by Ipanema */
 #ifdef CONFIG_VMAP_STACK
 	struct vm_struct		*stack_vm_area;
 #endif

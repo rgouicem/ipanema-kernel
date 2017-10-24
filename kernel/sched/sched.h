@@ -19,6 +19,7 @@
 #include <linux/sched/task_stack.h>
 #include <linux/sched/cputime.h>
 #include <linux/sched/init.h>
+#include <linux/ipanema.h>
 
 #include <linux/u64_stats_sync.h>
 #include <linux/kernel_stat.h>
@@ -121,6 +122,11 @@ static inline void cpu_load_update_active(struct rq *this_rq) { }
  */
 #define RUNTIME_INF	((u64)~0ULL)
 
+static inline int ipanema_policy(int policy)
+{
+       return policy == SCHED_IPANEMA;
+}
+
 static inline int idle_policy(int policy)
 {
 	return policy == SCHED_IDLE;
@@ -142,7 +148,8 @@ static inline int dl_policy(int policy)
 static inline bool valid_policy(int policy)
 {
 	return idle_policy(policy) || fair_policy(policy) ||
-		rt_policy(policy) || dl_policy(policy);
+		rt_policy(policy) || dl_policy(policy) ||
+		ipanema_policy(policy);
 }
 
 static inline int task_has_rt_policy(struct task_struct *p)
@@ -694,6 +701,7 @@ struct rq {
 	struct load_weight load;
 	unsigned long nr_load_updates;
 	u64 nr_switches;
+	u64 nr_migrations;   	/* number of migrations. Needed or duplicate with rq->se->nr_migrations */
 
 	struct cfs_rq cfs;
 	struct rt_rq rt;
@@ -715,6 +723,7 @@ struct rq {
 
 	struct task_struct *curr, *idle, *stop;
 	unsigned long next_balance;
+	unsigned long next_balance_ipanema;
 	struct mm_struct *prev_mm;
 
 	unsigned int clock_update_flags;
@@ -1481,6 +1490,7 @@ extern const struct sched_class stop_sched_class;
 extern const struct sched_class dl_sched_class;
 extern const struct sched_class rt_sched_class;
 extern const struct sched_class fair_sched_class;
+extern const struct sched_class ipanema_sched_class;
 extern const struct sched_class idle_sched_class;
 
 
@@ -1489,6 +1499,7 @@ extern const struct sched_class idle_sched_class;
 extern void update_group_capacity(struct sched_domain *sd, int cpu);
 
 extern void trigger_load_balance(struct rq *rq);
+extern void trigger_load_balance_ipanema(struct rq *rq);
 
 extern void set_cpus_allowed_common(struct task_struct *p, const struct cpumask *new_mask);
 
@@ -1527,6 +1538,7 @@ extern void update_max_interval(void);
 extern void init_sched_dl_class(void);
 extern void init_sched_rt_class(void);
 extern void init_sched_fair_class(void);
+extern void init_sched_ipanema_class(void);
 
 extern void resched_curr(struct rq *rq);
 extern void resched_cpu(int cpu);
