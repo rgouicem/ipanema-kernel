@@ -19,7 +19,7 @@ static struct kobj_attribute _name##_attr = \
  * Check that transitions do not violate the Ipanema finite state machine
  * Prints errors in dmesg if it does
  */
-int ipanema_fsm_check = 0;
+int ipanema_fsm_check;
 static ssize_t ipanema_fsm_check_show(struct kobject *kobj,
 				      struct kobj_attribute *attr, char *buf)
 {
@@ -39,7 +39,7 @@ IPANEMA_ATTR_RW(ipanema_fsm_check);
 /*
  * Log all transitions in the Ipanema finite state machine
  */
-int ipanema_fsm_log = 0;
+int ipanema_fsm_log;
 static ssize_t ipanema_fsm_log_show(struct kobject *kobj,
 				      struct kobj_attribute *attr, char *buf)
 {
@@ -59,7 +59,7 @@ IPANEMA_ATTR_RW(ipanema_fsm_log);
 /*
  * Log calls to the ipanema scheduling class functions
  */
-int ipanema_sched_class_log = 0;
+int ipanema_sched_class_log;
 static ssize_t ipanema_sched_class_log_show(struct kobject *kobj,
 				      struct kobj_attribute *attr, char *buf)
 {
@@ -96,7 +96,7 @@ static int __init ipanema_sysfs_init(void)
 	/* Create /sys/kernel/ipanema */
 	ipanema_kobj = kobject_create_and_add("ipanema", kernel_kobj);
 	if (!ipanema_kobj) {
-	        pr_err("ipanema: failed to create /sys/kernel/ipanema (ENOMEM)\n");
+		pr_err("ipanema: failed to create /sys/kernel/ipanema (ENOMEM)\n");
 		error = -ENOMEM;
 		goto exit;
 	}

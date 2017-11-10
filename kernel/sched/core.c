@@ -2365,15 +2365,15 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 		p->sched_reset_on_fork = 0;
 	}
 
-	if (p->sched_class != &ipanema_sched_class) {
-		if (dl_prio(p->prio)) {
-			put_cpu();
-			return -EAGAIN;
-		} else if (rt_prio(p->prio)) {
-			p->sched_class = &rt_sched_class;
-		} else {
-			p->sched_class = &fair_sched_class;
-		}
+	if (task_has_ipanema_policy(p))
+		p->sched_class = &ipanema_sched_class;
+	else if (dl_prio(p->prio)) {
+		put_cpu();
+		return -EAGAIN;
+	} else if (rt_prio(p->prio)) {
+		p->sched_class = &rt_sched_class;
+	} else {
+		p->sched_class = &fair_sched_class;
 	}
 
 	init_entity_runnable_average(&p->se);
@@ -3928,7 +3928,7 @@ static struct task_struct *find_process_by_pid(pid_t pid)
 #define SETPARAM_POLICY	-1
 
 static void __setscheduler_params(struct task_struct *p,
-		const struct sched_attr *attr)
+				  const struct sched_attr *attr)
 {
 	int policy = attr->sched_policy;
 
@@ -3966,7 +3966,7 @@ static void __setscheduler(struct rq *rq, struct task_struct *p,
 	if (keep_boost)
 		p->prio = rt_effective_prio(p, p->prio);
 
-	if (attr->sched_policy == SCHED_IPANEMA)
+	if (ipanema_policy(p->policy))
 		p->sched_class = &ipanema_sched_class;
 	else if (dl_prio(p->prio))
 		p->sched_class = &dl_sched_class;
@@ -4112,17 +4112,25 @@ recheck:
 	}
 
 	/*
-	 * If switching to SCHED_IPANEMA, check that there is a valid policy,
-	 * ie. not dummy. If there isn't, fail.
+	 * If switching to SCHED_IPANEMA, check that the ipanema policy exists
 	 */
 	if (policy == SCHED_IPANEMA) {
-		if (num_ipanema_policies < 1 ||
-		    (num_ipanema_policies == 1 &&
-		     strncmp(ipanema_policies[0]->module->name,
-			     "dummy", 5) == 0)) {
+		struct ipanema_policy *cur_policy;
+
+		read_lock(&ipanema_rwlock);
+		cur_policy = ipanema_policies;
+		while (cur_policy) {
+			if (cur_policy->id == attr->sched_ipa_policy) {
+				ipanema_task_policy(p) = cur_policy;
+				break;
+			}
+		}
+		read_unlock(&ipanema_rwlock);
+
+		if (!cur_policy) {
 			task_rq_unlock(rq, p, &rf);
-			pr_err("ipanema: no valid policy loaded, setscheduler() for pid %d failed\n",
-                               p->pid);
+			pr_err("ipanema: policy %d does not exist (pid=%d)\n",
+			       attr->sched_ipa_policy, p->pid);
 			return -EINVAL;
 		}
 	}
@@ -4138,6 +4146,9 @@ recheck:
 			goto change;
 		if (dl_policy(policy) && dl_param_changed(p, attr))
 			goto change;
+		if (ipanema_policy(policy) && ipanema_task_policy(p) &&
+		    attr->sched_ipa_policy != ipanema_task_policy(p)->id)
+			goto change;
 
 		p->sched_reset_on_fork = reset_on_fork;
 		task_rq_unlock(rq, p, &rf);
@@ -4152,8 +4163,8 @@ change:
 		 * assigned.
 		 */
 		if (rt_bandwidth_enabled() && rt_policy(policy) &&
-				task_group(p)->rt_bandwidth.rt_runtime == 0 &&
-				!task_group_is_autogroup(task_group(p))) {
+		    task_group(p)->rt_bandwidth.rt_runtime == 0 &&
+		    !task_group_is_autogroup(task_group(p))) {
 			task_rq_unlock(rq, p, &rf);
 			return -EPERM;
 		}
@@ -4610,6 +4621,8 @@ SYSCALL_DEFINE4(sched_getattr, pid_t, pid, struct sched_attr __user *, uattr,
 		attr.sched_flags |= SCHED_FLAG_RESET_ON_FORK;
 	if (task_has_dl_policy(p))
 		__getparam_dl(p, &attr);
+	else if (task_has_ipanema_policy(p))
+		attr.sched_ipa_policy = ipanema_task_policy(p)->id;
 	else if (task_has_rt_policy(p))
 		attr.sched_priority = p->rt_priority;
 	else
@@ -5872,6 +5885,7 @@ void __init sched_init(void)
 		rq = cpu_rq(i);
 		raw_spin_lock_init(&rq->lock);
 		rq->nr_running = 0;
+		rq->nr_ipanema_running = 0;
 		rq->calc_load_active = 0;
 		rq->calc_load_update = jiffies + LOAD_FREQ;
 		init_cfs_rq(&rq->cfs);

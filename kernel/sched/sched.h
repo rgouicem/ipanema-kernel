@@ -162,6 +162,11 @@ static inline int task_has_dl_policy(struct task_struct *p)
 	return dl_policy(p->policy);
 }
 
+static inline int task_has_ipanema_policy(struct task_struct *p)
+{
+	return ipanema_policy(p->policy);
+}
+
 /*
  * Tells if entity @a should preempt entity @b.
  */
@@ -688,6 +693,7 @@ struct rq {
 #endif
 	#define CPU_LOAD_IDX_MAX 5
 	unsigned long cpu_load[CPU_LOAD_IDX_MAX];
+	unsigned int nr_ipanema_running;
 #ifdef CONFIG_NO_HZ_COMMON
 #ifdef CONFIG_SMP
 	unsigned long last_load_update_tick;

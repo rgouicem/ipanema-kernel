@@ -17,12 +17,6 @@
 
 struct ipanema_policy;
 
-struct ipanema_runtime_metadata {
-	int just_yielded;
-	enum ipanema_state current_state;
-	ipanema_rq *current_rq;
-};
-
 struct ipanema_routines {
 	int (*order_process)(struct task_struct *a, struct task_struct *b);
 	int (*get_metric)(struct task_struct *a);
@@ -40,10 +34,12 @@ struct ipanema_routines {
 	void (*unblock_end)(struct process_event *e);
 
 	void (*terminate)(struct process_event *e);
-	void (*schedule)(int cpu);
+	void (*schedule)(struct ipanema_policy *policy, int cpu);
 	void (*init)(void);
 	void (*balancing_select)(void);
-	/* FIXME: Add missing functions with core_event */
+
+	void (*core_entry)(struct ipanema_policy *policy_p, int core);
+	void (*core_exit)(struct ipanema_policy *policy_p, int core);
 };
 
 extern struct ipanema_routines ipanema_routines;
@@ -51,18 +47,14 @@ extern struct ipanema_routines ipanema_routines;
 extern struct ipanema_module *ipanema_modules[];
 extern int num_ipanema_modules;
 
-extern struct ipanema_policy **ipanema_policies;
+extern struct ipanema_policy *ipanema_policies;
 extern int num_ipanema_policies;
 
 void ipanema_create_dev(void);
 void ipanema_create_procs(void);
 void debug_ipanema(void);
 
-int ipanema_set_policies(char *policies_str);
-int ipanema_dum_init_module(void);
-
-extern atomic_t ipanema_initialized;
-void ipanema_late_init(void);
+int ipanema_set_policy(char *policies_str);
 
 extern rwlock_t ipanema_rwlock;
 

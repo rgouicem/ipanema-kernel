@@ -9,93 +9,26 @@
 #include <linux/cpufreq.h>
 #include <linux/kgdb.h>
 
-int ipanema_debug = 0;
+int ipanema_debug;
 EXPORT_SYMBOL(ipanema_debug);
 
-/* DEFINE_SPINLOCK(rq_lock); */
-
-/* Runqueues per type */
+/* Current running task per type */
 DEFINE_PER_CPU(struct task_struct *, ipanema_current);
 EXPORT_SYMBOL(ipanema_current);
-DEFINE_PER_CPU(ipanema_rq, ipanema_ready);
-EXPORT_SYMBOL(ipanema_ready);
-DEFINE_PER_CPU(int, count_ready);
 
 static void update_curr_ipanema(struct rq *rq);
 
-static inline struct ipanema_runtime_metadata *
-runtime_metadata(struct task_struct *p)
-{
-	return p->ipanema_metadata.runtime_metadata;
-}
-
-inline void check_identical_rqs(struct rq *rq, struct task_struct *p)
-{
-	if (p && p->sched_class == &ipanema_sched_class &&
-	    runtime_metadata(p) &&
-	    (cpu_rq(p->cpu) != rq ||
-	     rq != task_rq(p))) {
-		IPA_EMERG_SAFE("WARNING! Different rq cpu/locks: %d/%d %d/%d\n",
-			task_cpu(p),
-			lockdep_is_held(&task_rq(p)->lock),
-			(rq)->cpu,
-			lockdep_is_held(&(rq)->lock));
-	}
-}
-EXPORT_SYMBOL(check_identical_rqs);
-
-/* Needed to acquire the rq lock in modules. */
-raw_spinlock_t *ipanema_task_lock(struct task_struct *p)
-{
-	return &task_rq(p)->lock;
-}
-EXPORT_SYMBOL(ipanema_task_lock);
-
-int ipanema_get_current_cpu(struct task_struct *p)
-{
-	struct ipanema_runtime_metadata *metadata = runtime_metadata(p);
-
-	BUG_ON(!metadata);
-
-	return p->cpu;
-}
-EXPORT_SYMBOL(ipanema_get_current_cpu);
-
-enum ipanema_state ipanema_get_current_state(struct task_struct *p)
-{
-	struct ipanema_runtime_metadata *metadata = runtime_metadata(p);
-
-	BUG_ON(!metadata);
-
-	return metadata->current_state;
-}
-EXPORT_SYMBOL(ipanema_get_current_state);
-
-/* 
- * Get the runqueue attached to an ipanema state for a given cpu
- */
-ipanema_rq *get_rq(enum ipanema_state state, int cpu)
-{
-	switch(state) {
-	case IPANEMA_READY:
-	case IPANEMA_READY_TICK:
-		return &per_cpu(ipanema_ready, cpu);
-	default:
-		return NULL;
-	}
-}
-
-/* 
+/*
  * Check the validity of an ipanema transition
  */
 static void check_ipanema_transition(struct task_struct *p,
 				     enum ipanema_state next_state,
 				     int next_cpu)
 {
-	enum ipanema_state prev_state = runtime_metadata(p)->current_state;
+	enum ipanema_state prev_state = p->ipanema_metadata.state;
 	int prev_cpu = p->cpu;
 
-	switch(prev_state) {
+	switch (prev_state) {
 	case IPANEMA_NOT_QUEUED:
 		if (next_state != IPANEMA_READY)
 			goto wrong_transition;
@@ -140,68 +73,85 @@ wrong_transition:
 		       ipanema_state_to_str(next_state), next_cpu);
 }
 
-/* 
- * Move task p from its current runqueue to the runqueue attached to next_state
- * on next_cpu
+/*
+ * Move task p from its current runqueue to the runqueue next_rq with
+ * state = next_state
  */
 static void change_rq(struct task_struct *p, enum ipanema_state next_state,
-		      int next_cpu)
+		      struct ipanema_rq *next_rq)
 {
-	ipanema_rq *prev_rq = NULL, *next_rq = NULL;
-	int prev_cpu;
+	struct ipanema_rq *prev_rq = NULL;
+	int prev_cpu, next_cpu;
 	enum ipanema_state prev_state;
 
-	prev_rq = runtime_metadata(p)->current_rq;
-	prev_cpu = p->cpu;
-	prev_state = runtime_metadata(p)->current_state;
+	prev_rq = ipanema_task_rq(p);
+	prev_cpu = task_cpu(p);
+	prev_state = ipanema_task_state(p);
 
-	next_rq = get_rq(next_state, next_cpu);
-
-	runtime_metadata(p)->current_rq = next_rq;
-	runtime_metadata(p)->current_state = next_state;
-		
 	if (prev_rq) {
 		lockdep_assert_held(&task_rq(p)->lock);
 		p = ipanema_remove_task(prev_rq, p,
 					ipanema_routines.order_process);
+		prev_rq->nr_tasks--;
 	}
+
+	ipanema_task_rq(p) = next_rq;
+	ipanema_task_state(p) = next_state;
+
 	if (next_rq) {
+		next_cpu = next_rq->cpu;
+		next_state = next_rq->state;
 		lockdep_assert_held(&cpu_rq(next_cpu)->lock);
 		ipanema_add_task(next_rq, p,
 				 ipanema_routines.order_process);
+		next_rq->nr_tasks++;
 	}
 }
 
-/* 
+/*
  * Main function handling state change of an ipanema task
  */
 void change_state(struct task_struct *p, enum ipanema_state next_state,
-		  int next_cpu)
+		  int next_cpu, struct ipanema_rq *next_rq)
 {
 	int prev_cpu;
 	enum ipanema_state prev_state;
 
 	/* Safety checks */
 	if (!p) {
-		IPA_EMERG_SAFE("WARNING! Called change_state() with a null process! Exiting...\n");
-		return;
-	}
-
-	if (!runtime_metadata(p)) {
-		IPA_EMERG_SAFE("WARNING! Called change_state() with a process without ipanema_metadata! Exiting...\n");
+		IPA_EMERG_SAFE("WARNING! Called %s with a null process! Exiting...\n",
+			       __func__);
 		return;
 	}
 
 	/* Get current task fields */
-	prev_cpu = p->cpu;
-	prev_state = runtime_metadata(p)->current_state;
-	
-	/* Safety checks on parameters,
-	 * if badly set, use the process' current values */
+	prev_cpu = task_cpu(p);
+	prev_state = ipanema_task_state(p);
+
+	/*
+	 * Safety checks on parameters, if badly set, use the process'
+	 * current values
+	 */
 	if (next_cpu < 0)
 		next_cpu = prev_cpu;
 	if (next_state < 0)
 		next_state = prev_state;
+	if (next_state == IPANEMA_RUNNING || next_state == IPANEMA_TERMINATED)
+		next_rq = NULL;
+	if (next_rq) {
+		if (next_cpu != next_rq->cpu ||
+		    (next_state != next_rq->state &&
+		     next_state != IPANEMA_READY_TICK &&
+		     next_rq->state != IPANEMA_READY)) {
+			IPA_EMERG_SAFE("%s: Discrepancy in parameters: next_state = %s; next_cpu = %d, next_rq = [cpu=%d, state=%s]. Using next_rq values\n",
+				       __func__,
+				       ipanema_state_to_str(next_state),
+				       next_cpu, next_rq->cpu,
+				       ipanema_state_to_str(next_rq->state));
+			next_cpu = next_rq->cpu;
+			next_state = next_rq->state;
+		}
+	}
 
 	/* If no change, return */
 	if (prev_cpu == next_cpu && prev_state == next_state)
@@ -211,12 +161,13 @@ void change_state(struct task_struct *p, enum ipanema_state next_state,
 		pr_info("ipanema: [pid=%d] %s[%d] -> %s[%d]\n",
 			p->pid, ipanema_state_to_str(prev_state), prev_cpu,
 			ipanema_state_to_str(next_state), next_cpu);
+
 	/* Check transition validity if necessary */
 	if (unlikely(ipanema_fsm_check))
 		check_ipanema_transition(p, next_state, next_cpu);
 
 	/* Do the actual rq change */
-	change_rq(p, next_state, next_cpu);
+	change_rq(p, next_state, next_rq);
 
 
 	/* Now, let's do transition specific handling */
@@ -227,11 +178,8 @@ void change_state(struct task_struct *p, enum ipanema_state next_state,
 
 	/* x -> RUNNING */
 	if (next_state == IPANEMA_RUNNING) {
-		if (per_cpu(ipanema_current, next_cpu)) {
-			IPA_EMERG_SAFE("putting a task in RUNNING but there is already another task! We preempt it to avoid potential bugs.\n");
-			change_state(per_cpu(ipanema_current, next_cpu),
-				     IPANEMA_READY, next_cpu);
-		}
+		if (per_cpu(ipanema_current, next_cpu))
+			IPA_EMERG_SAFE("putting a task in RUNNING but there is already another task! We preempt it to avoid potential bugs. Should not happen !!!\n");
 
 		per_cpu(ipanema_current, next_cpu) = p;
 	}
@@ -253,8 +201,9 @@ void change_state(struct task_struct *p, enum ipanema_state next_state,
 	if (next_state == IPANEMA_READY_TICK)
 		resched_curr(cpu_rq(next_cpu));
 
-	/* Let's check that we have someone RUNNING
-	 * if not, trigger a resched */
+	/*
+	 *Let's check that we have someone RUNNING if not, trigger a resched
+	 */
 	if (!per_cpu(ipanema_current, prev_cpu)
 	    && cpu_rq(prev_cpu)->nr_running
 	    && prev_cpu == next_cpu)
@@ -262,32 +211,16 @@ void change_state(struct task_struct *p, enum ipanema_state next_state,
 }
 EXPORT_SYMBOL(change_state);
 
-/* 
+/*
  * Return the number of tasks on the cpu (not only in SCHED_IPANEMA !!!!)
  */
 int count(enum ipanema_state state, int cpu)
 {
-	if(state == IPANEMA_READY || state == IPANEMA_READY_TICK)
+	if (state == IPANEMA_READY || state == IPANEMA_READY_TICK)
 		return cpu_rq(cpu)->nr_running;
 	return -1;
 }
 EXPORT_SYMBOL(count);
-
-/* 
- * Return the first task in the runqueue attached to state on cpu
- */
-struct task_struct *ipanema_first_of_state(enum ipanema_state state, int cpu)
-{
-	struct task_struct *result;
-	ipanema_rq *rq = get_rq(state, cpu);
-
-	if (rq) {
-		result = ipanema_first_task(rq);
-		return result;
-	} else {
-		return NULL;
-	}
-}
 
 static void enqueue_task_ipanema(struct rq *rq,
 				 struct task_struct *p,
@@ -296,8 +229,15 @@ static void enqueue_task_ipanema(struct rq *rq,
 	struct process_event e = { .target = p };
 
 	if (unlikely(ipanema_sched_class_log))
-		pr_info("In enqueue_task_ipanema() [pid=%d, rq=%d]\n",
-			p->pid, rq->cpu);
+		pr_info("In %s [pid=%d, rq=%d]\n",
+			__func__, p->pid, rq->cpu);
+
+	/* task has no ipanema policy, just increment rq->nr_running */
+	if (!ipanema_task_policy(p)) {
+		IPA_EMERG_SAFE("%s: WARNING: called on a task with no ipanema policy set.\n",
+			__func__);
+		goto end;
+	}
 
 	/*
 	 * We are in the middle of a migration. We don't need to do anything,
@@ -306,30 +246,17 @@ static void enqueue_task_ipanema(struct rq *rq,
 	if (task_on_rq_migrating(p))
 		goto end;
 
-	/*
-	 * The thread doesn't even exist yet according to Ipanema. If it is
-	 * switching to SCHED_IPANEMA, we handle it; elsewise, all we do
-	 * is update nr_running/count_ready (at end)
+	/* The thread is switching to SCHED_IPANEMA class,
+	 * we must:
+	 * - initialize its ipanema_metadata
+	 * - call its policy's new_prepare() routine to
+	 *   initialize the per-policy metadata, but we ignore
+	 *   the return value to avoid inconsistency, since it's
+	 *   too late to choose a runqueue.
 	 */
-	if (!runtime_metadata(p)) {
-		if (!p->switching_classes)
-			goto end;
-
-		/* The thread is switching to SCHED_IPANEMA class,
-		 * we must:
-		 * - allocate its runtime metadata,
-		 * - call its policy's new_prepare() routine to
-		 *   initialize the per-policy metadata, but we ignore
-		 *   the return value to avoid inconsistency, since it's
-		 *   to late to choose a runqueue.
-		 */
-		p->ipanema_metadata.runtime_metadata =
-			kcalloc(1, sizeof(*runtime_metadata(p)),
-				GFP_ATOMIC);
-		memset(runtime_metadata(p), 0,
-		       sizeof(*runtime_metadata(p)));
-		runtime_metadata(p)->current_state = IPANEMA_NOT_QUEUED;
-		runtime_metadata(p)->current_rq = NULL;
+	if (p->switching_classes) {
+		ipanema_task_state(p) = IPANEMA_NOT_QUEUED;
+		ipanema_task_rq(p) = NULL;
 
 		ipanema_routines.new_prepare(&e);
 	}
@@ -339,10 +266,11 @@ static void enqueue_task_ipanema(struct rq *rq,
 	 * the actual enqueueing by calling ipanema_new_place(), thus going
 	 * from IPANEMA_NOT_QUEUED to IPANEMA_READY.
 	 */
-	if (runtime_metadata(p)->current_state == IPANEMA_NOT_QUEUED) {
+	if (ipanema_task_state(p) == IPANEMA_NOT_QUEUED) {
 		ipanema_routines.new_place(&e);
 		goto end;
 	}
+
 	/*
 	 * To unblock a task, a thread calls wake_up(), which calls
 	 * try_to_wake_up(), which sets the task's state to TASK_WAKING and
@@ -363,12 +291,12 @@ static void enqueue_task_ipanema(struct rq *rq,
 
 	IPA_EMERG_SAFE("WARNING! Uncaught enqueue, CONTEXT: p=[pid=%d, cpu=%d, state=%ld, on_cpu=%d, on_rq=%d, ipanema=[current_state=%s]]; rq[%d]=%p; flags=%d\n",
 		       p->pid, p->cpu, p->state, p->on_cpu, p->on_rq,
-		       ipanema_state_to_str(runtime_metadata(p)->current_state),
+		       ipanema_state_to_str(ipanema_task_state(p)),
 		       rq->cpu, rq, flags);
 
 end:
 	add_nr_running(rq, 1);
-	per_cpu(count_ready, rq->cpu)++;
+	rq->nr_ipanema_running++;
 	IPA_DBG_SAFE("Enqueueing %p, nr_running=%d.\n", p, rq->nr_running);
 }
 
@@ -379,10 +307,17 @@ static void dequeue_task_ipanema(struct rq *rq,
 	struct process_event e = { .target = p };
 
 	if (unlikely(ipanema_sched_class_log))
-		pr_info("In dequeue_task_ipanema() [pid=%d, rq=%d]\n",
-			p->pid, rq->cpu);
+		pr_info("In %s [pid=%d, rq=%d]\n",
+			__func__, p->pid, rq->cpu);
 
 	update_curr_ipanema(rq);
+
+	/* task has no ipanema policy, just decrement rq->nr_running */
+	if (!ipanema_task_policy(p)) {
+		IPA_EMERG_SAFE("%s: WARNING: called on a task with no ipanema policy set.\n",
+			__func__);
+		goto end;
+	}
 
 	/*
 	 * We are in the middle of a migration. We don't need to do anything,
@@ -395,10 +330,8 @@ static void dequeue_task_ipanema(struct rq *rq,
 	 * The thread doesn't even exist yet according to Ipanema. All we do
 	 * is update nr_running/count_ready (at end)
 	 */
-	if (!runtime_metadata(p)
-	    || runtime_metadata(p)->current_state == IPANEMA_NOT_QUEUED) {
+	if (ipanema_task_state(p) == IPANEMA_NOT_QUEUED)
 		goto end;
-	}
 
 	/*
 	 * In order to block, one sets the task to either TASK_INTERRUPTIBLE
@@ -406,15 +339,15 @@ static void dequeue_task_ipanema(struct rq *rq,
 	 * deactivate_task(), which calls dequeue_task(). We are in this
 	 * scenario: we're witnessing a true block().
 	 *
-         * We also add TASK_STOPPED to make sure the task is removed from the
-         * runqueue when we receive a SIGSTOP signal.
+	 * We also add TASK_STOPPED to make sure the task is removed from the
+	 * runqueue when we receive a SIGSTOP signal.
 	 *
 	 * We add TASK_KILLABLE to make sure that all received signals are
 	 * handled correctly.
-         */
-        if (p->state & TASK_INTERRUPTIBLE ||
-            p->state & TASK_UNINTERRUPTIBLE ||
-            p->state & TASK_STOPPED ||
+	 */
+	if (p->state & TASK_INTERRUPTIBLE ||
+	    p->state & TASK_UNINTERRUPTIBLE ||
+	    p->state & TASK_STOPPED ||
 	    p->state & TASK_KILLABLE) {
 		ipanema_routines.block(&e);
 		goto end;
@@ -428,22 +361,20 @@ static void dequeue_task_ipanema(struct rq *rq,
 	 * the rbtree now, it will be scheduled again while it is not queued,
 	 * which will lead to a crash.
 	 */
-        if (p->flags & PF_EXITPIDONE) {
+	if (p->flags & PF_EXITPIDONE) {
 		ipanema_routines.terminate(&e);
 		goto end;
 	}
 
 	/*
-	 * The task is being dequeued because it's switching
-	 * to another scheduling class. In this case too, we should
-	 * call terminate. We must also free the runtime metadata,
-	 * since it is useless now, and to avoid problems if the task switches
-	 * bach to SCHED_IPANEMA class.
+	 * The task is being dequeued because it's switching to another
+	 * scheduling class. In this case too, we should call terminate. We must
+	 * also set the ipanema policy to NULL to avoid problems if the task
+	 * switches back to SCHED_IPANEMA class.
 	 */
 	if (p->switching_classes) {
 		ipanema_routines.terminate(&e);
-		kfree(runtime_metadata(p));
-		p->ipanema_metadata.runtime_metadata = NULL;
+		ipanema_task_policy(p) = NULL;
 		goto end;
 	}
 
@@ -453,34 +384,34 @@ static void dequeue_task_ipanema(struct rq *rq,
 	 */
 	if (flags & DEQUEUE_SAVE)
 		goto end;
-	
+
 	IPA_EMERG_SAFE("WARNING! Uncaught dequeue, CONTEXT: p=[pid=%d, cpu=%d, state=%ld, on_cpu=%d, on_rq=%d, ipanema=[current_state=%s]]; rq[%d]=%p; flags=%d\n",
 		       p->pid, p->cpu, p->state, p->on_cpu, p->on_rq,
-		       ipanema_state_to_str(runtime_metadata(p)->current_state),
+		       ipanema_state_to_str(ipanema_task_state(p)),
 		       rq->cpu, rq, flags);
 
 end:
 	sub_nr_running(rq, 1);
-	per_cpu(count_ready, rq->cpu)--;
-	IPA_DBG_SAFE("Dequeueing %p, nr_running=%d, p->state=%16lx, "
-		     "p->flags=%8x.\n",
+	rq->nr_ipanema_running--;
+	IPA_DBG_SAFE("Dequeueing %p, nr_running=%d, p->state=%16lx, p->flags=%8x.\n",
 		     p, rq->nr_running, p->state, p->flags);
 }
 
 static void yield_task_ipanema(struct rq *rq)
 {
 	struct process_event e = { .target = rq->curr };
+	struct task_struct *p = rq->curr;
 
 	if (unlikely(ipanema_sched_class_log))
-		pr_info("In yield_task_ipanema() [rq=%d]\n",
-			rq->cpu);
+		pr_info("In %s [rq=%d]\n",
+			__func__, rq->cpu);
 
 	/*
 	 * The process called yield(). Switch its state to IPANEMA_READY,
 	 * schedule() is going to be called very soon.
 	 */
 	ipanema_routines.yield(&e);
-	runtime_metadata(e.target)->just_yielded = 1;
+	p->ipanema_metadata.just_yielded = 1;
 }
 
 static bool yield_to_task_ipanema(struct rq *rq,
@@ -488,8 +419,8 @@ static bool yield_to_task_ipanema(struct rq *rq,
 				  bool preempt)
 {
 	if (unlikely(ipanema_sched_class_log))
-		pr_info("In yield_to_task_ipanema() [pid=%d, rq=%d]\n",
-			p->pid, rq->cpu);
+		pr_info("In %s [pid=%d, rq=%d]\n",
+			__func__, p->pid, rq->cpu);
 	return 0;
 }
 
@@ -498,8 +429,8 @@ static void check_preempt_wakeup(struct rq *rq,
 				 int wake_flags)
 {
 	if (unlikely(ipanema_sched_class_log))
-		pr_info("In check_preempt_wakeup() [pid=%d, rq=%d]\n",
-			p->pid, rq->cpu);
+		pr_info("In %s [pid=%d, rq=%d]\n",
+			__func__, p->pid, rq->cpu);
 }
 
 static struct task_struct *pick_next_task_ipanema(struct rq *rq,
@@ -507,17 +438,22 @@ static struct task_struct *pick_next_task_ipanema(struct rq *rq,
 						  struct rq_flags *rf)
 {
 	struct task_struct *result = NULL;
+	struct ipanema_policy *policy = ipanema_policies;
 
 	if (unlikely(ipanema_sched_class_log))
-		pr_info("In pick_next_task_ipanema() [pid=%d, rq=%d]\n",
-			prev->pid, rq->cpu);
+		pr_info("In %s [pid=%d, rq=%d]\n",
+			__func__, prev->pid, rq->cpu);
 
-	if (per_cpu(ipanema_current, rq->cpu)) {
+	if (per_cpu(ipanema_current, rq->cpu))
 		result = per_cpu(ipanema_current, rq->cpu);
-	} else if (ipanema_first_of_state(IPANEMA_READY, rq->cpu)) {
-		/* TODO: add check with first. */
-		ipanema_routines.schedule(rq->cpu);
-		result = per_cpu(ipanema_current, rq->cpu);
+	else {
+		while (policy) {
+			ipanema_routines.schedule(policy, rq->cpu);
+			result = per_cpu(ipanema_current, rq->cpu);
+			if (result)
+				break;
+			policy = policy->next;
+		}
 	}
 
 	if (!result)
@@ -530,14 +466,12 @@ static struct task_struct *pick_next_task_ipanema(struct rq *rq,
 	 * actual preemption. We don't want to call put_prev_task() here because
 	 * it may make prev IPANEMA_READY, even though it will be running.
 	 */
-	if (result == prev) {
-		IPA_DBG_SAFE("We picked the same task as before! Don't "
-			     "call put_prev_task!\n");
-	}
+	if (result == prev)
+		IPA_DBG_SAFE("We picked the same task as before! Don't call put_prev_task!\n");
+
 	if (result != prev) {
 		IPA_DBG_SAFE("Pick next -> %p %d.\n", result,
-			     result ?
-			     ipanema_routines.get_metric(result) : 0);
+			     result ? ipanema_routines.get_metric(result) : 0);
 
 		put_prev_task(rq, prev);
 		IPA_DBG_SAFE("put_prev_task() over.\n");
@@ -545,15 +479,10 @@ static struct task_struct *pick_next_task_ipanema(struct rq *rq,
 		result->se.exec_start = rq_clock_task(rq);
 	}
 
-	if (runtime_metadata(result)->current_state != IPANEMA_RUNNING) {
-		IPA_EMERG_SAFE("The result of pick_next_task_ipanema() is not "
-			       "in the IPANEMA_RUNNING state ! It's in state "
-			       "%s instead. Switching to IPANEMA_RUNNING to "
-			       "prevent issues, but we shouldn't be in this "
-			       "situation!\n",
-			       ipanema_state_to_str(runtime_metadata(result)->current_state));
-
-		runtime_metadata(result)->current_state = IPANEMA_RUNNING;
+	if (ipanema_task_state(result) != IPANEMA_RUNNING) {
+		IPA_EMERG_SAFE("The result of pick_next_task_ipanema() is not in the IPANEMA_RUNNING state ! It's in state %s instead. Switching to IPANEMA_RUNNING to prevent issues, but we shouldn't be in this situation!\n",
+			       ipanema_state_to_str(ipanema_task_state(current)));
+		ipanema_task_state(result) = IPANEMA_RUNNING;
 	}
 
 	return result;
@@ -566,26 +495,22 @@ static void put_prev_task_ipanema(struct rq *rq,
 	struct process_event e = { .target = prev };
 
 	if (unlikely(ipanema_sched_class_log))
-		pr_info("In put_prev_task_ipanema() [pid=%d, rq=%d]\n",
-			prev->pid, rq->cpu);
+		pr_info("In %s [pid=%d, rq=%d]\n",
+			__func__, prev->pid, rq->cpu);
 
 	/* Safety checks. Avoid using BUG_ON() to fail gracefully. */
 	if (!prev || prev->sched_class != &ipanema_sched_class) {
-		IPA_EMERG_SAFE("WARNING! At least one precondition not "
-			       "verified in put_prev_task_ipanema() "
-			       "[%d %d]\n",
-			       !prev,
+		IPA_EMERG_SAFE("WARNING! At least one precondition not verified in %s [%d %d]\n",
+			       __func__, !prev,
 			       prev->sched_class != &ipanema_sched_class);
 
 		return;
 	}
 
 	/* If we are switching class, ie. moving out from ipanema,
-	 * dequeue_task_ipanema() already called terminate() and freed
-	 * the task's runtime metadata, so we cannot access them.
-	 * We just remove prev from ipanema_current if necessary.
-	 * We don't call resched_curr() because the task will keep the cpu in
-	 * its new sched_class.
+	 * dequeue_task_ipanema() already called terminate(). We just remove
+	 * prev from ipanema_current if necessary. We don't call resched_curr()
+	 * because the task will keep the cpu in its new sched_class.
 	 */
 	if (prev->switching_classes) {
 		if (per_cpu(ipanema_current, prev->cpu) == prev)
@@ -593,13 +518,12 @@ static void put_prev_task_ipanema(struct rq *rq,
 		return;
 	}
 
-	check_identical_rqs(rq, prev);
 	update_curr_ipanema(rq);
 
-	state = ipanema_get_current_state(prev);
+	state = ipanema_task_state(prev);
 
-	IPA_DBG_SAFE("In put_prev_task_ipanema() [%p on rq %d, state=%d].\n",
-		     prev, rq->cpu, state);
+	IPA_DBG_SAFE("In %s [%p on rq %d, state=%d].\n",
+		     __func__, prev, rq->cpu, state);
 
 	/*
 	 * Case 1: this is either one of these times when we have a quick
@@ -616,12 +540,12 @@ static void put_prev_task_ipanema(struct rq *rq,
 		 * Note: nopreempt is a flag we added.
 		 */
 		if (prev->nopreempt) {
-			IPA_DBG_SAFE("Non-preempting put_prev_task()");
+			IPA_DBG_SAFE("Non-preempting %s\n", __func__);
 			return;
 		}
 
 		/*
-	 	 * Case 1b: preemption! We should call preempt() but we don't
+		 * Case 1b: preemption! We should call preempt() but we don't
 		 * have a preempt() event. So we just call yield().
 		 */
 		ipanema_routines.yield(&e);
@@ -638,11 +562,9 @@ static void put_prev_task_ipanema(struct rq *rq,
 		 * state to IPANEMA_READY, a context switch that puts the
 		 * thread in the runqueue will soon happen.
 		 */
-		IPA_DBG_SAFE("In put_prev_task_ipanema() [prev=%p, rq=%d], "
-			     "following a context switch from a transition to "
-			     "the ready state in tick(). Going from READY_TICK "
-			     "to READY.\n", prev, rq->cpu);
-		runtime_metadata(prev)->current_state = IPANEMA_READY;
+		IPA_DBG_SAFE("In %s [prev=%p, rq=%d], following a context switch from a transition to the ready state in tick(). Going from READY_TICK to READY.\n",
+			     __func__, prev, rq->cpu);
+		ipanema_task_state(prev) = IPANEMA_READY;
 	/*
 	 * Case 3: if we're already in the READY state, either a yield() event
 	 * from a call to sched_yield() set us in this state, or we switched to
@@ -650,31 +572,30 @@ static void put_prev_task_ipanema(struct rq *rq,
 	 */
 	} else if (state == IPANEMA_READY) {
 		/* Safety check. */
-		if (!runtime_metadata(prev)->just_yielded) {
-			IPA_EMERG_SAFE("WARNING! IPANEMA_READY in "
-				       "put_prev_task_ipanema() not following "
-				       "a yield().\n");
+		if (!prev->ipanema_metadata.just_yielded) {
+			IPA_EMERG_SAFE("WARNING! IPANEMA_READY in %s not following a yield().\n",
+				       __func__);
 			return;
 		}
 
-		IPA_DBG_SAFE("In put_prev_task() following a "
-			     "yield().\n");
-		runtime_metadata(prev)->just_yielded = 0;
+		IPA_DBG_SAFE("In %s following a yield().\n",
+			     __func__);
+		prev->ipanema_metadata.just_yielded = 0;
 	/*
 	 * Case 4: if we're in the BLOCKED state, a block() event (from
 	 * try_to_wake_up() -> enqueue_task_ipanema()) must have set us
 	 * in this state.
 	 */
 	} else if (state == IPANEMA_BLOCKED) {
-		IPA_DBG_SAFE("Blocked in put_prev_task(), should follow a "
-			     "block() event.\n");
+		IPA_DBG_SAFE("Blocked in %s, should follow a block() event.\n",
+			     __func__);
 	/*
 	 * Case 5: the thread was terminated during its last dequeue. Don't
 	 * do anything.
 	 */
 	} else if (state == IPANEMA_TERMINATED) {
-		IPA_DBG_SAFE("Terminated in put_prev_task(), should follow a "
-			     "terminate() event.\n");
+		IPA_DBG_SAFE("Terminated in %s, should follow a terminate() event.\n",
+			     __func__);
 	/*
 	 * Case 6: the thread is migrating.
 	 */
@@ -684,8 +605,8 @@ static void put_prev_task_ipanema(struct rq *rq,
 	 * Case 7: we're in another state: shouldn't happen.
 	 */
 	} else {
-		IPA_EMERG_SAFE("WARNING! Invalid state (%d) in "
-			       "put_prev_task_ipanema().\n", state);
+		IPA_EMERG_SAFE("WARNING! Invalid state (%d) in %s.\n",
+			       state, __func__);
 	}
 }
 
@@ -696,47 +617,37 @@ static int select_task_rq_ipanema(struct task_struct *p,
 				  int wake_flags)
 {
 	struct process_event e = { .target = p };
+	int ret;
 
 	if (unlikely(ipanema_sched_class_log))
-		pr_info("In select_task_rq_ipanema() [pid=%d]\n",
-			p->pid);
+		pr_info("In %s [pid=%d]\n",
+			__func__, p->pid);
 
 	/* Safety checks. */
 	if (!p || p->sched_class != &ipanema_sched_class) {
-		IPA_EMERG_SAFE("WARNING! Preconditions not fulfilled in "
-			       "select_task_rq_ipanema() [%d %d]\n",
-			       !p, p->sched_class != &ipanema_sched_class);
+		IPA_EMERG_SAFE("WARNING! Preconditions not fulfilled in %s [%d %d]\n",
+			       __func__, !p,
+			       p->sched_class != &ipanema_sched_class);
 		return task_cpu(p);
 	}
 
 	/*
-	 * FIXME: move this to enqueue_task_ipanema() (which is called just
-	 * after select_task_ipanema()). It would avoid having to use the
-	 * just_queued flag.
+	 * If state == IPANEMA_NOT_QUEUED, p is a forked process that
+	 * will soon be enqueued. We must call new_prepare() event.
 	 */
-	if(!runtime_metadata(p)) {
-		IPA_DBG_SAFE("GOOD! Creating runtime_metadata(p) in "
-			     "select_task_rq_ipanema().\n");
-
-		/*
-		 * We have to use GFP_ATOMIC here, because we call
-		 * sched_getscheduler() from inside a critical section, which
-		 * makes us end up here.
-		 */
-		p->ipanema_metadata.runtime_metadata =
-			kcalloc(1, sizeof(*runtime_metadata(p)), GFP_ATOMIC);
-		memset(runtime_metadata(p), 0, sizeof(*runtime_metadata(p)));
-		runtime_metadata(p)->current_state = IPANEMA_NOT_QUEUED;
-		runtime_metadata(p)->current_rq = NULL;
-
-		/*
-		 * This is actually the correct place for calling new():
-		 * select_task_rq_ipanema() is called just before
-		 * enqueue_task_ipanema().
-		 */
-		return ipanema_routines.new_prepare(&e);
-
-		/* return runtime_metadata(p)->current_cpu; */
+	if (ipanema_task_state(p) == IPANEMA_NOT_QUEUED) {
+		if (!ipanema_task_policy(p))
+			IPA_EMERG_SAFE("%s: p is IPANEMA_NOT_QUEUED and policy is NULL. Shouldn't happen\n",
+				       __func__);
+		ipanema_task_rq(p) = NULL;
+		ret = ipanema_routines.new_prepare(&e);
+		if (ret < 0) {
+			IPA_EMERG_SAFE("%s: new_prepare failed (pid=%d, policy=%d), reverting to p->cpu\n",
+				       __func__, p->pid,
+				       ipanema_task_policy(p)->id);
+			return p->cpu;
+		}
+		return ret;
 	} else if (p->state == TASK_WAKING)
 		return ipanema_routines.unblock_prepare(&e);
 
@@ -746,46 +657,57 @@ static int select_task_rq_ipanema(struct task_struct *p,
 static void migrate_task_rq_ipanema(struct task_struct *p)
 {
 	if (unlikely(ipanema_sched_class_log))
-		pr_info("In migrate_task_rq_ipanema(), [pid=%d]\n",
-			p->pid);
+		pr_info("In %s, [pid=%d]\n",
+			__func__, p->pid);
 }
 
 static void rq_online_ipanema(struct rq *rq)
 {
+	struct ipanema_policy *policy = ipanema_policies;
+
 	if (unlikely(ipanema_sched_class_log))
-		pr_info("In rq_online_ipanema() [rq=%d]\n",
-			rq->cpu);
+		pr_info("In %s [rq=%d]\n",
+			__func__, rq->cpu);
+
+	while (policy) {
+		if (cpumask_test_cpu(rq->cpu, &policy->allowed_cores))
+			ipanema_routines.core_entry(policy, rq->cpu);
+		policy = policy->next;
+	}
 }
 
 static void rq_offline_ipanema(struct rq *rq)
 {
+	struct ipanema_policy *policy = ipanema_policies;
+
 	if (unlikely(ipanema_sched_class_log))
-		pr_info("In rq_offline_ipanema() [rq=%d]\n",
-			rq->cpu);
+		pr_info("In %s [rq=%d]\n",
+			__func__, rq->cpu);
+
+	while (policy) {
+		if (cpumask_test_cpu(rq->cpu, &policy->allowed_cores))
+			ipanema_routines.core_exit(policy, rq->cpu);
+		policy = policy->next;
+	}
 }
 
 static void task_woken_ipanema(struct rq *this_rq, struct task_struct *p)
 {
 	if (unlikely(ipanema_sched_class_log))
-		pr_info("in task_woken_ipanema() [pid=%d, rq=%d]\n",
-			p->pid, this_rq->cpu);
+		pr_info("in %s [pid=%d, rq=%d]\n",
+			__func__, p->pid, this_rq->cpu);
 }
 
 static void task_dead_ipanema(struct task_struct *p)
 {
 	if (unlikely(ipanema_sched_class_log))
-		pr_info("In task_dead_ipanema() [pid=%d]\n",
-			p->pid);
+		pr_info("In %s [pid=%d]\n",
+			__func__, p->pid);
 
-	if (!p || p->sched_class != &ipanema_sched_class
-	    || !runtime_metadata(p)) {
-		IPA_DBG_SAFE("WARNING! Exiting task_dead_ipanema(), because it "
-			     "was called on an invalid process, a non-ipanema "
-			     "process, or a process whose metadata was not "
-			     "initialized. [%p %d %p]", p,
-			     p->sched_class != &ipanema_sched_class,
-			     runtime_metadata(p));
-	}
+	if (!p || p->sched_class != &ipanema_sched_class)
+		IPA_DBG_SAFE("WARNING! Exiting %s, because it was called on an invalid process, a non-ipanema process, or a process whose metadata was not initialized. [%p %d]",
+			     __func__, p,
+			     p->sched_class != &ipanema_sched_class);
 
 	/*
 	 * We should decrease the reference counter on p, because we increased
@@ -794,19 +716,16 @@ static void task_dead_ipanema(struct task_struct *p)
 	 */
 //	put_task_struct(p);
 
-	/* We should also free the thread's metadata here. */
-//	kfree(metadata(p));
-
-	kfree(runtime_metadata(p));
-	p->ipanema_metadata.runtime_metadata = NULL;
+	ipanema_task_policy(p) = NULL;
+	ipanema_task_state(p) = IPANEMA_NOT_QUEUED;
 }
 #endif
 
 static void set_curr_task_ipanema(struct rq *rq)
 {
 	if (unlikely(ipanema_sched_class_log))
-		pr_info("In set_curr_task_ipanema() [rq=%d]\n",
-			rq->cpu);
+		pr_info("In %s [rq=%d]\n",
+			__func__, rq->cpu);
 
 	/* Check that rq->curr is also ipanema_current and fix it.
 	 * Happens when switching to SCHED_IPANEMA: the task is dequeued
@@ -816,7 +735,7 @@ static void set_curr_task_ipanema(struct rq *rq)
 	 * puts it in READY state.
 	 */
 	if (per_cpu(ipanema_current, rq->cpu) != rq->curr)
-		change_state(rq->curr, IPANEMA_RUNNING, rq->cpu);
+		change_state(rq->curr, IPANEMA_RUNNING, rq->cpu, NULL);
 
 	/* Update statistics. */
 	rq->curr->se.exec_start = rq_clock_task(rq);
@@ -829,8 +748,8 @@ static void task_tick_ipanema(struct rq *rq,
 	struct process_event e = { .target = curr };
 
 	if (unlikely(ipanema_sched_class_log))
-		pr_info("In task_tick_ipanema() [pid=%d, rq=%d]\n",
-			curr->pid, rq->cpu);
+		pr_info("In %s [pid=%d, rq=%d]\n",
+			__func__, curr->pid, rq->cpu);
 
 	update_curr_ipanema(rq);
 
@@ -849,24 +768,21 @@ static void task_tick_ipanema(struct rq *rq,
 	 * FIXME: not the case anymore. State transitions happen in tick().
 	 *
 	 */
-//	check_identical_rqs(rq, curr);
 	ipanema_routines.tick(&e);
 }
 
 static void task_fork_ipanema(struct task_struct *p)
 {
-	struct ipanema_metadata *md = &(p->ipanema_metadata);
-
 	if (unlikely(ipanema_sched_class_log))
-		pr_info("In task_fork_ipanema() [pid=%d]\n",
-			p->pid);
+		pr_info("In %s [pid=%d]\n",
+			__func__, p->pid);
 
-	md->seen = 0;
-	md->node_runqueue.__rb_parent_color = 0;
-	md->node_runqueue.rb_right = NULL;
-	md->node_runqueue.rb_left = NULL;
-	md->runtime_metadata = NULL;
-	md->policy_metadata = NULL;
+	ipanema_task_state(p) = IPANEMA_NOT_QUEUED;
+	ipanema_task_rq(p) = NULL;
+	p->ipanema_metadata.node_runqueue.__rb_parent_color = 0;
+	p->ipanema_metadata.node_runqueue.rb_right = NULL;
+	p->ipanema_metadata.node_runqueue.rb_left = NULL;
+	p->ipanema_metadata.policy_metadata = NULL;
 }
 
 static void prio_changed_ipanema(struct rq *rq,
@@ -874,22 +790,22 @@ static void prio_changed_ipanema(struct rq *rq,
 				 int oldprio)
 {
 	if (unlikely(ipanema_sched_class_log))
-		pr_info("In prio_changed_ipanema() [pid=%d, rq=%d]\n",
-			p->pid, rq->cpu);
+		pr_info("In %s [pid=%d, rq=%d]\n",
+			__func__, p->pid, rq->cpu);
 }
 
 static void switched_from_ipanema(struct rq *rq, struct task_struct *p)
 {
 	if (unlikely(ipanema_sched_class_log))
-		pr_info("In switched_from_ipanema() [pid=%d, rq=%d]\n",
-			p->pid, rq->cpu);
+		pr_info("In %s [pid=%d, rq=%d]\n",
+			__func__, p->pid, rq->cpu);
 }
 
 static void switched_to_ipanema(struct rq *rq, struct task_struct *p)
 {
 	if (unlikely(ipanema_sched_class_log))
-		pr_info("In switched_to_ipanema() [pid=%d, rq=%d]\n",
-			p->pid, rq->cpu);
+		pr_info("In %s [pid=%d, rq=%d]\n",
+			__func__, p->pid, rq->cpu);
 
 	if (rq->curr != p) {
 		/*
@@ -906,8 +822,8 @@ static unsigned int get_rr_interval_ipanema(struct rq *rq,
 					    struct task_struct *task)
 {
 	if (unlikely(ipanema_sched_class_log))
-		pr_info("In get_rr_interval_ipanema() [pid=%d, rq=%d]\n",
-			task->pid, rq->cpu);
+		pr_info("In %s [pid=%d, rq=%d]\n",
+			__func__, task->pid, rq->cpu);
 
 	return (100 * HZ / 1000);
 }
@@ -918,8 +834,7 @@ static void update_curr_ipanema(struct rq *rq)
 	u64 delta_exec;
 
 	if (unlikely(ipanema_sched_class_log))
-		pr_info("In update_curr_ipanema() [rq=%d]\n",
-			rq->cpu);
+		pr_info("In %s [rq=%d]\n", __func__, rq->cpu);
 
 	/*
 	 * We now update statistics. Needed to get %CPU working for Ipanema
@@ -948,11 +863,11 @@ static void task_change_group_ipanema(struct task_struct *p, int type)
 
 	switch (type) {
 	case TASK_SET_GROUP:
-		IPA_DBG_SAFE("In task_change_group_ipanema() setting group.\n");
+		IPA_DBG_SAFE("In %s setting group.\n", __func__);
 		break;
 
 	case TASK_MOVE_GROUP:
-		IPA_DBG_SAFE("In task_change_group_ipanema() moving group.\n");
+		IPA_DBG_SAFE("In %s moving group.\n", __func__);
 		break;
 	}
 }
@@ -960,7 +875,7 @@ static void task_change_group_ipanema(struct task_struct *p, int type)
 
 void run_rebalance_domains(struct softirq_action *h)
 {
-	if(ipanema_routines.balancing_select)
+	if (ipanema_routines.balancing_select)
 		ipanema_routines.balancing_select();
 }
 
@@ -1012,14 +927,14 @@ void trigger_load_balance_ipanema(struct rq *rq)
 
 void init_sched_ipanema_late(void)
 {
-	ipanema_create_dev();
 	ipanema_create_procs();
 }
 
-static int init_done = 0;
-int nb_topology_levels = 0;
+static int init_done;
 
+int nb_topology_levels;
 EXPORT_SYMBOL(nb_topology_levels);
+
 DEFINE_PER_CPU(struct topology_level *, topology_levels);
 EXPORT_SYMBOL(topology_levels);
 
@@ -1039,14 +954,10 @@ __init void init_sched_ipanema_class(void)
 {
 	int cpu, level;
 
-	if(init_done)
+	if (init_done)
 		return;
 
 	init_done = 1;
-
-	for_each_possible_cpu(cpu) {
-		per_cpu(ipanema_ready, cpu) = RB_ROOT;
-	}
 
 	open_softirq(SCHED_SOFTIRQ_IPANEMA, run_rebalance_domains);
 
@@ -1057,13 +968,13 @@ __init void init_sched_ipanema_class(void)
 				sizeof(*per_cpu(topology_levels, cpu)),
 				GFP_ATOMIC);
 
-		for(level = 0; level < NB_TOPOLOGY_LEVELS; level++) {
+		for (level = 0; level < NB_TOPOLOGY_LEVELS; level++) {
 			struct topology_level *l =
 				&(per_cpu(topology_levels, cpu)[level]);
 			l->cores = topology_masks[level](cpu);
 		}
 	}
 
-	if(ipanema_routines.init)
+	if (ipanema_routines.init)
 		ipanema_routines.init();
 }

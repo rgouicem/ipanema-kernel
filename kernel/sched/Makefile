@@ -17,7 +17,7 @@ endif
 
 obj-y += core.o loadavg.o clock.o cputime.o
 obj-y += idle_task.o fair.o rt.o deadline.o
-obj-y += ipanema.o ipanema_common.o ipanema_rbtree.o ipanema_dum.o ipanema_dev.o ipanema_proc.o ipanema_sysfs.o
+obj-y += ipanema.o ipanema_common.o ipanema_rbtree.o ipanema_proc.o ipanema_sysfs.o
 obj-y += wait.o wait_bit.o swait.o completion.o idle.o
 obj-$(CONFIG_SMP) += cpupri.o cpudeadline.o topology.o stop_task.o
 obj-$(CONFIG_SCHED_AUTOGROUP) += autogroup.o

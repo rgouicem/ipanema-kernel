@@ -553,15 +553,20 @@ ipanema_state_to_str(const enum ipanema_state s)
 	return "UNKNOWN_STATE";
 }
 
+struct ipanema_rq;
+
 struct ipanema_metadata {
-	int seen;
 	struct rb_node node_runqueue;
 	struct list_head ipa_tasks;
 
-	/* Metadata used by the runtime */
-	struct ipanema_runtime_metadata *runtime_metadata;
+	int just_yielded;
+	enum ipanema_state state;
+	struct ipanema_rq *rq;
+
 	/* Policy-specific metadata */
 	void *policy_metadata;
+
+	struct ipanema_policy *policy;
 };
 
 struct task_struct {
@@ -1120,9 +1125,12 @@ struct task_struct {
 #ifdef CONFIG_MMU
 	struct task_struct		*oom_reaper_list;
 #endif
+
+	/* Used by SCHED_IPANEMA */
 	struct ipanema_metadata ipanema_metadata;
-	int nopreempt;                  /* Used by Ipanema */
-	int switching_classes;          /* Used by Ipanema */
+	int nopreempt;
+	int switching_classes;
+
 #ifdef CONFIG_VMAP_STACK
 	struct vm_struct		*stack_vm_area;
 #endif

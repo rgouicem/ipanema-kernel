@@ -6188,8 +6188,7 @@ pick_next_task_fair(struct rq *rq, struct task_struct *prev, struct rq_flags *rf
 
 again:
 #ifdef CONFIG_FAIR_GROUP_SCHED
-	/* if (!cfs_rq->nr_running) */
-	if(!rq->nr_running)
+	if (!cfs_rq->nr_running)
 		goto idle;
 
 	if (prev->sched_class != &fair_sched_class)
@@ -6268,8 +6267,7 @@ simple:
 	cfs_rq = &rq->cfs;
 #endif
 
-	/* if (!cfs_rq->nr_running) */
-	if (!rq->nr_running)
+	if (!cfs_rq->nr_running)
 		goto idle;
 
 	put_prev_task(rq, prev);
@@ -6288,6 +6286,15 @@ simple:
 	return p;
 
 idle:
+	/*
+	 * We added the SCHED_IPANEMA scheduling class as a lower priority
+	 * policy than SCHED_NORMAL. This means that we can be here while
+	 * SCHED_IPANEMA has tasks to schedule. Check this and perform idle
+	 * balancing only if SCHED_IPANEMA has no runnable task
+	 */
+	if (rq->nr_ipanema_running)
+		return NULL;
+
 	new_tasks = idle_balance(rq, rf);
 
 	/*
