@@ -241,7 +241,7 @@ int ipanema_set_policy(char *str)
 		goto free_policy;
 	}
 	for_each_cpu(cpu, &cores_allowed) {
-		ipanema_routines.core_entry(policy_cur, cpu);
+		ipanema_routines.core_entry(policy, cpu);
 		/* routines->core_entry(policy, cpu); */
 	}
 
