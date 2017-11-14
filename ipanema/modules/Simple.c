@@ -53,10 +53,6 @@ struct state_info {
 // See include/linux/percpu-defs.h for more information.
 DEFINE_PER_CPU_SHARED_ALIGNED(struct state_info, state_info);
 
-#define get_current(cpu)                (per_cpu(state_info, (cpu)).current_0)
-#define get_ipanema_rq(cpu, name)       (per_cpu(state_info, (cpu)).name)
-#define get_core(cpu)                   (per_cpu(core, (cpu)))
-
 /* definition of core's states */
 struct core_state_info {
 	cpumask_var_t active_cores;
@@ -155,7 +151,7 @@ static void ipa_change_queue(struct Simple_ipa_process *proc,
 			     struct ipanema_rq *rq, int state)
 {
 	if (proc->state == CURRENT_0_STATE)
-		get_current(task_cpu(proc->task)) = NULL;
+		get_policy_current(task_cpu(proc->task)) = NULL;
 	proc->state = state;
 	proc->rq = rq;
 	change_state(proc->task, get_class(state), task_cpu(proc->task), rq);
@@ -167,7 +163,7 @@ static void ipa_change_queue_and_core(struct Simple_ipa_process *proc,
 				      struct Simple_ipa_core *core)
 {
 	if (proc->state == CURRENT_0_STATE)
-		get_current(task_cpu(proc->task)) = NULL;
+		get_policy_current(task_cpu(proc->task)) = NULL;
 	proc->state = state;
 	proc->rq = rq;
 	change_state(proc->task, get_class(state), core->id, rq);
@@ -206,9 +202,9 @@ static int ipanema_Simple_new_prepare(struct ipanema_policy *policy,
 
 	/* Choose the core with the lowest number of READY + RUNNING tasks */
 	dst = p->cpu;
-	dst_nr = get_ipanema_rq(dst, ready).nr_tasks + (get_current(dst) ? 1 : 0);
+	dst_nr = get_policy_rq(dst, ready).nr_tasks + (get_policy_current(dst) ? 1 : 0);
 	for_each_cpu(cpu, cstate_info.active_cores) {
-		cpu_nr = get_ipanema_rq(cpu, ready).nr_tasks + (get_current(cpu) ? 1 : 0);
+		cpu_nr = get_policy_rq(cpu, ready).nr_tasks + (get_policy_current(cpu) ? 1 : 0);
 		if (cpu_nr < dst_nr) {
 			dst = cpu;
 			dst_nr = cpu_nr;
@@ -225,8 +221,8 @@ static void ipanema_Simple_new_place(struct ipanema_policy *policy,
         int idlecore_10;
         
         idlecore_10 = task_cpu(e->target);
-        ipa_change_queue_and_core(tgt, &get_ipanema_rq(idlecore_10, ready),
-                                  READY_STATE, &get_core(idlecore_10));
+        ipa_change_queue_and_core(tgt, &get_policy_rq(idlecore_10, ready),
+                                  READY_STATE, &get_policy_core(idlecore_10));
 }
 
 static void ipanema_Simple_new_end(struct ipanema_policy *policy,
@@ -254,7 +250,7 @@ static void ipanema_Simple_tick(struct ipanema_policy *policy,
         tgt->quanta = tgt->quanta + 1;
         if ((tgt->quanta % 10) == 0) {
         	ipa_change_queue(tgt,
-				 &get_ipanema_rq(task_cpu(tgt->task), ready),
+				 &get_policy_rq(task_cpu(tgt->task), ready),
 				 READY_TICK_STATE);
 	}
         
@@ -265,7 +261,7 @@ static void ipanema_Simple_yield(struct ipanema_policy *policy,
 {
 	struct Simple_ipa_process * tgt = policy_metadata(e->target);
         
-        ipa_change_queue(tgt, &get_ipanema_rq(task_cpu(tgt->task), ready),
+        ipa_change_queue(tgt, &get_policy_rq(task_cpu(tgt->task), ready),
                          READY_STATE);
 }
 
@@ -285,9 +281,9 @@ static int ipanema_Simple_unblock_prepare(struct ipanema_policy *policy,
 	int cpu_nr, dst_nr;
 
 	dst = p->cpu;
-	dst_nr = get_ipanema_rq(dst, ready).nr_tasks + (get_current(dst) ? 1 : 0);
+	dst_nr = get_policy_rq(dst, ready).nr_tasks + (get_policy_current(dst) ? 1 : 0);
 	for_each_cpu(cpu, cstate_info.active_cores) {
-		cpu_nr = get_ipanema_rq(cpu, ready).nr_tasks + (get_current(cpu) ? 1 : 0);
+		cpu_nr = get_policy_rq(cpu, ready).nr_tasks + (get_policy_current(cpu) ? 1 : 0);
 		if (cpu_nr < dst_nr) {
 			dst = cpu;
 			dst_nr = cpu_nr;
@@ -304,8 +300,8 @@ static void ipanema_Simple_unblock_place(struct ipanema_policy *policy,
         int idlecore_11;
         
         idlecore_11 = task_cpu(e->target);
-        ipa_change_queue_and_core(tgt, &get_ipanema_rq(idlecore_11, ready),
-                                  READY_STATE, &get_core(idlecore_11));
+        ipa_change_queue_and_core(tgt, &get_policy_rq(idlecore_11, ready),
+                                  READY_STATE, &get_policy_core(idlecore_11));
 }
 
 static void ipanema_Simple_unblock_end(struct ipanema_policy *policy,
@@ -320,13 +316,13 @@ static void ipanema_Simple_schedule(struct ipanema_policy *policy,int cpu)
 	struct task_struct *p;
 	struct Simple_ipa_process * _fresh_12;
 
-	p = ipanema_first_task(&get_ipanema_rq(cpu, ready));
+	p = ipanema_first_task(&get_policy_rq(cpu, ready));
 	if (!p)
 		return;
 
 	_fresh_12 = policy_metadata(p);
 	if (_fresh_12) {
-		ipa_change_proc(_fresh_12, &get_current(cpu),
+		ipa_change_proc(_fresh_12, &get_policy_current(cpu),
 				CURRENT_0_STATE);
 	}
 }
@@ -334,7 +330,7 @@ static void ipanema_Simple_schedule(struct ipanema_policy *policy,int cpu)
 static void ipanema_Simple_core_entry(struct ipanema_policy *policy,
                                       struct core_event *e)
 {
-	struct Simple_ipa_core * tgt = &get_core(e->target);
+	struct Simple_ipa_core * tgt = &get_policy_core(e->target);
 
         set_active_core(tgt, cstate_info.active_cores, ACTIVE_CORES_STATE);
 }
@@ -342,7 +338,7 @@ static void ipanema_Simple_core_entry(struct ipanema_policy *policy,
 static void ipanema_Simple_core_exit(struct ipanema_policy *policy,
 				     struct core_event *e)
 {
-	struct Simple_ipa_core * tgt = &get_core(e->target);
+	struct Simple_ipa_core * tgt = &get_policy_core(e->target);
 
         set_inactive_core(tgt, cstate_info.active_cores, INACTIVE_CORES_STATE);
 	/* TODO: Migrate all tasks to another cpu */
@@ -431,7 +427,7 @@ static bool create_scheduling_domain(int cpu, int level)
 
     struct Simple_ipa_sched_domain sd = {}, *sds;
     int nb_existing_domains;
-    nb_existing_domains = get_core(cpu).___sched_domains_idx;
+    nb_existing_domains = get_policy_core(cpu).___sched_domains_idx;
 
     if (cpumask_weight(current_topology.cores) <= 1)
       return false;
@@ -458,7 +454,7 @@ static bool create_scheduling_domain(int cpu, int level)
            */
           continue;
 
-        sds = get_core(c).sd;
+        sds = get_policy_core(c).sd;
         cpumask_or(sg.cores, sg.cores,
              sds[nb_existing_domains - 1].cores);
       }
@@ -477,13 +473,13 @@ static bool create_scheduling_domain(int cpu, int level)
           return false;
     }
 
-    get_core(cpu).___sched_domains_idx++;
-    get_core(cpu).sd = krealloc(get_core(cpu).sd,
-				sizeof(*get_core(cpu).sd)
-				* get_core(cpu).___sched_domains_idx,
+    get_policy_core(cpu).___sched_domains_idx++;
+    get_policy_core(cpu).sd = krealloc(get_policy_core(cpu).sd,
+				sizeof(*get_policy_core(cpu).sd)
+				* get_policy_core(cpu).___sched_domains_idx,
 				GFP_ATOMIC);
-    idx = get_core(cpu).___sched_domains_idx - 1;
-    get_core(cpu).sd[idx] = sd;
+    idx = get_policy_core(cpu).___sched_domains_idx - 1;
+    get_policy_core(cpu).sd[idx] = sd;
 
     return true;
 }
@@ -496,7 +492,7 @@ static int proc_show(struct seq_file *s, void *p)
         int load_sum = 0;
         
         ipanema_lock_core(cpu);
-        pr = get_current(cpu);
+        pr = get_policy_current(cpu);
         seq_printf(s, "CPU: %ld\n", cpu);
         seq_printf(s, "RUNNING (policy): %d (%d)\n",
         pr ? pr->task->pid : -1,
@@ -506,7 +502,7 @@ static int proc_show(struct seq_file *s, void *p)
         load_sum += pr ? pr->load : 0;
         seq_printf(s, "READY: ");
         rbtree_postorder_for_each_entry_safe(pos, n,
-					     &get_ipanema_rq(cpu, ready).root,
+					     &get_policy_rq(cpu, ready).root,
 					     ipanema_metadata.node_runqueue) {
         	curr_proc = (struct Simple_ipa_process *)policy_metadata(pos);
         	load_sum += curr_proc->load;
@@ -515,8 +511,8 @@ static int proc_show(struct seq_file *s, void *p)
         
         seq_printf(s, "\n");
         seq_printf(s, "COUNT(READY) = %d\n", count(IPANEMA_READY, cpu));
-        seq_printf(s, "nr_ready = %d\n", get_ipanema_rq(cpu, ready).nr_tasks);
-        seq_printf(s, "load = %d\n", get_core(cpu).cload);
+        seq_printf(s, "nr_ready = %d\n", get_policy_rq(cpu, ready).nr_tasks);
+        seq_printf(s, "load = %d\n", get_policy_core(cpu).cload);
         seq_printf(s, "load_sum = %d\n", load_sum);
         
         ipanema_unlock_core(cpu);
@@ -557,12 +553,12 @@ int init_module(void)
         /* Initialize scheduler variables with non-const value (function call) */
         
         for_each_possible_cpu(cpu) {
-        	get_core(cpu).id = cpu;
+        	get_policy_core(cpu).id = cpu;
 		/* READY rq */
-		get_ipanema_rq(cpu, ready).cpu = cpu;
-                get_ipanema_rq(cpu, ready).nr_tasks = 0;
-		get_ipanema_rq(cpu, ready).root.rb_node = NULL;
-		get_ipanema_rq(cpu, ready).state = get_class(READY_STATE);
+		get_policy_rq(cpu, ready).cpu = cpu;
+                get_policy_rq(cpu, ready).nr_tasks = 0;
+		get_policy_rq(cpu, ready).root.rb_node = NULL;
+		get_policy_rq(cpu, ready).state = get_class(READY_STATE);
 
 		/* /\* BLOCKED rq *\/ */
 		/* per_cpu(state_info, cpu).blocked.cpu = cpu; */
@@ -594,8 +590,8 @@ int init_module(void)
                 
                 unseen = false;
                 for_each_present_cpu(cpu) {
-                	idx = get_core(cpu).___sched_domains_idx - 1;
-                        sd_mask = get_core(cpu).sd[idx].cores;
+                	idx = get_policy_core(cpu).___sched_domains_idx - 1;
+                        sd_mask = get_policy_core(cpu).sd[idx].cores;
                         
                         for_each_present_cpu(test_cpu) {
                         	if (!cpumask_test_cpu(test_cpu, sd_mask)) {
@@ -621,9 +617,9 @@ end:
 	for_each_present_cpu(cpu) {
 		IPA_DBG_SAFE("CPU %d:\n", cpu);
 		for (sd_idx = 0;
-		     sd_idx < get_core(cpu).___sched_domains_idx;
+		     sd_idx < get_policy_core(cpu).___sched_domains_idx;
 		     sd_idx++) {
-			sd = &get_core(cpu).sd[sd_idx];
+			sd = &get_policy_core(cpu).sd[sd_idx];
 
 			if (!sd)
 				continue;
