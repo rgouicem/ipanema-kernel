@@ -160,9 +160,8 @@ int count(enum ipanema_state state, int cpu);
 /*
  * Accessors used in policy modules
  */
-#define get_policy_current(cpu)    (per_cpu(state_info, (cpu)).current_0)
-#define get_policy_rq(cpu, name)   (per_cpu(state_info, (cpu)).name)
-#define get_policy_core(cpu)       (per_cpu(core, (cpu)))
+#define ipanema_core(cpu)          (per_cpu(core, (cpu)))
+#define ipanema_state(cpu)         (per_cpu(state_info, (cpu)))
 
 extern bool ipanema_trylock_migration(struct task_struct *task,
 				      unsigned long *spinflags,
