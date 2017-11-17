@@ -5,11 +5,12 @@
 #include <linux/spinlock.h>
 #include <linux/percpu-rwsem.h>
 #include <linux/module.h>
+#include <linux/kref.h>
 
 struct ipanema_module *ipanema_modules[MAX_IPANEMA_MODULES] = { 0 };
 int num_ipanema_modules = 0;
 
-struct ipanema_policy *ipanema_policies = NULL;
+LIST_HEAD(ipanema_policies);
 int num_ipanema_policies = 0;
 int ipanema_policies_id = 0;
 
@@ -72,10 +73,17 @@ end:
 }
 EXPORT_SYMBOL(ipanema_add_module);
 
+void ipanema_policy_free(struct kref *ref)
+{
+	struct ipanema_policy *policy = container_of(ref, struct ipanema_policy,
+						     refcount);
+	kfree(policy);
+}
+
 int ipanema_remove_module(struct ipanema_module *module)
 {
 	unsigned long flags;
-	int i, found = 0, used = 0;
+	int i, found = 0;
 	struct ipanema_policy *policy;
 	int ret = 0;
 
@@ -93,17 +101,9 @@ int ipanema_remove_module(struct ipanema_module *module)
 		goto end;
 	}
 
-	if (ipanema_policies != NULL) {
-		policy = ipanema_policies;
-		do {
-			if (policy->module == module) {
-				used = 1;
-				break;
-			}
-			policy = policy->next;
-		} while (policy);
-
-		if (used) {
+	/* If policies use this module, we fail */
+	list_for_each_entry(policy, &ipanema_policies, list) {
+		if (policy->module == module) {
 			ret = -EMODULEINUSE;
 			goto end;
 		}
@@ -129,11 +129,12 @@ int ipanema_set_policy(char *str)
 {
 	struct ipanema_module *module = NULL;
 	struct ipanema_module_routines *routines = NULL;
-	struct ipanema_policy *policy = NULL, *policy_cur;
+	struct ipanema_policy *policy = NULL, *policy_cur = NULL;
 	cpumask_t cores_allowed, removed_cores, added_cores;
 	char *module_name = NULL;
-	int ret = 0, i, cpu;
+	int ret = 0, i, cpu, exists = 0, remove = 0;
 	unsigned long flags;
+	unsigned int nr_users;
 
 	pr_info("ipanema_set_policy(%s)\n", str);
 
@@ -151,13 +152,17 @@ int ipanema_set_policy(char *str)
 	*module_name = '\n';
 	module_name++;
 
-	/* Get the cpulist from str */
+	/* Get the cpulist from str. If invalid, try to remove policy */
 	ret = cpulist_parse(str, &cores_allowed);
 	if (ret != 0)
-		goto end_nolock;
+		remove = 1;
 
-	pr_info("ipanema_set_policy(): module_name='%s', cpulist='%*pbl'\n",
-		module_name, cpumask_pr_args(&cores_allowed));
+	if (remove)
+		pr_info("ipanema_set_policy(): module_name='%s', cpulist='remove'\n",
+			module_name);
+	else
+		pr_info("ipanema_set_policy(): module_name='%s', cpulist='%*pbl'\n",
+			module_name, cpumask_pr_args(&cores_allowed));
 
 	/*
 	 * From now on, we read or write to ipanema_modules and ipanema_policies
@@ -175,45 +180,67 @@ int ipanema_set_policy(char *str)
 
 	if (!module) {
 		ret = -EMODULENOTFOUND;
-		pr_info("ipanema_set_policy(): module '%s' not found\n",
-			module_name);
 		goto end;
 	}
 
 	/* Check if policy already exists */
-	policy_cur = ipanema_policies;
-	while (policy_cur) {
-		if (!strcmp(policy_cur->name, module_name))
+	list_for_each_entry(policy_cur, &ipanema_policies, list) {
+		if (!strcmp(policy_cur->name, module_name)) {
+			exists = 1;
 		        break;
+		}
 	}
+
+	/*
+	 * If policy exists and cpulist = remove, if policy is still used by
+	 * tasks, fail. Else, remove from ipanema_policies and decrement kref
+	 * to free the policy.
+	 */
+	if (exists && remove) {
+		nr_users = kref_read(&policy_cur->refcount);
+		if (nr_users == 1) {
+			/* No task uses policy_cur, remove it */
+			list_del(&policy_cur->list);
+			kref_put(&policy_cur->refcount, ipanema_policy_free);
+			num_ipanema_policies--;
+			module_put(policy_cur->module->kmodule);
+			ret = 0;
+			goto end;
+		} else
+			pr_info("ipanema: removal of policy %s failed: in use by %u tasks\n",
+				policy_cur->name, nr_users - 1);
+		ret = -EMODULEINUSE;
+		goto end;
+	}
+
 	/*
 	 * If it already exists, compare the current and the new cpu masks,
 	 * for removed cores, trigger core_removal event, change the mask and
-	 * for added cores. trigger core_entry event and return
+	 * for added cores, trigger core_entry event and return
 	 */
-	if (policy_cur) {
+	if (exists) {
 		pr_info("ipanema_set_policy(): policy '%s' found. Modifying...\n",
 			policy_cur->name);
 		routines = policy_cur->module->routines;
 		cpumask_andnot(&removed_cores, &policy_cur->allowed_cores,
 			       &cores_allowed);
 		for_each_cpu(cpu, &removed_cores) {
-			/* core_evt.target = cpu; */
-			/* routines->core_exit(policy_cur, &core_evt); */
 			ipanema_routines.core_exit(policy_cur, cpu);
 		}
 		cpumask_copy(&policy_cur->allowed_cores, &cores_allowed);
 		cpumask_andnot(&added_cores, &cores_allowed,
 			       &policy_cur->allowed_cores);
 		for_each_cpu(cpu, &added_cores) {
-			/* core_evt.target = cpu; */
-			/* routines->core_entry(policy_cur, &core_evt); */
 			ipanema_routines.core_entry(policy_cur, cpu);
 		}
 		goto end;
 	}
 
-	/* Create the policy instance */
+	/* Create the policy instance and take a ref for the kernel module */
+	if (!try_module_get(module->kmodule)) {
+		ret = -EMODULENOTFOUND;
+		goto end;
+	}
 	policy = kzalloc(sizeof(struct ipanema_policy), GFP_KERNEL);
 	if (!policy) {
 		ret = -ENOMEM;
@@ -223,7 +250,8 @@ int ipanema_set_policy(char *str)
 	cpumask_copy(&policy->allowed_cores, &cores_allowed);
 	policy->name = module->name;
 	policy->module = module;
-	policy->next = NULL;
+	INIT_LIST_HEAD(&policy->list);
+	kref_init(&policy->refcount);
 
 	/* Initialize the policy */
 	routines = policy->module->routines;
@@ -242,19 +270,10 @@ int ipanema_set_policy(char *str)
 	}
 	for_each_cpu(cpu, &cores_allowed) {
 		ipanema_routines.core_entry(policy, cpu);
-		/* routines->core_entry(policy, cpu); */
 	}
 
 	/* Insert policy into active policies */
-	if (!ipanema_policies)
-		ipanema_policies = policy;
-	else {
-		policy_cur = ipanema_policies;
-		while (policy_cur->next) {
-			policy_cur = policy_cur->next;
-		}
-		policy_cur->next = policy;
-	}
+	list_add_tail(&policy->list, &ipanema_policies);
 	num_ipanema_policies++;
 
 end:
@@ -283,7 +302,7 @@ int ipanema_order_process(struct task_struct *a, struct task_struct *b)
 		       struct task_struct *a,
 		       struct task_struct *b);
 
-	if (!ipanema_policies) {
+	if (list_empty(&ipanema_policies)) {
 		IPA_EMERG_SAFE("ipanema_order_process(): ipanema_policies == NULL\n");
 		return 0;
 	}
@@ -312,7 +331,7 @@ int ipanema_get_metric(struct task_struct *a)
 	int (*handler)(struct ipanema_policy *policy_p,
 		       struct task_struct *a);
 
-	if (!ipanema_policies) {
+	if (list_empty(&ipanema_policies)) {
 		IPA_EMERG_SAFE("ipanema_order_process(): ipanema_policies == NULL\n");
 		return 0;
 	}
@@ -336,12 +355,13 @@ int ipanema_new_prepare(struct process_event *e)
 	int (*handler)(struct ipanema_policy *policy_p,
 		       struct process_event *e);
 
-	if (!ipanema_policies) {
-		IPA_EMERG_SAFE("ipanema_new_prepare(): ipanema_policies == NULL\n");
+	if (list_empty(&ipanema_policies)) {
+		IPA_EMERG_SAFE("ipanema_new_prepare(): WARNING: ipanema_policies == NULL\n");
 		return core;
 	}
 
 	policy = p->ipanema_metadata.policy;
+	kref_get(&policy->refcount);
 	handler = policy->module->routines->new_prepare;
 
 	if (!handler)
@@ -359,7 +379,7 @@ void ipanema_new_place(struct process_event *e)
 	void (*handler)(struct ipanema_policy *policy_p,
 			struct process_event *e);
 
-	if (!ipanema_policies) {
+	if (list_empty(&ipanema_policies)) {
 		IPA_EMERG_SAFE("ipanema_new_place(): ipanema_policies == NULL\n");
 		return;
 	}
@@ -385,7 +405,7 @@ void ipanema_new_end(struct process_event *e)
 	void (*handler)(struct ipanema_policy *policy_p,
 			struct process_event *e);
 
-	if (!ipanema_policies) {
+	if (list_empty(&ipanema_policies)) {
 		IPA_EMERG_SAFE("ipanema_new_end(): ipanema_policies == NULL\n");
 		return;
 	}
@@ -413,7 +433,7 @@ void ipanema_tick(struct process_event *e)
 	 */
 	lockdep_assert_held(&rq->lock);
 
-	if (!ipanema_policies) {
+	if (list_empty(&ipanema_policies)) {
 		IPA_EMERG_SAFE("ipanema_tick(): ipanema_policies == NULL\n");
 		return;
 	}
@@ -441,7 +461,7 @@ void ipanema_yield(struct process_event *e)
 	 */
 	lockdep_assert_held(&rq->lock);
 
-	if (!ipanema_policies) {
+	if (list_empty(&ipanema_policies)) {
 		IPA_EMERG_SAFE("ipanema_yield(): ipanema_policies == NULL\n");
 		return;
 	}
@@ -471,7 +491,7 @@ void ipanema_block(struct process_event *e)
 	 */
 	lockdep_assert_held(&rq->lock);
 
-	if (!ipanema_policies) {
+	if (list_empty(&ipanema_policies)) {
 		IPA_EMERG_SAFE("ipanema_block(): ipanema_policies == NULL\n");
 		return;
 	}
@@ -498,7 +518,7 @@ int ipanema_unblock_prepare(struct process_event *e)
 
 	lockdep_assert_held(&p->pi_lock);
 
-	if (!ipanema_policies) {
+	if (list_empty(&ipanema_policies)) {
 		IPA_EMERG_SAFE("ipanema_unblock_prepare(): ipanema_policies == NULL\n");
 		return core;
 	}
@@ -523,7 +543,7 @@ void ipanema_unblock_place(struct process_event *e)
 
 	lockdep_assert_held(&task_rq(p)->lock);
 
-	if (!ipanema_policies) {
+	if (list_empty(&ipanema_policies)) {
 		IPA_EMERG_SAFE("ipanema_unblock_place(): ipanema_policies == NULL\n");
 		return;
 	}
@@ -549,7 +569,7 @@ void ipanema_unblock_end(struct process_event *e)
 
 	lockdep_assert_held(&p->pi_lock);
 
-	if (!ipanema_policies) {
+	if (list_empty(&ipanema_policies)) {
 		IPA_EMERG_SAFE("ipanema_unblock_end(): ipanema_policies == NULL\n");
 		return;
 	}
@@ -573,7 +593,7 @@ void ipanema_terminate(struct process_event *e)
 
 	lockdep_assert_held(&rq->lock);
 
-	if (!ipanema_policies) {
+	if (list_empty(&ipanema_policies)) {
 		IPA_EMERG_SAFE("ipanema_terminate(): ipanema_policies == NULL\n");
 		return;
 	}
@@ -583,11 +603,10 @@ void ipanema_terminate(struct process_event *e)
 
 	if (handler)
 		(*handler)(policy, e);
-	else {
+	else
 		IPA_EMERG_SAFE("ipanema_terminate(): WARNING: invalid function pointer!\n");
-		/* Default behavior */
-		/* change_state(p, IPANEMA_TERMINATED, p->cpu); */
-	}
+
+	kref_put(&policy->refcount, ipanema_policy_free);
 }
 
 void ipanema_schedule(struct ipanema_policy *policy, int core)
@@ -604,7 +623,6 @@ void ipanema_schedule(struct ipanema_policy *policy, int core)
 	 */
 	lockdep_assert_held(&rq->lock);
 
-	policy = ipanema_policies;
 	handler = policy->module->routines->schedule;
 	if (handler)
 		(*handler)(policy, core);
@@ -644,13 +662,13 @@ void ipanema_balancing_select(void)
 	void (*handler)(struct ipanema_policy *policy_p,
 			struct core_event *e);
 
-	policy = ipanema_policies;
-	while (policy) {
+	read_lock(&ipanema_rwlock);
+	list_for_each_entry(policy, &ipanema_policies, list) {
 		handler = policy->module->routines->balancing_select;
 		if (handler)
 			(*handler)(policy, &e);
-		policy = policy->next;
 	}
+	read_unlock(&ipanema_rwlock);
 }
 
 void ipanema_init(void)

@@ -47,7 +47,7 @@ extern struct ipanema_routines ipanema_routines;
 extern struct ipanema_module *ipanema_modules[];
 extern int num_ipanema_modules;
 
-extern struct ipanema_policy *ipanema_policies;
+extern struct list_head ipanema_policies;
 extern int num_ipanema_policies;
 
 void ipanema_create_dev(void);

@@ -438,7 +438,7 @@ static struct task_struct *pick_next_task_ipanema(struct rq *rq,
 						  struct rq_flags *rf)
 {
 	struct task_struct *result = NULL;
-	struct ipanema_policy *policy = ipanema_policies;
+	struct ipanema_policy *policy = NULL;
 
 	if (unlikely(ipanema_sched_class_log))
 		pr_info("In %s [pid=%d, rq=%d]\n",
@@ -447,12 +447,11 @@ static struct task_struct *pick_next_task_ipanema(struct rq *rq,
 	if (per_cpu(ipanema_current, rq->cpu))
 		result = per_cpu(ipanema_current, rq->cpu);
 	else {
-		while (policy) {
+		list_for_each_entry(policy, &ipanema_policies, list) {
 			ipanema_routines.schedule(policy, rq->cpu);
 			result = per_cpu(ipanema_current, rq->cpu);
 			if (result)
 				break;
-			policy = policy->next;
 		}
 	}
 
@@ -663,31 +662,29 @@ static void migrate_task_rq_ipanema(struct task_struct *p)
 
 static void rq_online_ipanema(struct rq *rq)
 {
-	struct ipanema_policy *policy = ipanema_policies;
+	struct ipanema_policy *policy = NULL;
 
 	if (unlikely(ipanema_sched_class_log))
 		pr_info("In %s [rq=%d]\n",
 			__func__, rq->cpu);
 
-	while (policy) {
+	list_for_each_entry(policy, &ipanema_policies, list) {
 		if (cpumask_test_cpu(rq->cpu, &policy->allowed_cores))
 			ipanema_routines.core_entry(policy, rq->cpu);
-		policy = policy->next;
 	}
 }
 
 static void rq_offline_ipanema(struct rq *rq)
 {
-	struct ipanema_policy *policy = ipanema_policies;
+	struct ipanema_policy *policy = NULL;
 
 	if (unlikely(ipanema_sched_class_log))
 		pr_info("In %s [rq=%d]\n",
 			__func__, rq->cpu);
 
-	while (policy) {
+	list_for_each_entry(policy, &ipanema_policies, list) {
 		if (cpumask_test_cpu(rq->cpu, &policy->allowed_cores))
 			ipanema_routines.core_exit(policy, rq->cpu);
-		policy = policy->next;
 	}
 }
 

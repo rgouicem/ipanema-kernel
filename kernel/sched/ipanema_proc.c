@@ -146,8 +146,7 @@ static ssize_t ipanema_info_proc_read(struct file *file,
 	snprintf(output + strlen(output), MAX_BUF_LEN - strlen(output),
 			"\nPOLICIES:\n=========\n");
 
-	policy = ipanema_policies;
-	while (policy)  {
+	list_for_each_entry(policy, &ipanema_policies, list) {
 		snprintf(output + strlen(output),
 			 MAX_BUF_LEN - strlen(output),
 			 "Policy #%d \"%s\" on cores [",
@@ -161,8 +160,6 @@ static ssize_t ipanema_info_proc_read(struct file *file,
 		snprintf(output + strlen(output),
 			 MAX_BUF_LEN - strlen(output),
 			 "]\n");
-
-		policy = policy->next;
 	}
 
 	output_len = strlen(output);

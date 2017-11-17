@@ -4115,11 +4115,10 @@ recheck:
 	 * If switching to SCHED_IPANEMA, check that the ipanema policy exists
 	 */
 	if (policy == SCHED_IPANEMA) {
-		struct ipanema_policy *cur_policy;
+		struct ipanema_policy *cur_policy = NULL;
 
 		read_lock(&ipanema_rwlock);
-		cur_policy = ipanema_policies;
-		while (cur_policy) {
+		list_for_each_entry(cur_policy, &ipanema_policies, list) {
 			if (cur_policy->id == attr->sched_ipa_policy) {
 				ipanema_task_policy(p) = cur_policy;
 				break;

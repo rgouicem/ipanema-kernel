@@ -36,6 +36,10 @@ static struct ipanema_module *module;
 #define  ACTIVE_CORES_STATE  1 << 0 /* File "compiler/compiler/compile_misc.ml", line 82, characters 42-49 */
 #define  INACTIVE_CORES_STATE  1 << 1
 
+#define get_policy_current(cpu)    (ipanema_policy_state_info(cpu).current_0)
+#define get_policy_rq(cpu, name)   (ipanema_policy_state_info(cpu).name)
+#define get_policy_core(cpu)       (per_cpu(core, (cpu)))
+
 struct Simple_ipa_process;
 struct Simple_ipa_core;
 struct Simple_ipa_sched_domain;
@@ -657,6 +661,7 @@ end:
         
         module->name = name;
         module->routines = &ipanema_Simple_routines;
+	module->kmodule = THIS_MODULE;
         
         if ((res = ipanema_add_module(module))) 
         {
@@ -710,28 +715,25 @@ void cleanup_module(void)
         
         remove_proc_subtree(name, NULL);
         
-        while((res = ipanema_remove_module(module))) {
-		switch(res) {
-		case -EMODULENOTFOUND:
-			printk ("[IPANEMA] ERROR: module not found... Shouldn't "
-				"happen !\n");
-			/* We can safely exit. */
-			goto end;
-		case -EMODULEINUSE:
-			printk ("[IPANEMA] ERROR: module in use! Remove all instances "
-				"from /proc/ipanema_policies. "
-				"Trying again in 3 seconds...\n");
-			/* We can't exit now ! It could be a good idea
-			   to reset the policy string to "*:dummy". */
-			break;
-		default:
-			printk ("[IPANEMA] ERROR: unknown error (%d). "
-				"Trying again in 3 seconds...\n", res);
-                }
-                msleep(3000);
-        }
-        
- end:
+        res = ipanema_remove_module(module);
+	if (!res)
+		goto end;
+	switch (res) {
+	case -EMODULENOTFOUND:
+		printk ("[IPANEMA] ERROR: module not found... Shouldn't happen !\n");
+		/* We can safely exit. */
+		break;
+	case -EMODULEINUSE:
+		printk ("[IPANEMA] ERROR: module in use! Remove all instances from /proc/ipanema_policies.\n");
+		/* We can't exit now ! It could be a good idea
+		   to reset the policy string to "*:dummy". */
+		break;
+	default:
+		printk ("[IPANEMA] ERROR: unknown error (%d).\n", res);
+	}
+	return;
+
+end:
         kfree(module);
         /* deallocation of every cpumask_var_t of struct core_state_info */
         free_cpumask_var(cstate_info.active_cores);
