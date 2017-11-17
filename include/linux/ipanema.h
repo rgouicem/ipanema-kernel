@@ -162,8 +162,8 @@ int count(enum ipanema_state state, int cpu);
 /*
  * Accessors used in policy modules
  */
-#define ipanema_policy_state_info(cpu)   (per_cpu(state_info, (cpu)))
-
+#define ipanema_core(cpu)          (per_cpu(core, (cpu)))
+#define ipanema_state(cpu)         (per_cpu(state_info, (cpu)))
 
 extern bool ipanema_trylock_migration(struct task_struct *task,
 				      unsigned long *spinflags,
