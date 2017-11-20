@@ -4114,19 +4114,20 @@ recheck:
 	/*
 	 * If switching to SCHED_IPANEMA, check that the ipanema policy exists
 	 */
-	if (policy == SCHED_IPANEMA) {
+	if (ipanema_policy(policy)) {
 		struct ipanema_policy *cur_policy = NULL;
+		int found = 0;
 
 		read_lock(&ipanema_rwlock);
 		list_for_each_entry(cur_policy, &ipanema_policies, list) {
 			if (cur_policy->id == attr->sched_ipa_policy) {
 				ipanema_task_policy(p) = cur_policy;
+				found = 1;
 				break;
 			}
 		}
 		read_unlock(&ipanema_rwlock);
-
-		if (!cur_policy) {
+		if (!found) {
 			task_rq_unlock(rq, p, &rf);
 			pr_err("ipanema: policy %d does not exist (pid=%d)\n",
 			       attr->sched_ipa_policy, p->pid);
