@@ -136,7 +136,9 @@ void change_state(struct task_struct *p, enum ipanema_state next_state,
 		next_cpu = prev_cpu;
 	if (next_state < 0)
 		next_state = prev_state;
-	if (next_state == IPANEMA_RUNNING || next_state == IPANEMA_TERMINATED)
+	if (next_state == IPANEMA_RUNNING ||
+	    next_state == IPANEMA_MIGRATING ||
+	    next_state == IPANEMA_TERMINATED)
 		next_rq = NULL;
 	if (next_rq) {
 		if (next_cpu != next_rq->cpu ||
@@ -202,7 +204,7 @@ void change_state(struct task_struct *p, enum ipanema_state next_state,
 		resched_curr(cpu_rq(next_cpu));
 
 	/*
-	 *Let's check that we have someone RUNNING if not, trigger a resched
+	 * Let's check that we have someone RUNNING if not, trigger a resched
 	 */
 	if (!per_cpu(ipanema_current, prev_cpu)
 	    && cpu_rq(prev_cpu)->nr_running
