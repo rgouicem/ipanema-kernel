@@ -36,8 +36,8 @@ static struct ipanema_module *module;
 #define	 ACTIVE_CORES_STATE  1 << 0 /* File "compiler/compiler/compile_misc.ml", line 82, characters 42-49 */
 #define	 INACTIVE_CORES_STATE  1 << 1
 
-#define get_policy_current(cpu)    (ipanema_policy_state_info(cpu).current_0)
-#define get_policy_rq(cpu, name)   (ipanema_policy_state_info(cpu).name)
+#define get_policy_current(cpu)    (ipanema_state(cpu).current_0)
+#define get_policy_rq(cpu, name)   (ipanema_state(cpu).name)
 #define get_policy_core(cpu)       (per_cpu(core, (cpu)))
 
 struct Simple_ipa_process;
