@@ -606,6 +606,7 @@ void ipanema_terminate(struct process_event *e)
 	else
 		IPA_EMERG_SAFE("ipanema_terminate(): WARNING: invalid function pointer!\n");
 
+	p->ipanema_metadata.policy = NULL;
 	kref_put(&policy->refcount, ipanema_policy_free);
 }
 
