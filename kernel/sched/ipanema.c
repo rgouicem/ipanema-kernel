@@ -8,15 +8,15 @@
 #include <linux/kref.h>
 
 struct ipanema_module *ipanema_modules[MAX_IPANEMA_MODULES] = { 0 };
-int num_ipanema_modules = 0;
+unsigned int num_ipanema_modules = 0;
 
 LIST_HEAD(ipanema_policies);
-int num_ipanema_policies = 0;
-int ipanema_policies_id = 0;
+unsigned int num_ipanema_policies = 0;
+unsigned int ipanema_policies_id = 0;
 
 rwlock_t ipanema_rwlock;
 
-void ipanema_lock_core(int c)
+void ipanema_lock_core(unsigned int c)
 {
 	raw_spinlock_t *lock = &cpu_rq(c)->lock;
 
@@ -24,7 +24,7 @@ void ipanema_lock_core(int c)
 }
 EXPORT_SYMBOL(ipanema_lock_core);
 
-int ipanema_trylock_core(int c)
+int ipanema_trylock_core(unsigned int c)
 {
 	raw_spinlock_t *lock = &cpu_rq(c)->lock;
 
@@ -32,7 +32,7 @@ int ipanema_trylock_core(int c)
 }
 EXPORT_SYMBOL(ipanema_trylock_core);
 
-void ipanema_unlock_core(int c)
+void ipanema_unlock_core(unsigned int c)
 {
 	raw_spinlock_t *lock = &cpu_rq(c)->lock;
 
@@ -43,7 +43,7 @@ EXPORT_SYMBOL(ipanema_unlock_core);
 int ipanema_add_module(struct ipanema_module *module)
 {
 	unsigned long flags;
-	int i, id;
+	unsigned int i, id;
 	int ret = 0;
 
 	write_lock_irqsave(&ipanema_rwlock, flags);
@@ -609,10 +609,10 @@ void ipanema_terminate(struct process_event *e)
 	kref_put(&policy->refcount, ipanema_policy_free);
 }
 
-void ipanema_schedule(struct ipanema_policy *policy, int core)
+void ipanema_schedule(struct ipanema_policy *policy, unsigned int core)
 {
 	struct rq *rq = cpu_rq(core);
-	void (*handler)(struct ipanema_policy *policy_p, int cpu);
+	void (*handler)(struct ipanema_policy *policy_p, unsigned int cpu);
 
 	/* IRQs are apparently disabled. */
 	WARN_ON(!irqs_disabled());
@@ -656,7 +656,7 @@ void ipanema_core_exit(struct ipanema_policy *policy, int core) {
 
 void ipanema_balancing_select(void)
 {
-	int core = smp_processor_id();
+	unsigned int core = smp_processor_id();
 	struct ipanema_policy *policy;
 	struct core_event e = { .target = core };
 	void (*handler)(struct ipanema_policy *policy_p,

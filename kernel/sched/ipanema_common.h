@@ -34,7 +34,7 @@ struct ipanema_routines {
 	void (*unblock_end)(struct process_event *e);
 
 	void (*terminate)(struct process_event *e);
-	void (*schedule)(struct ipanema_policy *policy, int cpu);
+	void (*schedule)(struct ipanema_policy *policy, unsigned int cpu);
 	void (*init)(void);
 	void (*balancing_select)(void);
 
@@ -45,10 +45,10 @@ struct ipanema_routines {
 extern struct ipanema_routines ipanema_routines;
 
 extern struct ipanema_module *ipanema_modules[];
-extern int num_ipanema_modules;
+extern unsigned int num_ipanema_modules;
 
 extern struct list_head ipanema_policies;
-extern int num_ipanema_policies;
+extern unsigned int num_ipanema_policies;
 
 void ipanema_create_dev(void);
 void ipanema_create_procs(void);

@@ -23,10 +23,10 @@ static void update_curr_ipanema(struct rq *rq);
  */
 static void check_ipanema_transition(struct task_struct *p,
 				     enum ipanema_state next_state,
-				     int next_cpu)
+				     unsigned int next_cpu)
 {
 	enum ipanema_state prev_state = p->ipanema_metadata.state;
-	int prev_cpu = p->cpu;
+	unsigned int prev_cpu = p->cpu;
 
 	switch (prev_state) {
 	case IPANEMA_NOT_QUEUED:
@@ -81,7 +81,7 @@ static void change_rq(struct task_struct *p, enum ipanema_state next_state,
 		      struct ipanema_rq *next_rq)
 {
 	struct ipanema_rq *prev_rq = NULL;
-	int prev_cpu, next_cpu;
+	unsigned int prev_cpu, next_cpu;
 	enum ipanema_state prev_state;
 
 	prev_rq = ipanema_task_rq(p);
@@ -112,9 +112,9 @@ static void change_rq(struct task_struct *p, enum ipanema_state next_state,
  * Main function handling state change of an ipanema task
  */
 void change_state(struct task_struct *p, enum ipanema_state next_state,
-		  int next_cpu, struct ipanema_rq *next_rq)
+		  unsigned int next_cpu, struct ipanema_rq *next_rq)
 {
-	int prev_cpu;
+	unsigned int prev_cpu;
 	enum ipanema_state prev_state;
 
 	/* Safety checks */
@@ -216,7 +216,7 @@ EXPORT_SYMBOL(change_state);
 /*
  * Return the number of tasks on the cpu (not only in SCHED_IPANEMA !!!!)
  */
-int count(enum ipanema_state state, int cpu)
+int count(enum ipanema_state state, unsigned int cpu)
 {
 	if (state == IPANEMA_READY || state == IPANEMA_READY_TICK)
 		return cpu_rq(cpu)->nr_running;
@@ -492,7 +492,7 @@ static struct task_struct *pick_next_task_ipanema(struct rq *rq,
 static void put_prev_task_ipanema(struct rq *rq,
 				  struct task_struct *prev)
 {
-	int state;
+	enum ipanema_state state;
 	struct process_event e = { .target = prev };
 
 	if (unlikely(ipanema_sched_class_log))

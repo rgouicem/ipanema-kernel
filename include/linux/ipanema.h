@@ -71,7 +71,7 @@ struct process_event {
 };
 
 struct core_event {
-	int target; // Ipanema core
+	unsigned int target; // Ipanema core
 };
 
 struct ipanema_module;
@@ -111,7 +111,7 @@ struct ipanema_module_routines {
 
 	void (*terminate)(struct ipanema_policy *policy,
 			  struct process_event *e);
-	void (*schedule)(struct ipanema_policy *policy, int cpu);
+	void (*schedule)(struct ipanema_policy *policy, unsigned int cpu);
 
 	void (*newly_idle)(struct ipanema_policy *policy, struct core_event *e);
 	void (*enter_idle)(struct ipanema_policy *policy, struct core_event *e);
@@ -122,7 +122,7 @@ struct ipanema_module_routines {
 
 	void (*core_entry)(struct ipanema_policy *policy, struct core_event *e);
 	void (*core_exit)(struct ipanema_policy *policy,
-			     struct core_event *e);
+			  struct core_event *e);
 
 	int (*init)(struct ipanema_policy *policy);
 	int (*free_metadata)(struct ipanema_policy *policy);
@@ -144,15 +144,16 @@ struct topology_level {
 };
 
 void change_state(struct task_struct *p, enum ipanema_state next_state,
-		  int next_cpu, struct ipanema_rq *next_rq);
-struct task_struct* ipanema_first_of_state(enum ipanema_state state, int cpu);
+		  unsigned int next_cpu, struct ipanema_rq *next_rq);
+struct task_struct* ipanema_first_of_state(enum ipanema_state state,
+					   unsigned int cpu);
 
 struct task_struct *ipanema_get_task_of(void *proc);
 
 int ipanema_add_module(struct ipanema_module *module);
 int ipanema_remove_module(struct ipanema_module *module);
 
-int count(enum ipanema_state state, int cpu);
+int count(enum ipanema_state state, unsigned int cpu);
 
 #define ipanema_rq_lock(p)         (&task_rq(p)->lock)
 #define ipanema_task_state(p)      ((p)->ipanema_metadata.state)
@@ -168,16 +169,16 @@ int count(enum ipanema_state state, int cpu);
 extern bool ipanema_trylock_migration(struct task_struct *task,
 				      unsigned long *spinflags,
 				      raw_spinlock_t **lock,
-				      int core);
+				      unsigned int core);
 extern void ipanema_unlock_migration(struct task_struct *task,
 				     unsigned long spinflags,
 				     raw_spinlock_t *lock);
 
-extern int ipanema_trylock_cores(int c1, int c2);
-extern void ipanema_unlock_cores(int c1, int c2);
-extern void ipanema_lock_core(int c);
-extern int ipanema_trylock_core(int c);
-extern void ipanema_unlock_core(int c);
+extern int ipanema_trylock_cores(unsigned int c1, unsigned int c2);
+extern void ipanema_unlock_cores(unsigned int c1, unsigned int c2);
+extern void ipanema_lock_core(unsigned int c);
+extern int ipanema_trylock_core(unsigned int c);
+extern void ipanema_unlock_core(unsigned int c);
 extern int ipanema_just_queued(struct task_struct *p);
 
 #endif /* __KERNEL__ */

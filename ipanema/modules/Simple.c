@@ -315,7 +315,8 @@ static void ipanema_Simple_unblock_end(struct ipanema_policy *policy,
 		       e->target->pid, e->target->cpu);
 }
 
-static void ipanema_Simple_schedule(struct ipanema_policy *policy,int cpu)
+static void ipanema_Simple_schedule(struct ipanema_policy *policy,
+				    unsigned int cpu)
 {
 	struct task_struct *p;
 	struct Simple_ipa_process * _fresh_12;
