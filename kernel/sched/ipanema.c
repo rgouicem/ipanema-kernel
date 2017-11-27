@@ -310,7 +310,7 @@ int ipanema_order_process(struct task_struct *a, struct task_struct *b)
 	if (a->ipanema_metadata.policy != b->ipanema_metadata.policy) {
 		IPA_EMERG_SAFE("ipanema_order_process(): tasks a and b have different ipanema policies [%p, %p]\n",
 			       a->ipanema_metadata.policy, b->ipanema_metadata.policy);
-		return 0;
+		BUG();
 	}
 
 	policy = a->ipanema_metadata.policy;
