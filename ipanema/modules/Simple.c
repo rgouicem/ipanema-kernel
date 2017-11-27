@@ -76,6 +76,7 @@ struct Simple_ipa_process {
 	struct task_struct * task; // Internal
 	int quanta;
 	int load;
+	struct list_head list;
 };
 
 struct Simple_ipa_core {
@@ -203,6 +204,7 @@ static int ipanema_Simple_new_prepare(struct ipanema_policy *policy,
 	tgt->task = p;
 	tgt->rq = NULL;
 	tgt->quanta = 0;
+	INIT_LIST_HEAD(&tgt->list);
 
 	/* Choose the core with the lowest number of READY + RUNNING tasks */
 	dst = p->cpu;
@@ -371,7 +373,64 @@ static void ipanema_Simple_exit_idle(struct ipanema_policy *policy,
 static void ipanema_Simple_balancing(struct ipanema_policy *policy,
 				     struct core_event *e)
 {
+	unsigned int cpu = e->target;
+	unsigned int victim, busiest = cpu;
+	unsigned int nr_victim, nr_cpu, nr_busiest = get_policy_rq(cpu, ready).nr_tasks;
+	struct task_struct *p = NULL;
+	struct Simple_ipa_process *tgt;
+	LIST_HEAD(stolen_tasks);
+	unsigned int nr_theft;
+	unsigned int nr_dequeued = 0, nr_enqueued = 0;
 
+	/* Select the busiest core */
+	for_each_cpu(victim, cstate_info.active_cores) {
+		nr_victim = get_policy_rq(victim, ready).nr_tasks;
+		if (nr_victim > nr_busiest + 1) {
+			busiest = victim;
+			nr_busiest = nr_victim;
+		}
+	}
+	if (cpu == busiest)
+		return;
+
+	/*
+	 * Lock the busiest core and steal enough tasks to balance cpu and
+	 * busiest
+	 */
+	if (!ipanema_trylock_core(busiest))
+		return;
+	nr_busiest = get_policy_rq(busiest, ready).nr_tasks;
+	nr_cpu = get_policy_rq(cpu, ready).nr_tasks;
+	nr_theft = (nr_busiest - nr_cpu) / 2;
+	while (nr_theft--) {
+		p = ipanema_first_task(&get_policy_rq(busiest, ready));
+		if (!p)
+			continue;
+		if (ipanema_task_state(p) != IPANEMA_READY)
+			continue;
+
+		tgt = policy_metadata(p);
+		list_add(&tgt->list, &stolen_tasks);
+		tgt->rq = NULL;
+		change_state(p, IPANEMA_MIGRATING, cpu, NULL);
+		nr_dequeued++;
+	}
+	ipanema_unlock_core(busiest);
+
+	/*
+	 * Lock cpu and add tasks to READY runqueue
+	 */
+	ipanema_lock_core(cpu);
+	while (!list_empty(&stolen_tasks)) {
+		tgt = list_first_entry(&stolen_tasks, struct Simple_ipa_process,
+				       list);
+		list_del_init(&tgt->list);
+		p = tgt->task;
+		tgt->rq = &get_policy_rq(cpu, ready);
+		change_state(p, IPANEMA_READY, cpu, tgt->rq);
+		nr_enqueued++;
+	}
+	ipanema_unlock_core(cpu);
 }
 
 static int ipanema_Simple_init(struct ipanema_policy * policy)
