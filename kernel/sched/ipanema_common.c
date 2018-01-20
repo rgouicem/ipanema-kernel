@@ -269,6 +269,14 @@ static void enqueue_task_ipanema(struct rq *rq,
 	 * from IPANEMA_NOT_QUEUED to IPANEMA_READY.
 	 */
 	if (ipanema_task_state(p) == IPANEMA_NOT_QUEUED) {
+		/*
+		 * If p->cpus_allowed < 2, select_task_rq() is not called on
+		 * fork(), and the new_prepare() handler is never called.
+		 * We must therefore check if this has been done, and do it
+		 * if necessary.
+		 */
+		if (!p->ipanema_metadata.policy_metadata)
+			ipanema_routines.new_prepare(&e);
 		ipanema_routines.new_place(&e);
 		goto end;
 	}
