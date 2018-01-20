@@ -36,12 +36,6 @@ static int sched_setattr(pid_t pid, const struct sched_attr *attr,
 	return syscall(SYS_sched_setattr, pid, attr, flags);
 }
 
-static int sched_getattr(pid_t pid, const struct sched_attr *attr,
-			 unsigned int size, unsigned int flags)
-{
-	return syscall(SYS_sched_getattr, pid, attr, size, flags);
-}
-
 static inline void usage()
 {
 	fprintf(stderr,
@@ -80,16 +74,8 @@ int main(int argc, char **argv)
 		goto end;
 	}
 
-	ret = sched_getattr(0, &attr, sizeof(struct sched_attr), 0);
-	if (ret < 0) {
-		perror("sched_getattr() failed");
-		goto end;
-	}
-
-	printf("Switched from %d to %d[%d]\n",
-	       ret, attr.sched_policy, attr.sched_ipa_policy);
-
 	ret = execvp(argv[2], argv+2);
+	perror("execvp() failed");
 
 end:
 	return EXIT_FAILURE;
