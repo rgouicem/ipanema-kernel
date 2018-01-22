@@ -4,6 +4,8 @@
 #include <linux/sched.h>
 #include <linux/kref.h>
 
+#include "sched.h"
+
 #define ESYNTAX					1000
 #define EBOUNDS					1001
 #define EOVERLAP				1002
@@ -166,19 +168,9 @@ int count(enum ipanema_state state, unsigned int cpu);
 #define ipanema_core(cpu)          (per_cpu(core, (cpu)))
 #define ipanema_state(cpu)         (per_cpu(state_info, (cpu)))
 
-extern bool ipanema_trylock_migration(struct task_struct *task,
-				      unsigned long *spinflags,
-				      raw_spinlock_t **lock,
-				      unsigned int core);
-extern void ipanema_unlock_migration(struct task_struct *task,
-				     unsigned long spinflags,
-				     raw_spinlock_t *lock);
-
-extern int ipanema_trylock_cores(unsigned int c1, unsigned int c2);
-extern void ipanema_unlock_cores(unsigned int c1, unsigned int c2);
-extern void ipanema_lock_core(unsigned int c);
-extern int ipanema_trylock_core(unsigned int c);
-extern void ipanema_unlock_core(unsigned int c);
+extern void ipanema_lock_core(unsigned int id);
+extern int ipanema_trylock_core(unsigned int id);
+extern void ipanema_unlock_core(unsigned int id);
 extern int ipanema_just_queued(struct task_struct *p);
 
 #endif /* __KERNEL__ */

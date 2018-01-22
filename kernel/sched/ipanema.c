@@ -16,27 +16,21 @@ unsigned int ipanema_policies_id = 0;
 
 rwlock_t ipanema_rwlock;
 
-void ipanema_lock_core(unsigned int c)
+void ipanema_lock_core(unsigned int id)
 {
-	raw_spinlock_t *lock = &cpu_rq(c)->lock;
-
-	raw_spin_lock(lock);
+	raw_spin_lock(&cpu_rq(id)->lock);
 }
 EXPORT_SYMBOL(ipanema_lock_core);
 
-int ipanema_trylock_core(unsigned int c)
+int ipanema_trylock_core(unsigned int id)
 {
-	raw_spinlock_t *lock = &cpu_rq(c)->lock;
-
-	return raw_spin_trylock(lock);
+	return raw_spin_trylock(&cpu_rq(id)->lock);
 }
 EXPORT_SYMBOL(ipanema_trylock_core);
 
-void ipanema_unlock_core(unsigned int c)
+void ipanema_unlock_core(unsigned int id)
 {
-	raw_spinlock_t *lock = &cpu_rq(c)->lock;
-
-	raw_spin_unlock(lock);
+	raw_spin_unlock(&cpu_rq(id)->lock);
 }
 EXPORT_SYMBOL(ipanema_unlock_core);
 
