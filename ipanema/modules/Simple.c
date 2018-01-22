@@ -381,6 +381,7 @@ static void ipanema_Simple_balancing(struct ipanema_policy *policy,
 	LIST_HEAD(stolen_tasks);
 	unsigned int nr_theft;
 	unsigned int nr_dequeued = 0, nr_enqueued = 0;
+	unsigned long flags;
 
 	/* Select the busiest core */
 	for_each_cpu(victim, cstate_info.active_cores) {
@@ -397,8 +398,11 @@ static void ipanema_Simple_balancing(struct ipanema_policy *policy,
 	 * Lock the busiest core and steal enough tasks to balance cpu and
 	 * busiest
 	 */
-	if (!ipanema_trylock_core(busiest))
+	local_irq_save(flags);
+	if (!ipanema_trylock_core(busiest)) {
+		local_irq_restore(flags);
 		return;
+	}
 	nr_busiest = get_policy_rq(busiest, ready).nr_tasks;
 	nr_cpu = get_policy_rq(cpu, ready).nr_tasks;
 	nr_theft = (nr_busiest - nr_cpu) / 2;
@@ -431,6 +435,7 @@ static void ipanema_Simple_balancing(struct ipanema_policy *policy,
 		nr_enqueued++;
 	}
 	ipanema_unlock_core(cpu);
+	local_irq_restore(flags);
 }
 
 static int ipanema_Simple_init(struct ipanema_policy * policy)
