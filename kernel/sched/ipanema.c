@@ -146,10 +146,17 @@ int ipanema_set_policy(char *str)
 	*module_name = '\n';
 	module_name++;
 
-	/* Get the cpulist from str. If invalid, try to remove policy */
+	/*
+	 * Get the cpulist from str. If cpulist = '*', use all cpus,
+	 * else if invalid, try to remove policy
+	 */
 	ret = cpulist_parse(str, &cores_allowed);
-	if (ret != 0)
-		remove = 1;
+	if (ret != 0) {
+		if (str[0] == '*' && str[1] == '\n')
+			cpumask_copy(&cores_allowed, cpu_possible_mask);
+		else
+			remove = 1;
+	}
 
 	if (remove)
 		pr_info("ipanema_set_policy(): module_name='%s', cpulist='remove'\n",
