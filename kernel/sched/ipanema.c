@@ -242,7 +242,7 @@ int ipanema_set_policy(char *str)
 		ret = -EMODULENOTFOUND;
 		goto end;
 	}
-	policy = kzalloc(sizeof(struct ipanema_policy), GFP_KERNEL);
+	policy = kzalloc(sizeof(struct ipanema_policy), GFP_NOWAIT);
 	if (!policy) {
 		ret = -ENOMEM;
 		goto end;
