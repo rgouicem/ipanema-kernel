@@ -133,7 +133,7 @@ int ipanema_set_policy(char *str)
 	pr_info("ipanema_set_policy(%s)\n", str);
 
 	/*
-	 * Set module_name to the right position in str and chage str from
+	 * Set module_name to the right position in str and change str from
 	 * "cpulist:name" to "cpulist\nname"
 	 * This way, we can use cpulist_parse() to get the mask afterwards
 	 * without any copy (cpulist_parse() uses '\n' as a separator)
