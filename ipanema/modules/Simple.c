@@ -84,7 +84,7 @@ struct Simple_ipa_core {
 	 *  specified by the scheduling policy
 	 *  in the core = {...} declaration
 	 */
-	int state; // Internal
+	enum ipanema_core_state state; // Internal
 	int ___sched_domains_idx; // Internal
 	int id; // System
 	struct Simple_ipa_sched_domain * sd;
@@ -186,6 +186,21 @@ static void set_inactive_core(struct Simple_ipa_core *core, cpumask_var_t cores,
 {
 	core->state = state;
 	cpumask_clear_cpu(core->id, cores);
+}
+
+static enum ipanema_core_state get_core_state(int state)
+{
+	switch (state) {
+	case ACTIVE_CORES_STATE: return IPANEMA_ACTIVE_CORE;
+	case INACTIVE_CORES_STATE: return IPANEMA_IDLE_CORE;
+	default: return -1;
+	}
+}
+
+static int ipanema_Simple_get_core_state(struct ipanema_policy *policy,
+					 struct core_event *e)
+{
+	return get_core_state(ipanema_core(e->target).state);
 }
 
 static int ipanema_Simple_new_prepare(struct ipanema_policy *policy,
@@ -351,25 +366,6 @@ static void ipanema_Simple_core_exit(struct ipanema_policy *policy,
 	/* TODO: Migrate all tasks to another cpu */
 }
 
-
-static void ipanema_Simple_newly_idle(struct ipanema_policy *policy,
-				      struct core_event *e)
-{
-	return;
-}
-
-static void ipanema_Simple_enter_idle(struct ipanema_policy *policy,
-				      struct core_event *e)
-{
-	return;
-}
-
-static void ipanema_Simple_exit_idle(struct ipanema_policy *policy,
-				     struct core_event *e)
-{
-	return;
-}
-
 static void ipanema_Simple_balancing(struct ipanema_policy *policy,
 				     struct core_event *e)
 {
@@ -438,6 +434,29 @@ static void ipanema_Simple_balancing(struct ipanema_policy *policy,
 	local_irq_restore(flags);
 }
 
+/*
+ * Called with no lock held.
+ */
+static void ipanema_Simple_newly_idle(struct ipanema_policy *policy,
+				      struct core_event *e)
+{
+	ipanema_Simple_balancing(policy, e);
+}
+
+static void ipanema_Simple_enter_idle(struct ipanema_policy *policy,
+				      struct core_event *e)
+{
+	set_inactive_core(&ipanema_core(e->target), cstate_info.active_cores,
+			  INACTIVE_CORES_STATE);
+}
+
+static void ipanema_Simple_exit_idle(struct ipanema_policy *policy,
+				     struct core_event *e)
+{
+	set_active_core(&ipanema_core(e->target), cstate_info.active_cores,
+			ACTIVE_CORES_STATE);
+}
+
 static int ipanema_Simple_init(struct ipanema_policy * policy)
 {
 	return 0;
@@ -465,6 +484,7 @@ struct ipanema_module_routines ipanema_Simple_routines =
 {
 	.order_process	  = ipanema_Simple_order_process,
 	.get_metric	  = ipanema_Simple_get_metric,
+	.get_core_state   = ipanema_Simple_get_core_state,
 	.new_prepare	  = ipanema_Simple_new_prepare,
 	.new_place	  = ipanema_Simple_new_place,
 	.new_end	  = ipanema_Simple_new_end,
