@@ -1,5 +1,5 @@
-#include "ipanema_common.h"
 #include "sched.h"
+#include "ipanema_common.h"
 
 #include <uapi/linux/sched/types.h>
 #include <linux/spinlock.h>
@@ -359,6 +359,22 @@ int ipanema_get_metric(struct task_struct *a)
 	return res;
 }
 
+int ipanema_get_core_state(struct ipanema_policy *policy, unsigned int core) {
+	struct core_event e = { .target = core };
+	int (*handler)(struct ipanema_policy *policy, struct core_event *e);
+	int res = 0;
+
+	handler = policy->module->routines->get_core_state;
+
+	if (handler)
+		res = (*handler)(policy, &e);
+	else
+		IPA_EMERG_SAFE("%s: WARNING: invalid function pointer!\n",
+			       __FUNCTION__);
+
+	return res;
+}
+
 int ipanema_new_prepare(struct process_event *e)
 {
 	struct task_struct *p = e->target;
@@ -643,7 +659,7 @@ void ipanema_schedule(struct ipanema_policy *policy, unsigned int core)
 		IPA_EMERG_SAFE("ipanema_schedule(): WARNING: invalid function pointer!\n");
 }
 
-void ipanema_core_entry(struct ipanema_policy *policy, int core) {
+void ipanema_core_entry(struct ipanema_policy *policy, unsigned int core) {
 	struct core_event e = { .target = core };
 	void (*handler)(struct ipanema_policy *policy, struct core_event *e);
 
@@ -652,10 +668,11 @@ void ipanema_core_entry(struct ipanema_policy *policy, int core) {
 	if (handler)
 		(*handler)(policy, &e);
 	else
-		IPA_EMERG_SAFE("ipanema_core_entry(): WARNING: invalid function pointer!\n");
+		IPA_EMERG_SAFE("%s: WARNING: invalid function pointer!\n",
+			       __FUNCTION__);
 }
 
-void ipanema_core_exit(struct ipanema_policy *policy, int core) {
+void ipanema_core_exit(struct ipanema_policy *policy, unsigned int core) {
 	struct core_event e = { .target = core };
 	void (*handler)(struct ipanema_policy *policy, struct core_event *e);
 
@@ -665,6 +682,60 @@ void ipanema_core_exit(struct ipanema_policy *policy, int core) {
 		(*handler)(policy, &e);
 	else
 		IPA_EMERG_SAFE("ipanema_core_exit(): WARNING: invalid function pointer!\n");
+}
+
+void ipanema_newly_idle(struct ipanema_policy *policy, unsigned int core,
+			struct rq_flags *rf) {
+	struct core_event e = { .target = core };
+	void (*handler)(struct ipanema_policy *policy, struct core_event *e);
+	struct rq *rq = cpu_rq(core);
+
+	handler = policy->module->routines->newly_idle;
+
+	if (handler) {
+		/*
+		 * When newly_idle() is called by schedule(), the rq->lock is
+		 * held. However, the handler may want to lock multiple rq->lock
+		 * (idle balancing for example). To allow this, we unpin and
+		 * unlock rq->lock before. We will put everything back to normal
+		 * upon returning from the handler.
+		 */
+		rq_unpin_lock(rq, rf);
+		raw_spin_unlock(&rq->lock);
+
+		(*handler)(policy, &e);
+
+		raw_spin_lock(&rq->lock);
+		rq_repin_lock(rq, rf);
+	} else
+		IPA_EMERG_SAFE("%s: WARNING: invalid function pointer!\n",
+			       __FUNCTION__);
+}
+
+void ipanema_enter_idle(struct ipanema_policy *policy, unsigned int core) {
+	struct core_event e = { .target = core };
+	void (*handler)(struct ipanema_policy *policy, struct core_event *e);
+
+	handler = policy->module->routines->enter_idle;
+
+	if (handler)
+		(*handler)(policy, &e);
+	else
+		IPA_EMERG_SAFE("%s: WARNING: invalid function pointer!\n",
+			       __FUNCTION__);
+}
+
+void ipanema_exit_idle(struct ipanema_policy *policy, unsigned int core) {
+	struct core_event e = { .target = core };
+	void (*handler)(struct ipanema_policy *policy, struct core_event *e);
+
+	handler = policy->module->routines->exit_idle;
+
+	if (handler)
+		(*handler)(policy, &e);
+	else
+		IPA_EMERG_SAFE("%s: WARNING: invalid function pointer!\n",
+			       __FUNCTION__);
 }
 
 void ipanema_balancing_select(void)
@@ -700,6 +771,7 @@ EXPORT_SYMBOL(ipanema_get_task_of);
 struct ipanema_routines ipanema_routines = {
 	.order_process = ipanema_order_process,
 	.get_metric = ipanema_get_metric,
+	.get_core_state = ipanema_get_core_state,
 	.new_prepare = ipanema_new_prepare,
 	.new_place = ipanema_new_place,
 	.new_end = ipanema_new_end,
@@ -715,4 +787,7 @@ struct ipanema_routines ipanema_routines = {
 	.balancing_select = ipanema_balancing_select,
 	.core_entry = ipanema_core_entry,
 	.core_exit = ipanema_core_exit,
+	.newly_idle = ipanema_newly_idle,
+	.enter_idle = ipanema_enter_idle,
+	.exit_idle = ipanema_exit_idle,
 };

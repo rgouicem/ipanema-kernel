@@ -20,6 +20,7 @@ struct ipanema_policy;
 struct ipanema_routines {
 	int (*order_process)(struct task_struct *a, struct task_struct *b);
 	int (*get_metric)(struct task_struct *a);
+	int (*get_core_state)(struct ipanema_policy *policy, unsigned int core);
 
 	int (*new_prepare)(struct process_event *e);
 	void (*new_place)(struct process_event *e);
@@ -38,8 +39,12 @@ struct ipanema_routines {
 	void (*init)(void);
 	void (*balancing_select)(void);
 
-	void (*core_entry)(struct ipanema_policy *policy_p, int core);
-	void (*core_exit)(struct ipanema_policy *policy_p, int core);
+	void (*core_entry)(struct ipanema_policy *policy, unsigned int core);
+	void (*core_exit)(struct ipanema_policy *policy, unsigned int core);
+	void (*newly_idle)(struct ipanema_policy *policy, unsigned int core,
+			   struct rq_flags *rf);
+	void (*enter_idle)(struct ipanema_policy *policy, unsigned int core);
+	void (*exit_idle)(struct ipanema_policy *policy, unsigned int core);
 };
 
 extern struct ipanema_routines ipanema_routines;

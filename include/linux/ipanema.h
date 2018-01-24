@@ -51,6 +51,8 @@ do {									       \
 } while(0)
 #endif
 
+enum ipanema_core_state { IPANEMA_ACTIVE_CORE, IPANEMA_IDLE_CORE };
+
 struct ipanema_rq {
 	unsigned int cpu;
 	struct rb_root root;
@@ -92,6 +94,8 @@ struct ipanema_module_routines {
 	int (*order_process)(struct ipanema_policy *policy,
 			     struct task_struct *a, struct task_struct *b);
 	int (*get_metric)(struct ipanema_policy *policy, struct task_struct *a);
+	int (*get_core_state)(struct ipanema_policy *policy,
+			       struct core_event *e);
 
 	int (*new_prepare)(struct ipanema_policy *policy,
 			   struct process_event *e);
@@ -147,7 +151,7 @@ struct topology_level {
 
 void change_state(struct task_struct *p, enum ipanema_state next_state,
 		  unsigned int next_cpu, struct ipanema_rq *next_rq);
-struct task_struct* ipanema_first_of_state(enum ipanema_state state,
+struct task_struct *ipanema_first_of_state(enum ipanema_state state,
 					   unsigned int cpu);
 
 struct task_struct *ipanema_get_task_of(void *proc);
@@ -168,9 +172,11 @@ int count(enum ipanema_state state, unsigned int cpu);
 #define ipanema_core(cpu)          (per_cpu(core, (cpu)))
 #define ipanema_state(cpu)         (per_cpu(state_info, (cpu)))
 
+
 extern void ipanema_lock_core(unsigned int id);
 extern int ipanema_trylock_core(unsigned int id);
 extern void ipanema_unlock_core(unsigned int id);
+
 extern int ipanema_just_queued(struct task_struct *p);
 
 #endif /* __KERNEL__ */

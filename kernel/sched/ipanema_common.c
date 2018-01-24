@@ -1,5 +1,5 @@
-#include "ipanema_common.h"
 #include "sched.h"
+#include "ipanema_common.h"
 
 #ifndef CONFIG_LOCKDEP
 #error CONFIG_LOCKDEP must be enabled
@@ -229,6 +229,7 @@ static void enqueue_task_ipanema(struct rq *rq,
 				 int flags)
 {
 	struct process_event e = { .target = p };
+	enum ipanema_core_state cstate;
 
 	if (unlikely(ipanema_sched_class_log))
 		pr_info("In %s [pid=%d, rq=%d]\n",
@@ -237,7 +238,7 @@ static void enqueue_task_ipanema(struct rq *rq,
 	/* task has no ipanema policy, just increment rq->nr_running */
 	if (!ipanema_task_policy(p)) {
 		IPA_EMERG_SAFE("%s: WARNING: called on a task with no ipanema policy set.\n",
-			__func__);
+			       __func__);
 		goto end;
 	}
 
@@ -277,6 +278,16 @@ static void enqueue_task_ipanema(struct rq *rq,
 		 */
 		if (!p->ipanema_metadata.policy_metadata)
 			ipanema_routines.new_prepare(&e);
+
+		/*
+		 * If new_prepare() chose an IDLE cpu, we must call the
+		 * exit_idle() handler to wake it up on the policy
+		 */
+		cstate = ipanema_routines.get_core_state(ipanema_task_policy(p),
+							 rq->cpu);
+		if (cstate == IPANEMA_IDLE_CORE)
+			ipanema_routines.exit_idle(ipanema_task_policy(p),
+						   rq->cpu);
 		ipanema_routines.new_place(&e);
 		goto end;
 	}
@@ -288,6 +299,15 @@ static void enqueue_task_ipanema(struct rq *rq,
 	 * an true unblock() if the state is TASK_WAKING.
 	 */
 	if (p->state == TASK_WAKING) {
+		/*
+		 * If unblock_prepare() chose an IDLE cpu, we must call the
+		 * exit_idle() handler to wake it up on the policy
+		 */
+		cstate = ipanema_routines.get_core_state(ipanema_task_policy(p),
+							 rq->cpu);
+		if (cstate == IPANEMA_IDLE_CORE)
+			ipanema_routines.exit_idle(ipanema_task_policy(p),
+						   rq->cpu);
 		ipanema_routines.unblock_place(&e);
 		goto end;
 	}
@@ -449,19 +469,40 @@ static struct task_struct *pick_next_task_ipanema(struct rq *rq,
 {
 	struct task_struct *result = NULL;
 	struct ipanema_policy *policy = NULL;
+	enum ipanema_core_state cstate;
 
 	if (unlikely(ipanema_sched_class_log))
 		pr_info("In %s [pid=%d, rq=%d]\n",
 			__func__, prev->pid, rq->cpu);
 
-	if (per_cpu(ipanema_current, rq->cpu))
+	if (per_cpu(ipanema_current, rq->cpu)) {
 		result = per_cpu(ipanema_current, rq->cpu);
-	else {
+		pr_info("%s: ipanema_current was not NULL. SHould not happen\n",
+			__FUNCTION__);
+	} else {
 		list_for_each_entry(policy, &ipanema_policies, list) {
 			ipanema_routines.schedule(policy, rq->cpu);
 			result = per_cpu(ipanema_current, rq->cpu);
+			/* if a task is found, schedule it */
 			if (result)
 				break;
+			/*
+			 * Policy has no ready task on this cpu. If cpu is
+			 * already idle, try next policy. Else, call the
+			 * newly_idle() event and retry once.
+			 */
+			cstate = ipanema_routines.get_core_state(policy,
+								 rq->cpu);
+			if (cstate == IPANEMA_IDLE_CORE)
+				continue;
+			ipanema_routines.newly_idle(policy, rq->cpu, rf);
+			ipanema_routines.schedule(policy, rq->cpu);
+			result = per_cpu(ipanema_current, rq->cpu);
+			/* if a task is found, schedule it */
+			if (result)
+				break;
+			/* else call enter_idle() handler for this policy/cpu */
+			ipanema_routines.enter_idle(policy, rq->cpu);
 		}
 	}
 

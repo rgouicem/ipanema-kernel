@@ -5,6 +5,7 @@
 #include <linux/timekeeping.h>
 #include <linux/vmalloc.h>
 
+#include "sched.h"
 #include "ipanema_common.h"
 
 #define IPANEMA_ATTR_RO(_name) \
