@@ -147,15 +147,26 @@ int ipanema_set_policy(char *str)
 	module_name++;
 
 	/*
-	 * Get the cpulist from str. If cpulist = '*', use all cpus,
-	 * else if invalid, try to remove policy
+	 * Get the cpulist from str. If cpulist is invalid:
+	 * if cpulist = '*', use all cpus (wildcard);
+	 * else if cpulist = 'r', remove policy;
+	 * else, syntax error
 	 */
 	ret = cpulist_parse(str, &cores_allowed);
 	if (ret != 0) {
-		if (str[0] == '*' && str[1] == '\n')
-			cpumask_copy(&cores_allowed, cpu_possible_mask);
-		else
-			remove = 1;
+		if (str[1] == '\n') {
+			if (str[0] == '*')
+				cpumask_copy(&cores_allowed, cpu_possible_mask);
+			else if (str[0] == 'r')
+				remove = 1;
+			else {
+				ret = -ESYNTAX;
+				goto end_nolock;
+			}
+		} else {
+			ret = -ESYNTAX;
+			goto end_nolock;
+		}
 	}
 
 	if (remove)
