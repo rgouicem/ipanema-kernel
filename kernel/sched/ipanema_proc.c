@@ -191,19 +191,19 @@ static const struct file_operations ipanema_info_cntrl_fops = {
 	.read	= ipanema_info_proc_read
 };
 
-void ipanema_create_procs(void)
+__init int ipanema_create_procs(void)
 {
 	/*
 	 * /proc files cannot be created during early init phases. Do that once
 	 * the kernel has booted.
 	 */
 	proc_create("ipanema_debug", 0222, NULL, &ipanema_debug_cntrl_fops);
-	IPA_DBG_SAFE("/proc/ipanema_debug was created.\n");
-
 	proc_create("ipanema_policies", 0222, NULL,
 				&ipanema_policies_cntrl_fops);
-	IPA_DBG_SAFE("/proc/ipanema_policies was created.\n");
-
 	proc_create("ipanema_info", 0444, NULL, &ipanema_info_cntrl_fops);
-	IPA_DBG_SAFE("/proc/ipanema_policies was created.\n");
+
+	pr_info("ipanema: procfs files created\n");
+
+	return 0;
 }
+late_initcall(ipanema_create_procs);

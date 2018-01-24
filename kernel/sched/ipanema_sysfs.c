@@ -96,7 +96,6 @@ static int __init ipanema_sysfs_init(void)
 	/* Create /sys/kernel/ipanema */
 	ipanema_kobj = kobject_create_and_add("ipanema", kernel_kobj);
 	if (!ipanema_kobj) {
-		pr_err("ipanema: failed to create /sys/kernel/ipanema (ENOMEM)\n");
 		error = -ENOMEM;
 		goto exit;
 	}
@@ -104,12 +103,17 @@ static int __init ipanema_sysfs_init(void)
 	if (error)
 		goto kset_exit;
 
+	pr_info("ipanema: /sys/kernel/ipanema created\n");
+
 	return 0;
 
 kset_exit:
 	kobject_put(ipanema_kobj);
 exit:
+	pr_err("ipanema: failed to create /sys/kernel/ipanema (%s)\n",
+	       error == -ENOMEM ? "ENOMEM" : "sysfs_create_group error");
+
 	return error;
 }
 
-core_initcall(ipanema_sysfs_init);
+late_initcall(ipanema_sysfs_init);

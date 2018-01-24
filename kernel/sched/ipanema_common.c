@@ -932,13 +932,6 @@ void trigger_load_balance_ipanema(struct rq *rq)
 	raise_softirq(SCHED_SOFTIRQ_IPANEMA);
 }
 
-void init_sched_ipanema_late(void)
-{
-	ipanema_create_procs();
-}
-
-static int init_done;
-
 int nb_topology_levels;
 EXPORT_SYMBOL(nb_topology_levels);
 
@@ -957,16 +950,10 @@ sched_domain_mask_f topology_masks[] = { cpu_smt_mask,
 
 #define NB_TOPOLOGY_LEVELS (sizeof(topology_masks) / sizeof(*topology_masks))
 
-__init void init_sched_ipanema_class(void)
+static void create_topology(void)
 {
 	int cpu, level;
-
-	if (init_done)
-		return;
-
-	init_done = 1;
-
-	open_softirq(SCHED_SOFTIRQ_IPANEMA, run_rebalance_domains);
+	struct topology_level *l;
 
 	nb_topology_levels = NB_TOPOLOGY_LEVELS;
 	for_each_possible_cpu(cpu) {
@@ -976,12 +963,17 @@ __init void init_sched_ipanema_class(void)
 				GFP_ATOMIC);
 
 		for (level = 0; level < NB_TOPOLOGY_LEVELS; level++) {
-			struct topology_level *l =
-				&(per_cpu(topology_levels, cpu)[level]);
+			l = &(per_cpu(topology_levels, cpu)[level]);
 			l->cores = topology_masks[level](cpu);
 		}
 	}
+}
 
-	if (ipanema_routines.init)
-		ipanema_routines.init();
+__init void init_sched_ipanema_class(void)
+{
+	rwlock_init(&ipanema_rwlock);
+	create_topology();
+	open_softirq(SCHED_SOFTIRQ_IPANEMA, run_rebalance_domains);
+
+	pr_info("ipanema: sched_class initialized\n");
 }

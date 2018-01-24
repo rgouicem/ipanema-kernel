@@ -64,7 +64,6 @@
 #include <linux/kthread.h>
 #include <linux/sched.h>
 #include <linux/sched/init.h>
-#include <linux/ipanema.h>
 #include <linux/signal.h>
 #include <linux/idr.h>
 #include <linux/kgdb.h>
@@ -908,7 +907,6 @@ static void __init do_basic_setup(void)
 	do_ctors();
 	usermodehelper_enable();
 	do_initcalls();
-	init_sched_ipanema_late();
 }
 
 static void __init do_pre_smp_initcalls(void)

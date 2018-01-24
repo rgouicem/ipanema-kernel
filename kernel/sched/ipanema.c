@@ -675,7 +675,6 @@ void ipanema_balancing_select(void)
 
 void ipanema_init(void)
 {
-	rwlock_init(&ipanema_rwlock);
 }
 
 struct task_struct *ipanema_get_task_of(void *proc)

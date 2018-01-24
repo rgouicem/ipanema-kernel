@@ -50,8 +50,6 @@ extern unsigned int num_ipanema_modules;
 extern struct list_head ipanema_policies;
 extern unsigned int num_ipanema_policies;
 
-void ipanema_create_dev(void);
-void ipanema_create_procs(void);
 void debug_ipanema(void);
 
 int ipanema_set_policy(char *policies_str);
