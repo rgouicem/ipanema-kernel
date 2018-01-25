@@ -766,9 +766,11 @@ void ipanema_balancing_select(void)
 
 	read_lock(&ipanema_rwlock);
 	list_for_each_entry(policy, &ipanema_policies, list) {
-		handler = policy->module->routines->balancing_select;
-		if (handler)
-			(*handler)(policy, &e);
+		if (cpumask_test_cpu(core, &policy->allowed_cores)) {
+			handler = policy->module->routines->balancing_select;
+			if (handler)
+				(*handler)(policy, &e);
+		}
 	}
 	read_unlock(&ipanema_rwlock);
 }
