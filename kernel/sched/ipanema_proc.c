@@ -1,6 +1,7 @@
 #include <linux/seq_file.h>
 #include <linux/cpu.h>
 
+#include "sched.h"
 #include "ipanema_common.h"
 
 #define MAX_POLICY_STR_LENGTH 256
