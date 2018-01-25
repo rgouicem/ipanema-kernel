@@ -1,3 +1,4 @@
+#include "sched.h"
 #include "ipanema_common.h"
 
 /* Rbtree manipulation */

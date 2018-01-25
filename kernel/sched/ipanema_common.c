@@ -91,7 +91,7 @@ static void change_rq(struct task_struct *p, enum ipanema_state next_state,
 	if (prev_rq) {
 		lockdep_assert_held(&task_rq(p)->lock);
 		p = ipanema_remove_task(prev_rq, p,
-					ipanema_routines.order_process);
+					ipanema_order_process);
 		prev_rq->nr_tasks--;
 	}
 
@@ -103,7 +103,7 @@ static void change_rq(struct task_struct *p, enum ipanema_state next_state,
 		next_state = next_rq->state;
 		lockdep_assert_held(&cpu_rq(next_cpu)->lock);
 		ipanema_add_task(next_rq, p,
-				 ipanema_routines.order_process);
+				 ipanema_order_process);
 		next_rq->nr_tasks++;
 	}
 }
@@ -261,7 +261,7 @@ static void enqueue_task_ipanema(struct rq *rq,
 		ipanema_task_state(p) = IPANEMA_NOT_QUEUED;
 		ipanema_task_rq(p) = NULL;
 
-		ipanema_routines.new_prepare(&e);
+		ipanema_new_prepare(&e);
 	}
 
 	/*
@@ -277,18 +277,18 @@ static void enqueue_task_ipanema(struct rq *rq,
 		 * if necessary.
 		 */
 		if (!p->ipanema_metadata.policy_metadata)
-			ipanema_routines.new_prepare(&e);
+			ipanema_new_prepare(&e);
 
 		/*
 		 * If new_prepare() chose an IDLE cpu, we must call the
 		 * exit_idle() handler to wake it up on the policy
 		 */
-		cstate = ipanema_routines.get_core_state(ipanema_task_policy(p),
+		cstate = ipanema_get_core_state(ipanema_task_policy(p),
 							 rq->cpu);
 		if (cstate == IPANEMA_IDLE_CORE)
-			ipanema_routines.exit_idle(ipanema_task_policy(p),
+			ipanema_exit_idle(ipanema_task_policy(p),
 						   rq->cpu);
-		ipanema_routines.new_place(&e);
+		ipanema_new_place(&e);
 		goto end;
 	}
 
@@ -303,12 +303,12 @@ static void enqueue_task_ipanema(struct rq *rq,
 		 * If unblock_prepare() chose an IDLE cpu, we must call the
 		 * exit_idle() handler to wake it up on the policy
 		 */
-		cstate = ipanema_routines.get_core_state(ipanema_task_policy(p),
+		cstate = ipanema_get_core_state(ipanema_task_policy(p),
 							 rq->cpu);
 		if (cstate == IPANEMA_IDLE_CORE)
-			ipanema_routines.exit_idle(ipanema_task_policy(p),
+			ipanema_exit_idle(ipanema_task_policy(p),
 						   rq->cpu);
-		ipanema_routines.unblock_place(&e);
+		ipanema_unblock_place(&e);
 		goto end;
 	}
 
@@ -379,7 +379,7 @@ static void dequeue_task_ipanema(struct rq *rq,
 	    p->state & TASK_UNINTERRUPTIBLE ||
 	    p->state & TASK_STOPPED ||
 	    p->state & TASK_KILLABLE) {
-		ipanema_routines.block(&e);
+		ipanema_block(&e);
 		goto end;
 	}
 
@@ -392,7 +392,7 @@ static void dequeue_task_ipanema(struct rq *rq,
 	 * which will lead to a crash.
 	 */
 	if (p->flags & PF_EXITPIDONE) {
-		ipanema_routines.terminate(&e);
+		ipanema_terminate(&e);
 		goto end;
 	}
 
@@ -403,7 +403,7 @@ static void dequeue_task_ipanema(struct rq *rq,
 	 * switches back to SCHED_IPANEMA class.
 	 */
 	if (p->switching_classes) {
-		ipanema_routines.terminate(&e);
+		ipanema_terminate(&e);
 		ipanema_task_policy(p) = NULL;
 		goto end;
 	}
@@ -440,7 +440,7 @@ static void yield_task_ipanema(struct rq *rq)
 	 * The process called yield(). Switch its state to IPANEMA_READY,
 	 * schedule() is going to be called very soon.
 	 */
-	ipanema_routines.yield(&e);
+	ipanema_yield(&e);
 	p->ipanema_metadata.just_yielded = 1;
 }
 
@@ -481,7 +481,7 @@ static struct task_struct *pick_next_task_ipanema(struct rq *rq,
 			__FUNCTION__);
 	} else {
 		list_for_each_entry(policy, &ipanema_policies, list) {
-			ipanema_routines.schedule(policy, rq->cpu);
+			ipanema_schedule(policy, rq->cpu);
 			result = per_cpu(ipanema_current, rq->cpu);
 			/* if a task is found, schedule it */
 			if (result)
@@ -491,18 +491,18 @@ static struct task_struct *pick_next_task_ipanema(struct rq *rq,
 			 * already idle, try next policy. Else, call the
 			 * newly_idle() event and retry once.
 			 */
-			cstate = ipanema_routines.get_core_state(policy,
+			cstate = ipanema_get_core_state(policy,
 								 rq->cpu);
 			if (cstate == IPANEMA_IDLE_CORE)
 				continue;
-			ipanema_routines.newly_idle(policy, rq->cpu, rf);
-			ipanema_routines.schedule(policy, rq->cpu);
+			ipanema_newly_idle(policy, rq->cpu, rf);
+			ipanema_schedule(policy, rq->cpu);
 			result = per_cpu(ipanema_current, rq->cpu);
 			/* if a task is found, schedule it */
 			if (result)
 				break;
 			/* else call enter_idle() handler for this policy/cpu */
-			ipanema_routines.enter_idle(policy, rq->cpu);
+			ipanema_enter_idle(policy, rq->cpu);
 		}
 	}
 
@@ -521,7 +521,7 @@ static struct task_struct *pick_next_task_ipanema(struct rq *rq,
 
 	if (result != prev) {
 		IPA_DBG_SAFE("Pick next -> %p %d.\n", result,
-			     result ? ipanema_routines.get_metric(result) : 0);
+			     result ? ipanema_get_metric(result) : 0);
 
 		put_prev_task(rq, prev);
 		IPA_DBG_SAFE("put_prev_task() over.\n");
@@ -598,7 +598,7 @@ static void put_prev_task_ipanema(struct rq *rq,
 		 * Case 1b: preemption! We should call preempt() but we don't
 		 * have a preempt() event. So we just call yield().
 		 */
-		ipanema_routines.yield(&e);
+		ipanema_yield(&e);
 	/*
 	 * Case 2: preemption caused by a transition to ready in tick().
 	 */
@@ -690,7 +690,7 @@ static int select_task_rq_ipanema(struct task_struct *p,
 			IPA_EMERG_SAFE("%s: p is IPANEMA_NOT_QUEUED and policy is NULL. Shouldn't happen\n",
 				       __func__);
 		ipanema_task_rq(p) = NULL;
-		ret = ipanema_routines.new_prepare(&e);
+		ret = ipanema_new_prepare(&e);
 		if (ret < 0) {
 			IPA_EMERG_SAFE("%s: new_prepare failed (pid=%d, policy=%d), reverting to p->cpu\n",
 				       __func__, p->pid,
@@ -699,7 +699,7 @@ static int select_task_rq_ipanema(struct task_struct *p,
 		}
 		return ret;
 	} else if (p->state == TASK_WAKING)
-		return ipanema_routines.unblock_prepare(&e);
+		return ipanema_unblock_prepare(&e);
 
 	return p->cpu;
 }
@@ -721,7 +721,7 @@ static void rq_online_ipanema(struct rq *rq)
 
 	list_for_each_entry(policy, &ipanema_policies, list) {
 		if (cpumask_test_cpu(rq->cpu, &policy->allowed_cores))
-			ipanema_routines.core_entry(policy, rq->cpu);
+			ipanema_core_entry(policy, rq->cpu);
 	}
 }
 
@@ -735,7 +735,7 @@ static void rq_offline_ipanema(struct rq *rq)
 
 	list_for_each_entry(policy, &ipanema_policies, list) {
 		if (cpumask_test_cpu(rq->cpu, &policy->allowed_cores))
-			ipanema_routines.core_exit(policy, rq->cpu);
+			ipanema_core_exit(policy, rq->cpu);
 	}
 }
 
@@ -816,7 +816,7 @@ static void task_tick_ipanema(struct rq *rq,
 	 * FIXME: not the case anymore. State transitions happen in tick().
 	 *
 	 */
-	ipanema_routines.tick(&e);
+	ipanema_tick(&e);
 }
 
 static void task_fork_ipanema(struct task_struct *p)
@@ -923,8 +923,7 @@ static void task_change_group_ipanema(struct task_struct *p, int type)
 
 void run_rebalance_domains(struct softirq_action *h)
 {
-	if (ipanema_routines.balancing_select)
-		ipanema_routines.balancing_select();
+	ipanema_balancing_select();
 }
 
 const struct sched_class ipanema_sched_class = {

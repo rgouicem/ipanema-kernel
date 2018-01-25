@@ -238,13 +238,13 @@ int ipanema_set_policy(char *str)
 		cpumask_andnot(&removed_cores, &policy_cur->allowed_cores,
 			       &cores_allowed);
 		for_each_cpu(cpu, &removed_cores) {
-			ipanema_routines.core_exit(policy_cur, cpu);
+			ipanema_core_exit(policy_cur, cpu);
 		}
 		cpumask_copy(&policy_cur->allowed_cores, &cores_allowed);
 		cpumask_andnot(&added_cores, &cores_allowed,
 			       &policy_cur->allowed_cores);
 		for_each_cpu(cpu, &added_cores) {
-			ipanema_routines.core_entry(policy_cur, cpu);
+			ipanema_core_entry(policy_cur, cpu);
 		}
 		goto end;
 	}
@@ -282,7 +282,7 @@ int ipanema_set_policy(char *str)
 		goto free_policy;
 	}
 	for_each_cpu(cpu, &cores_allowed) {
-		ipanema_routines.core_entry(policy, cpu);
+		ipanema_core_entry(policy, cpu);
 	}
 
 	/* Insert policy into active policies */
@@ -785,27 +785,3 @@ struct task_struct *ipanema_get_task_of(void *proc)
 	return container_of(ipanema, struct task_struct, ipanema_metadata);
 }
 EXPORT_SYMBOL(ipanema_get_task_of);
-
-struct ipanema_routines ipanema_routines = {
-	.order_process = ipanema_order_process,
-	.get_metric = ipanema_get_metric,
-	.get_core_state = ipanema_get_core_state,
-	.new_prepare = ipanema_new_prepare,
-	.new_place = ipanema_new_place,
-	.new_end = ipanema_new_end,
-	.tick = ipanema_tick,
-	.yield = ipanema_yield,
-	.block = ipanema_block,
-	.unblock_prepare = ipanema_unblock_prepare,
-	.unblock_place = ipanema_unblock_place,
-	.unblock_end = ipanema_unblock_end,
-	.terminate = ipanema_terminate,
-	.schedule = ipanema_schedule,
-	.init = ipanema_init,
-	.balancing_select = ipanema_balancing_select,
-	.core_entry = ipanema_core_entry,
-	.core_exit = ipanema_core_exit,
-	.newly_idle = ipanema_newly_idle,
-	.enter_idle = ipanema_enter_idle,
-	.exit_idle = ipanema_exit_idle,
-};

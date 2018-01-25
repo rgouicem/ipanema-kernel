@@ -17,37 +17,33 @@
 
 struct ipanema_policy;
 
-struct ipanema_routines {
-	int (*order_process)(struct task_struct *a, struct task_struct *b);
-	int (*get_metric)(struct task_struct *a);
-	int (*get_core_state)(struct ipanema_policy *policy, unsigned int core);
+int ipanema_order_process(struct task_struct *a, struct task_struct *b);
+int ipanema_get_metric(struct task_struct *a);
+int ipanema_get_core_state(struct ipanema_policy *policy, unsigned int core);
 
-	int (*new_prepare)(struct process_event *e);
-	void (*new_place)(struct process_event *e);
-	void (*new_end)(struct process_event *e);
+int ipanema_new_prepare(struct process_event *e);
+void ipanema_new_place(struct process_event *e);
+void ipanema_new_end(struct process_event *e);
 
-	void (*tick)(struct process_event *e);
-	void (*yield)(struct process_event *e);
-	void (*block)(struct process_event *e);
+void ipanema_tick(struct process_event *e);
+void ipanema_yield(struct process_event *e);
+void ipanema_block(struct process_event *e);
 
-	int (*unblock_prepare)(struct process_event *e);
-	void (*unblock_place)(struct process_event *e);
-	void (*unblock_end)(struct process_event *e);
+int ipanema_unblock_prepare(struct process_event *e);
+void ipanema_unblock_place(struct process_event *e);
+void ipanema_unblock_end(struct process_event *e);
 
-	void (*terminate)(struct process_event *e);
-	void (*schedule)(struct ipanema_policy *policy, unsigned int cpu);
-	void (*init)(void);
-	void (*balancing_select)(void);
+void ipanema_terminate(struct process_event *e);
+void ipanema_schedule(struct ipanema_policy *policy, unsigned int cpu);
+void ipanema_init(void);
+void ipanema_balancing_select(void);
 
-	void (*core_entry)(struct ipanema_policy *policy, unsigned int core);
-	void (*core_exit)(struct ipanema_policy *policy, unsigned int core);
-	void (*newly_idle)(struct ipanema_policy *policy, unsigned int core,
-			   struct rq_flags *rf);
-	void (*enter_idle)(struct ipanema_policy *policy, unsigned int core);
-	void (*exit_idle)(struct ipanema_policy *policy, unsigned int core);
-};
-
-extern struct ipanema_routines ipanema_routines;
+void ipanema_core_entry(struct ipanema_policy *policy, unsigned int core);
+void ipanema_core_exit(struct ipanema_policy *policy, unsigned int core);
+void ipanema_newly_idle(struct ipanema_policy *policy, unsigned int core,
+			struct rq_flags *rf);
+void ipanema_enter_idle(struct ipanema_policy *policy, unsigned int core);
+void ipanema_exit_idle(struct ipanema_policy *policy, unsigned int core);
 
 extern struct ipanema_module *ipanema_modules[];
 extern unsigned int num_ipanema_modules;
