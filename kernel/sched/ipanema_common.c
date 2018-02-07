@@ -477,7 +477,7 @@ static struct task_struct *pick_next_task_ipanema(struct rq *rq,
 
 	if (per_cpu(ipanema_current, rq->cpu)) {
 		result = per_cpu(ipanema_current, rq->cpu);
-		pr_info("%s: ipanema_current was not NULL. SHould not happen\n",
+		pr_info("%s: ipanema_current was not NULL. Should not happen\n",
 			__FUNCTION__);
 	} else {
 		list_for_each_entry(policy, &ipanema_policies, list) {
@@ -492,7 +492,7 @@ static struct task_struct *pick_next_task_ipanema(struct rq *rq,
 			 * newly_idle() event and retry once.
 			 */
 			cstate = ipanema_get_core_state(policy,
-								 rq->cpu);
+							rq->cpu);
 			if (cstate == IPANEMA_IDLE_CORE)
 				continue;
 			ipanema_newly_idle(policy, rq->cpu, rf);
@@ -520,8 +520,8 @@ static struct task_struct *pick_next_task_ipanema(struct rq *rq,
 		IPA_DBG_SAFE("We picked the same task as before! Don't call put_prev_task!\n");
 
 	if (result != prev) {
-		IPA_DBG_SAFE("Pick next -> %p %d.\n", result,
-			     result ? ipanema_get_metric(result) : 0);
+		/* IPA_DBG_SAFE("Pick next -> %p %d.\n", result, */
+		/* 	     result ? ipanema_get_metric(result) : 0); */
 
 		put_prev_task(rq, prev);
 		IPA_DBG_SAFE("put_prev_task() over.\n");

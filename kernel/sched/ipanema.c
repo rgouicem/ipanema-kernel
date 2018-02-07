@@ -130,8 +130,6 @@ int ipanema_set_policy(char *str)
 	unsigned long flags;
 	unsigned int nr_users;
 
-	pr_info("%s(%s)\n", __FUNCTION__, str);
-
 	/*
 	 * Set module_name to the right position in str and change str from
 	 * "cpulist:name" to "cpulist\nname"
@@ -232,8 +230,10 @@ int ipanema_set_policy(char *str)
 	 * for added cores, trigger core_entry event and return
 	 */
 	if (exists) {
-		pr_info("%s: policy '%s' found. Modifying...\n",
-			__FUNCTION__, policy_cur->name);
+		pr_info("ipanema: modifying policy '%s': %*pbl -> %*pbl\n",
+			policy_cur->name,
+			cpumask_pr_args(&policy_cur->allowed_cores),
+			cpumask_pr_args(&cores_allowed));
 		routines = policy_cur->module->routines;
 		cpumask_andnot(&removed_cores, &policy_cur->allowed_cores,
 			       &cores_allowed);
@@ -289,15 +289,17 @@ int ipanema_set_policy(char *str)
 	list_add_tail(&policy->list, &ipanema_policies);
 	num_ipanema_policies++;
 
+	pr_info("ipanema: inserted policy '%s' (id=%d, cpus=%*pbl)\n",
+		policy->name, policy->id,
+		cpumask_pr_args(&policy->allowed_cores));
+
 end:
 	write_unlock_irqrestore(&ipanema_rwlock, flags);
 end_nolock:
-	pr_info("%s: returning with %d\n", __FUNCTION__, ret);
 	return ret;
 
 free_policy:
 	kfree(policy);
-	pr_info("%s: returning with %d\n", __FUNCTION__, ret);
 	return ret;
 }
 EXPORT_SYMBOL(ipanema_set_policy);
