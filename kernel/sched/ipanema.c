@@ -225,9 +225,10 @@ int ipanema_set_policy(char *str)
 	}
 
 	/*
-	 * If it already exists, compare the current and the new cpu masks,
-	 * for removed cores, trigger core_removal event, change the mask and
-	 * for added cores, trigger core_entry event and return
+	 * If it already exists, change the allowed_cores mask and:
+	 * - for removed cores, trigger core_removal event,
+	 * - for added cores, trigger core_entry event
+	 * after that, directly goto end
 	 */
 	if (exists) {
 		pr_info("ipanema: modifying policy '%s': %*pbl -> %*pbl\n",
@@ -237,12 +238,12 @@ int ipanema_set_policy(char *str)
 		routines = policy_cur->module->routines;
 		cpumask_andnot(&removed_cores, &policy_cur->allowed_cores,
 			       &cores_allowed);
+		cpumask_andnot(&added_cores, &cores_allowed,
+			       &policy_cur->allowed_cores);
+		cpumask_copy(&policy_cur->allowed_cores, &cores_allowed);
 		for_each_cpu(cpu, &removed_cores) {
 			ipanema_core_exit(policy_cur, cpu);
 		}
-		cpumask_copy(&policy_cur->allowed_cores, &cores_allowed);
-		cpumask_andnot(&added_cores, &cores_allowed,
-			       &policy_cur->allowed_cores);
 		for_each_cpu(cpu, &added_cores) {
 			ipanema_core_entry(policy_cur, cpu);
 		}

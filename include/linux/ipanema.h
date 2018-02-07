@@ -66,8 +66,6 @@ extern DEFINE_PER_CPU(struct task_struct *, ipanema_current);
 extern int nb_topology_levels;
 extern DEFINE_PER_CPU(struct topology_level*, topology_levels);
 
-void init_sched_ipanema_late(void);
-
 struct ipanema_runtime_metadata;
 
 struct process_event {
@@ -145,8 +143,16 @@ struct ipanema_module {
 	/* refcount ? */
 };
 
+/* topology level types, used as flags in struct topology_level */
+#define DOMAIN_SMT   0x1      	/* cpus share computing units (simultaneous multi-threading) */
+#define DOMAIN_CACHE 0x2	/* cpus share a hardware cache */
+#define DOMAIN_NUMA  0x4	/* cpus may be on different NUMA nodes */
+
+struct topology_level;
 struct topology_level {
-	const cpumask_t *cores;
+	cpumask_t cores;
+	int flags;
+	struct topology_level *next;
 };
 
 void change_state(struct task_struct *p, enum ipanema_state next_state,

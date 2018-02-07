@@ -972,48 +972,92 @@ void trigger_load_balance_ipanema(struct rq *rq)
 	raise_softirq(SCHED_SOFTIRQ_IPANEMA);
 }
 
-int nb_topology_levels;
-EXPORT_SYMBOL(nb_topology_levels);
-
 DEFINE_PER_CPU(struct topology_level *, topology_levels);
 EXPORT_SYMBOL(topology_levels);
 
-static const struct cpumask *machine_mask(int cpu)
+static int create_topology(void)
 {
-	return cpu_possible_mask;
+	int cpu;
+	struct sched_domain *sd;
+	struct topology_level *l, *cur;
+
+	/*
+	 * for each CPU, we export the topology to the ipanema policies through
+	 * the topology_levels per-cpu variable.
+	 * To build this, we use the already built sched_domains.
+	 */
+	for_each_possible_cpu(cpu) {
+		per_cpu(topology_levels, cpu) = NULL;
+		cur = NULL;
+		for_each_domain(cpu, sd) {
+			l = kzalloc(sizeof(struct topology_level), GFP_KERNEL);
+			if (!l) {
+				pr_err("ipanema: failed to allocate memory for topology_levels (cpu%d)\n",
+				       cpu);
+				return -ENOMEM;
+			}
+			if (sd->flags & SD_SHARE_CPUCAPACITY)
+			        l->flags |= DOMAIN_SMT;
+			if (sd->flags & SD_SHARE_PKG_RESOURCES)
+				l->flags |= DOMAIN_CACHE;
+			if (sd->flags & SD_NUMA)
+				l->flags |= DOMAIN_NUMA;
+			cpumask_copy(&l->cores, sched_domain_span(sd));
+
+			/* insert level in per_cpu list (at tail) */
+			l->next = NULL;
+			if (!per_cpu(topology_levels, cpu))
+				per_cpu(topology_levels, cpu) = l;
+			else
+				cur->next = l;
+			cur = l;
+		}
+	}
+
+	return 0;
 }
 
-sched_domain_mask_f topology_masks[] = { cpu_smt_mask,
-					 cpu_coregroup_mask,
-					 cpu_cpu_mask,
-					 machine_mask };
-
-#define NB_TOPOLOGY_LEVELS (sizeof(topology_masks) / sizeof(*topology_masks))
-
-static void create_topology(void)
+static void print_topology(void)
 {
-	int cpu, level;
+	int cpu;
 	struct topology_level *l;
 
-	nb_topology_levels = NB_TOPOLOGY_LEVELS;
+	pr_info("+-----------------------+*\n");
+	pr_info("|    ipanema topology   |\n");
+	pr_info("+-----------------------+\n");
+	pr_info("  cpu  | SMT | CACHE | NUMA |   cpulist    \n");
 	for_each_possible_cpu(cpu) {
-		per_cpu(topology_levels, cpu) =
-			kcalloc(NB_TOPOLOGY_LEVELS,
-				sizeof(*per_cpu(topology_levels, cpu)),
-				GFP_ATOMIC);
-
-		for (level = 0; level < NB_TOPOLOGY_LEVELS; level++) {
-			l = &(per_cpu(topology_levels, cpu)[level]);
-			l->cores = topology_masks[level](cpu);
+		pr_info("-------+-----+-------+------+--------------\n");
+		pr_info(" %5d |\n", cpu);
+		l = per_cpu(topology_levels, cpu);
+		while (l) {
+			pr_info("       |  %d  |   %d   |   %d  | %*pbl \n",
+				l->flags & DOMAIN_SMT ? 1 : 0,
+				l->flags & DOMAIN_CACHE ? 1 : 0,
+				l->flags & DOMAIN_NUMA ? 1 : 0,
+				cpumask_pr_args(&l->cores));
+			l = l->next;
 		}
 	}
 }
 
-__init void init_sched_ipanema_class(void)
+void __init init_sched_ipanema_class(void)
 {
 	rwlock_init(&ipanema_rwlock);
-	create_topology();
 	open_softirq(SCHED_SOFTIRQ_IPANEMA, run_rebalance_domains);
 
 	pr_info("ipanema: sched_class initialized\n");
 }
+
+int __init init_sched_ipanema_late(void)
+{
+	int ret;
+
+	ret = create_topology();
+	if (ret)
+		pr_err("ipanema: create_topology() failed\n");
+	print_topology();
+
+	return 0;
+}
+late_initcall(init_sched_ipanema_late);
