@@ -240,13 +240,26 @@ int ipanema_set_policy(char *str)
 			       &cores_allowed);
 		cpumask_andnot(&added_cores, &cores_allowed,
 			       &policy_cur->allowed_cores);
-		cpumask_copy(&policy_cur->allowed_cores, &cores_allowed);
+		/*
+		 * unset removed_cores from policy to prevent load-balancing and
+		 * schedule, then call core_exit for removed cores
+		 */
+		cpumask_andnot(&policy_cur->allowed_cores,
+			       &policy_cur->allowed_cores,
+			       &removed_cores);
 		for_each_cpu(cpu, &removed_cores) {
 			ipanema_core_exit(policy_cur, cpu);
 		}
+		/*
+		 * call core_entry for added_cores, then set them in policy to
+		 * enable load balancing and schedule on these cores
+		 */
 		for_each_cpu(cpu, &added_cores) {
 			ipanema_core_entry(policy_cur, cpu);
 		}
+		cpumask_or(&policy_cur->allowed_cores,
+			   &policy_cur->allowed_cores,
+			   &added_cores);
 		goto end;
 	}
 
@@ -318,12 +331,6 @@ int ipanema_order_process(struct task_struct *a, struct task_struct *b)
 		       struct task_struct *a,
 		       struct task_struct *b);
 
-	if (list_empty(&ipanema_policies)) {
-		IPA_EMERG_SAFE("%s: ipanema_policies == NULL\n",
-			       __FUNCTION__);
-		return 0;
-	}
-
 	if (a->ipanema_metadata.policy != b->ipanema_metadata.policy) {
 		IPA_EMERG_SAFE("%s: tasks a and b have different ipanema policies [%p, %p]\n",
 			       __FUNCTION__,
@@ -350,12 +357,6 @@ int ipanema_get_metric(struct task_struct *a)
 	struct ipanema_policy *policy;
 	int (*handler)(struct ipanema_policy *policy_p,
 		       struct task_struct *a);
-
-	if (list_empty(&ipanema_policies)) {
-		IPA_EMERG_SAFE("%s: ipanema_policies == NULL\n",
-			       __FUNCTION__);
-		return 0;
-	}
 
 	policy = a->ipanema_metadata.policy;
 	handler = policy->module->routines->get_metric;
@@ -392,15 +393,21 @@ int ipanema_new_prepare(struct process_event *e)
 	struct ipanema_policy *policy;
 	int (*handler)(struct ipanema_policy *policy_p,
 		       struct process_event *e);
+	unsigned long flags;
 
-	if (list_empty(&ipanema_policies)) {
-		IPA_EMERG_SAFE("%s: WARNING: ipanema_policies == NULL\n",
-			       __FUNCTION__);
-		return core;
-	}
-
+	/*
+	 * we acquire this lock to prevent the policy from being removed before
+	 * incrementing the refcount, and prevent change to the
+	 * policy->allowed_cores mask, since hierarchy may be walked through by
+	 * this event
+	 */
+	read_lock_irqsave(&ipanema_rwlock, flags);
 	policy = p->ipanema_metadata.policy;
+	if (!policy)
+	        return -1;
+
 	kref_get(&policy->refcount);
+
 	handler = policy->module->routines->new_prepare;
 
 	if (!handler)
@@ -408,6 +415,7 @@ int ipanema_new_prepare(struct process_event *e)
 			       __FUNCTION__);
 	else
 		core = (*handler)(policy, e);
+	read_unlock_irqrestore(&ipanema_rwlock, flags);
 
 	return core;
 }
@@ -418,12 +426,6 @@ void ipanema_new_place(struct process_event *e)
 	struct ipanema_policy *policy;
 	void (*handler)(struct ipanema_policy *policy_p,
 			struct process_event *e);
-
-	if (list_empty(&ipanema_policies)) {
-		IPA_EMERG_SAFE("%s: ipanema_policies == NULL\n",
-			       __FUNCTION__);
-		return;
-	}
 
 	lockdep_assert_held(&task_rq(p)->lock);
 
@@ -443,12 +445,6 @@ void ipanema_new_end(struct process_event *e)
 	struct ipanema_policy *policy;
 	void (*handler)(struct ipanema_policy *policy_p,
 			struct process_event *e);
-
-	if (list_empty(&ipanema_policies)) {
-		IPA_EMERG_SAFE("%s: ipanema_policies == NULL\n",
-			       __FUNCTION__);
-		return;
-	}
 
 	policy = p->ipanema_metadata.policy;
 	handler = policy->module->routines->new_end;
@@ -474,12 +470,6 @@ void ipanema_tick(struct process_event *e)
 	 */
 	lockdep_assert_held(&rq->lock);
 
-	if (list_empty(&ipanema_policies)) {
-		IPA_EMERG_SAFE("%s: ipanema_policies == NULL\n",
-			       __FUNCTION__);
-		return;
-	}
-
 	policy = p->ipanema_metadata.policy;
 	handler = policy->module->routines->tick;
 
@@ -503,12 +493,6 @@ void ipanema_yield(struct process_event *e)
 	 * resched_curr() to schedule another thread.
 	 */
 	lockdep_assert_held(&rq->lock);
-
-	if (list_empty(&ipanema_policies)) {
-		IPA_EMERG_SAFE("%s: ipanema_policies == NULL\n",
-			       __FUNCTION__);
-		return;
-	}
 
 	policy = p->ipanema_metadata.policy;
 	handler = policy->module->routines->yield;
@@ -534,12 +518,6 @@ void ipanema_block(struct process_event *e)
 	 */
 	lockdep_assert_held(&rq->lock);
 
-	if (list_empty(&ipanema_policies)) {
-		IPA_EMERG_SAFE("%s: ipanema_policies == NULL\n",
-			       __FUNCTION__);
-		return;
-	}
-
 	policy = p->ipanema_metadata.policy;
 	handler = policy->module->routines->block;
 
@@ -557,23 +535,26 @@ int ipanema_unblock_prepare(struct process_event *e)
 	int core = task_cpu(p);
 	int (*handler)(struct ipanema_policy *policy_p,
 		       struct process_event *e);
+	unsigned long flags;
 
 	lockdep_assert_held(&p->pi_lock);
-
-	if (list_empty(&ipanema_policies)) {
-		IPA_EMERG_SAFE("%s: ipanema_policies == NULL\n",
-			       __FUNCTION__);
-		return core;
-	}
 
 	policy = p->ipanema_metadata.policy;
 	handler = policy->module->routines->unblock_prepare;
 
+	/*
+	 * we acquire this lock to prevent a change to the
+	 * policy->allowed_cores mask, since hierarchy may be walked through by
+	 * this event
+	 */
+	read_lock_irqsave(&ipanema_rwlock, flags);
 	if (handler)
 		core = (*handler)(policy, e);
 	else
 		IPA_EMERG_SAFE("%s: WARNING: invalid function pointer!\n",
 			       __FUNCTION__);
+
+	read_unlock_irqrestore(&ipanema_rwlock, flags);
 
 	return core;
 }
@@ -586,12 +567,6 @@ void ipanema_unblock_place(struct process_event *e)
 			struct process_event *e);
 
 	lockdep_assert_held(&task_rq(p)->lock);
-
-	if (list_empty(&ipanema_policies)) {
-		IPA_EMERG_SAFE("%s: ipanema_policies == NULL\n",
-			       __FUNCTION__);
-		return;
-	}
 
 	policy = p->ipanema_metadata.policy;
 	handler = policy->module->routines->unblock_place;
@@ -612,12 +587,6 @@ void ipanema_unblock_end(struct process_event *e)
 
 	lockdep_assert_held(&p->pi_lock);
 
-	if (list_empty(&ipanema_policies)) {
-		IPA_EMERG_SAFE("%s: ipanema_policies == NULL\n",
-			       __FUNCTION__);
-		return;
-	}
-
 	policy = p->ipanema_metadata.policy;
 	handler = policy->module->routines->unblock_end;
 
@@ -637,12 +606,6 @@ void ipanema_terminate(struct process_event *e)
 			struct process_event *e);
 
 	lockdep_assert_held(&rq->lock);
-
-	if (list_empty(&ipanema_policies)) {
-		IPA_EMERG_SAFE("%s: ipanema_policies == NULL\n",
-			       __FUNCTION__);
-		return;
-	}
 
 	policy = p->ipanema_metadata.policy;
 	handler = policy->module->routines->terminate;
@@ -766,8 +729,9 @@ void ipanema_balancing_select(void)
 	struct core_event e = { .target = core };
 	void (*handler)(struct ipanema_policy *policy_p,
 			struct core_event *e);
+	unsigned long flags;
 
-	read_lock(&ipanema_rwlock);
+	read_lock_irqsave(&ipanema_rwlock, flags);
 	list_for_each_entry(policy, &ipanema_policies, list) {
 		if (cpumask_test_cpu(core, &policy->allowed_cores)) {
 			handler = policy->module->routines->balancing_select;
@@ -775,7 +739,7 @@ void ipanema_balancing_select(void)
 				(*handler)(policy, &e);
 		}
 	}
-	read_unlock(&ipanema_rwlock);
+	read_unlock_irqrestore(&ipanema_rwlock, flags);
 }
 
 void ipanema_init(void)
