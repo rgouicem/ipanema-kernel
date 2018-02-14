@@ -113,26 +113,16 @@ struct Simple_ipa_sched_domain {
 	unsigned int idle_count, periodic_count;
 };
 
-
 DEFINE_PER_CPU(struct Simple_ipa_core, core);
-
-static int create_scheduling_domains(int cpu, cpumask_t *policy_cpus);
-
-
-static int ipanema_Simple_get_metric(struct ipanema_policy *policy,
-				     struct task_struct *a)
-{
-	return ((struct Simple_ipa_process *)policy_metadata(a))->quanta;
-
-}
 
 static int ipanema_Simple_order_process(struct ipanema_policy *policy,
 					struct task_struct *a,
 					struct task_struct *b)
 {
-	int v_a = ipanema_Simple_get_metric(policy, a);
-	int v_b = ipanema_Simple_get_metric(policy, b);
-	return v_a - v_b;
+	struct Simple_ipa_process *pa = policy_metadata(a);
+	struct Simple_ipa_process *pb = policy_metadata(b);
+
+	return pa->quanta - pb->quanta;
 }
 
 static int get_class(int state)
@@ -197,9 +187,12 @@ static void set_inactive_core(struct Simple_ipa_core *core, cpumask_var_t cores,
 static enum ipanema_core_state get_core_state(int state)
 {
 	switch (state) {
-	case ACTIVE_CORES_STATE: return IPANEMA_ACTIVE_CORE;
-	case INACTIVE_CORES_STATE: return IPANEMA_IDLE_CORE;
-	default: return -1;
+	case ACTIVE_CORES_STATE:
+		return IPANEMA_ACTIVE_CORE;
+	case INACTIVE_CORES_STATE:
+		return IPANEMA_IDLE_CORE;
+	default:
+		return -1;
 	}
 }
 
@@ -230,8 +223,6 @@ static int ipanema_Simple_new_prepare(struct ipanema_policy *policy,
 	/* Choose the core with the lowest number of READY + RUNNING tasks */
 	dst = p->cpu;
 	dst_nr = ipanema_state(dst).ready.nr_tasks + (ipanema_state(dst).current_0 ? 1 : 0);
-	pr_info("%s: active_cores = %*pbl\n",
-		__FUNCTION__, cpumask_pr_args(cstate_info.active_cores));
 	for_each_cpu(cpu, cstate_info.active_cores) {
 		cpu_nr = ipanema_state(cpu).ready.nr_tasks + (ipanema_state(cpu).current_0 ? 1 : 0);
 		if (cpu_nr < dst_nr) {
@@ -361,12 +352,6 @@ static void ipanema_Simple_core_entry(struct ipanema_policy *policy,
 				      struct core_event *e)
 {
 	struct Simple_ipa_core * tgt = &ipanema_core(e->target);
-	int cpu;
-
-	/* Update hierarchy for all cpus handled by the policy */
-	for_each_possible_cpu(cpu) {
-		create_scheduling_domains(cpu, &policy->allowed_cores);
-	}
 
 	set_active_core(tgt, cstate_info.active_cores, ACTIVE_CORES_STATE);
 }
@@ -375,14 +360,8 @@ static void ipanema_Simple_core_exit(struct ipanema_policy *policy,
 				     struct core_event *e)
 {
 	struct Simple_ipa_core * tgt = &ipanema_core(e->target);
-	int cpu;
 
 	set_inactive_core(tgt, cstate_info.active_cores, INACTIVE_CORES_STATE);
-
-	/* Update hierarchy for all cpus handled by the policy */
-	for_each_possible_cpu(cpu) {
-		create_scheduling_domains(cpu, &policy->allowed_cores);
-	}
 	/* TODO: Migrate all tasks to another cpu */
 }
 
@@ -539,7 +518,6 @@ int ipanema_Simple_can_be_default(struct ipanema_policy *policy)
 struct ipanema_module_routines ipanema_Simple_routines =
 {
 	.order_process	  = ipanema_Simple_order_process,
-	.get_metric	  = ipanema_Simple_get_metric,
 	.get_core_state   = ipanema_Simple_get_core_state,
 	.new_prepare	  = ipanema_Simple_new_prepare,
 	.new_place	  = ipanema_Simple_new_place,
@@ -564,7 +542,7 @@ struct ipanema_module_routines ipanema_Simple_routines =
 	.attach		  = ipanema_Simple_attach
 };
 
-static int create_scheduling_domains(int cpu, cpumask_t *policy_cpus)
+static int create_scheduling_domains(unsigned int cpu)
 {
 	struct topology_level *t = per_cpu(topology_levels, cpu);
 	struct Simple_ipa_core *c = &ipanema_core(cpu);
@@ -574,7 +552,8 @@ static int create_scheduling_domains(int cpu, cpumask_t *policy_cpus)
 
 	/*
 	 * If create_scheduling_domains() was already called for this cpu, we
-	 * must free the sd field before rebuilding the hierarchy
+	 * must free the sd field before rebuilding the hierarchy. Should not be
+	 * the case
 	 */
 	if (c->sd)
 		kfree(c->sd);
@@ -582,16 +561,19 @@ static int create_scheduling_domains(int cpu, cpumask_t *policy_cpus)
 	c->sd = NULL;
 	c->___sched_domains_idx = 0;
 
-	/* if cpu is not in policy, do not build topology */
-	if (!cpumask_test_cpu(cpu, policy_cpus))
-		return 0;
-
+	/* for each topological level exported by the runtime for cpu */
 	while (t) {
+		/* expand sd array in core struct by 1 sd */
 		c->sd = krealloc(c->sd, (nr_levels + 1) * sd_size, GFP_KERNEL);
 		if (!c->sd)
 			goto mem_fail;
-		cpumask_and(c->sd[nr_levels].cores, policy_cpus, &t->cores);
+		/* copy the hw topology cpumask */
+		cpumask_copy(c->sd[nr_levels].cores, &t->cores);
+		/* copy the hw topology flags */
 		c->sd[nr_levels].flags = t->flags;
+		/* init sd fields */
+		c->sd[nr_levels].___sched_group_idx = 0;
+		c->sd[nr_levels].groups = NULL;
 		next_lb = cpumask_weight(c->sd[nr_levels].cores);
 		c->sd[nr_levels].next_balance = ktime_add(now,
 							  ms_to_ktime(next_lb));
@@ -607,8 +589,131 @@ static int create_scheduling_domains(int cpu, cpumask_t *policy_cpus)
 mem_fail:
 	c->___sched_domains_idx = 0;
 	kfree(c->sd);
+	c->sd = NULL;
 	return -ENOMEM;
 }
+
+static int build_groups(unsigned int cpu, struct Simple_ipa_sched_domain *sd)
+{
+	cpumask_t done;
+	unsigned int cpu_idx, level = 1, i;
+	struct Simple_ipa_core *c = &ipanema_core(cpu);
+
+	pr_info("%s(%d, %p): c->sd_idx = %d\n",
+		__FUNCTION__, cpu, sd, c->___sched_domains_idx);
+
+	/* cleanup current groups if necessary. Should not be the case */
+	if (sd->groups)
+		kfree(sd->groups);
+	sd->groups = NULL;
+	sd->___sched_group_idx = 0;
+
+	cpumask_clear(&done);
+	/* create the group containing cpu (previous domain) */
+	sd->groups = krealloc(sd->groups,
+			      sizeof(struct Simple_ipa_sched_group),
+			      GFP_KERNEL);
+	if (!sd->groups)
+		goto mem_fail;
+	/* if sd is the lowest domain, just add cpu in the group */
+	cpumask_clear(sd->groups[0].cores);
+	if (sd == c->sd) {
+		cpumask_set_cpu(cpu, sd->groups[0].cores);
+		cpumask_set_cpu(cpu, &done);
+	} else {
+		cpumask_copy(sd->groups[0].cores, sd[-1].cores);
+		cpumask_or(&done, &done, sd->groups[0].cores);
+	}
+
+	/*
+	 * for each cpu in the domain, if it is not already in a group,
+	 * build its group and add the cpus in this new group to done.
+	 */
+	for_each_cpu_wrap(cpu_idx, sd->cores, cpu) {
+		/* if already done, continue */
+		if (cpumask_test_cpu(cpu_idx, &done))
+			continue;
+
+		/* add a group to the domain */
+		sd->groups = krealloc(sd->groups,
+				      (level + 1) * sizeof(struct Simple_ipa_sched_group),
+				      GFP_KERNEL);
+		if (!sd->groups)
+			goto mem_fail;
+
+		cpumask_clear(sd->groups[level].cores);
+		/* search for the lowest domain of cpu_idx containing cpu */
+		c = &ipanema_core(cpu_idx);
+		for (i = 0; i < c->___sched_domains_idx; i++) {
+			if (cpumask_test_cpu(cpu, c->sd[i].cores)) {
+				/*
+				 * if it's cpu_idx lowest domain, just add
+				 * cpu_idx, else, add the previous domain
+				 */
+				if (i == 0)
+					cpumask_set_cpu(cpu_idx,
+							sd->groups[level].cores);
+				else
+					cpumask_copy(sd->groups[level].cores,
+						     c->sd[i - 1].cores);
+				break;
+			}
+		}
+		if (i == c->___sched_domains_idx)
+			pr_info("%s: from %d point of view, %d is nowhere\n",
+				__FUNCTION__, cpu_idx, cpu);
+		else
+			cpumask_or(&done, &done, sd->groups[level].cores);
+		level++;
+	}
+
+	sd->___sched_group_idx = level;
+
+	return 0;
+
+mem_fail:
+	sd->___sched_group_idx = 0;
+	kfree(sd->groups);
+	sd->groups = NULL;
+	return -ENOMEM;
+}
+
+/* Scheduling domains must be up to date for all CPUs */
+static int create_scheduling_groups(unsigned int cpu)
+{
+	struct Simple_ipa_core *c = &ipanema_core(cpu);
+	int i, ret = 0;
+
+	/*
+	 * for each domain (starting from the bigger one), we must build a list
+	 * of groups. These groups are domains from a lower level in the
+	 * hierarchy
+	 */
+	for (i = 0; i < c->___sched_domains_idx; i++) {
+		ret = build_groups(cpu, &c->sd[i]);
+		if (ret != 0) {
+			pr_info("%s: failed on cpu%d, domain%d\n",
+				__FUNCTION__, cpu, i);
+			break;
+		}
+	}
+
+	return ret;
+}
+
+static void build_hierarchy(void)
+{
+	int cpu;
+
+	/* Update hierarchy for all cpus handled by the policy */
+	for_each_possible_cpu(cpu) {
+		create_scheduling_domains(cpu);
+	}
+	for_each_possible_cpu(cpu) {
+		create_scheduling_groups(cpu);
+	}
+}
+
 
 static int proc_show(struct seq_file *s, void *p)
 {
@@ -665,9 +770,10 @@ static struct file_operations proc_fops = {
 
 static int proc_topo_show(struct seq_file *s, void *p)
 {
-	int cpu, level;
+	int cpu, level, sd_lvl;
 	struct Simple_ipa_core *c;
 	struct Simple_ipa_sched_domain *sd;
+	struct Simple_ipa_sched_group *sg;
 
 	for_each_possible_cpu(cpu) {
 		seq_printf(s, "cpu%d\n", cpu);
@@ -678,6 +784,11 @@ static int proc_topo_show(struct seq_file *s, void *p)
 				   level, cpumask_pr_args(sd->cores),
 				   cpumask_weight(sd->cores),
 				   sd->idle_count, sd->periodic_count);
+			for (sd_lvl = 0; sd_lvl < sd->___sched_group_idx; sd_lvl++) {
+				sg = &sd->groups[sd_lvl];
+				seq_printf(s, "         +--> group%d: %*pbl\n",
+					   sd_lvl, cpumask_pr_args(sg->cores));
+			}
 		}
 	}
 
@@ -704,7 +815,6 @@ int init_module(void)
 	char procbuf[10];
 
 	/* Initialize scheduler variables with non-const value (function call) */
-
 	for_each_possible_cpu(cpu) {
 		ipanema_core(cpu).id = cpu;
 		/* READY rq */
@@ -726,10 +836,15 @@ int init_module(void)
 		res = -ENOMEM;
 		goto clean_cpumask_var;
 	}
+
+	/* build hierarchy with topology */
+	build_hierarchy();
+
 	module->name = name;
 	module->routines = &ipanema_Simple_routines;
 	module->kmodule = THIS_MODULE;
 
+	/* Register module to the runtime */
 	res = ipanema_add_module(module);
 	if (res) {
 		switch (res) {
