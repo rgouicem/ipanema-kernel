@@ -370,7 +370,8 @@ int ipanema_get_metric(struct task_struct *a)
 	return res;
 }
 
-int ipanema_get_core_state(struct ipanema_policy *policy, unsigned int core) {
+int ipanema_get_core_state(struct ipanema_policy *policy, unsigned int core)
+{
 	struct core_event e = { .target = core };
 	int (*handler)(struct ipanema_policy *policy, struct core_event *e);
 	int res = 0;
@@ -642,7 +643,8 @@ void ipanema_schedule(struct ipanema_policy *policy, unsigned int core)
 			       __FUNCTION__);
 }
 
-void ipanema_core_entry(struct ipanema_policy *policy, unsigned int core) {
+void ipanema_core_entry(struct ipanema_policy *policy, unsigned int core)
+{
 	struct core_event e = { .target = core };
 	void (*handler)(struct ipanema_policy *policy, struct core_event *e);
 
@@ -655,7 +657,8 @@ void ipanema_core_entry(struct ipanema_policy *policy, unsigned int core) {
 			       __FUNCTION__);
 }
 
-void ipanema_core_exit(struct ipanema_policy *policy, unsigned int core) {
+void ipanema_core_exit(struct ipanema_policy *policy, unsigned int core)
+{
 	struct core_event e = { .target = core };
 	void (*handler)(struct ipanema_policy *policy, struct core_event *e);
 
@@ -669,7 +672,8 @@ void ipanema_core_exit(struct ipanema_policy *policy, unsigned int core) {
 }
 
 void ipanema_newly_idle(struct ipanema_policy *policy, unsigned int core,
-			struct rq_flags *rf) {
+			struct rq_flags *rf)
+{
 	struct core_event e = { .target = core };
 	void (*handler)(struct ipanema_policy *policy, struct core_event *e);
 	struct rq *rq = cpu_rq(core);
@@ -696,7 +700,8 @@ void ipanema_newly_idle(struct ipanema_policy *policy, unsigned int core,
 			       __FUNCTION__);
 }
 
-void ipanema_enter_idle(struct ipanema_policy *policy, unsigned int core) {
+void ipanema_enter_idle(struct ipanema_policy *policy, unsigned int core)
+{
 	struct core_event e = { .target = core };
 	void (*handler)(struct ipanema_policy *policy, struct core_event *e);
 
@@ -709,7 +714,8 @@ void ipanema_enter_idle(struct ipanema_policy *policy, unsigned int core) {
 			       __FUNCTION__);
 }
 
-void ipanema_exit_idle(struct ipanema_policy *policy, unsigned int core) {
+void ipanema_exit_idle(struct ipanema_policy *policy, unsigned int core)
+{
 	struct core_event e = { .target = core };
 	void (*handler)(struct ipanema_policy *policy, struct core_event *e);
 
