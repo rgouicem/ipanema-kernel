@@ -599,9 +599,6 @@ static int build_groups(unsigned int cpu, struct Simple_ipa_sched_domain *sd)
 	unsigned int cpu_idx, level = 1, i;
 	struct Simple_ipa_core *c = &ipanema_core(cpu);
 
-	pr_info("%s(%d, %p): c->sd_idx = %d\n",
-		__FUNCTION__, cpu, sd, c->___sched_domains_idx);
-
 	/* cleanup current groups if necessary. Should not be the case */
 	if (sd->groups)
 		kfree(sd->groups);
@@ -654,8 +651,9 @@ static int build_groups(unsigned int cpu, struct Simple_ipa_sched_domain *sd)
 					cpumask_set_cpu(cpu_idx,
 							sd->groups[level].cores);
 				else
-					cpumask_copy(sd->groups[level].cores,
-						     c->sd[i - 1].cores);
+					cpumask_andnot(sd->groups[level].cores,
+						       c->sd[i - 1].cores,
+						       &done);
 				break;
 			}
 		}
