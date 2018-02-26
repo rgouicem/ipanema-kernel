@@ -475,10 +475,21 @@ static struct task_struct *pick_next_task_ipanema(struct rq *rq,
 		pr_info("In %s [pid=%d, rq=%d]\n",
 			__func__, prev->pid, rq->cpu);
 
+	/*
+	 * If ipanema_current is not NULL, it means that pick_next_task() is
+	 * called and neither yield(), block() or terminate() was called. This
+	 * can happen in __schedule(), if the task is not RUNNABLE
+	 * (prev->state != 0) and has a pending signal. The task is therefore
+	 * not dequeued in order to handle the pending signals, and still in
+	 * ipanema_current. For now, we keep the same task as ipanema_current,
+	 * it will be removed when signals are handled (through a call to
+	 * dequeue and the correct ipanema event handler)
+	 */
 	if (per_cpu(ipanema_current, rq->cpu)) {
 		result = per_cpu(ipanema_current, rq->cpu);
-		pr_info("%s: ipanema_current was not NULL. Should not happen\n",
-			__FUNCTION__);
+		if (prev->state != TASK_RUNNING)
+			pr_info("%s: ipanema_current was not NULL and task is not TASK_RUNNING. Should not happen\n",
+				__FUNCTION__);
 	} else {
 		list_for_each_entry(policy, &ipanema_policies, list) {
 			ipanema_schedule(policy, rq->cpu);
