@@ -284,10 +284,10 @@ static void enqueue_task_ipanema(struct rq *rq,
 		 * exit_idle() handler to wake it up on the policy
 		 */
 		cstate = ipanema_get_core_state(ipanema_task_policy(p),
-							 rq->cpu);
+						rq->cpu);
 		if (cstate == IPANEMA_IDLE_CORE)
 			ipanema_exit_idle(ipanema_task_policy(p),
-						   rq->cpu);
+					  rq->cpu);
 		ipanema_new_place(&e);
 		goto end;
 	}
@@ -304,10 +304,10 @@ static void enqueue_task_ipanema(struct rq *rq,
 		 * exit_idle() handler to wake it up on the policy
 		 */
 		cstate = ipanema_get_core_state(ipanema_task_policy(p),
-							 rq->cpu);
+						rq->cpu);
 		if (cstate == IPANEMA_IDLE_CORE)
 			ipanema_exit_idle(ipanema_task_policy(p),
-						   rq->cpu);
+					  rq->cpu);
 		ipanema_unblock_place(&e);
 		goto end;
 	}
@@ -345,7 +345,7 @@ static void dequeue_task_ipanema(struct rq *rq,
 	/* task has no ipanema policy, just decrement rq->nr_running */
 	if (!ipanema_task_policy(p)) {
 		IPA_EMERG_SAFE("%s: WARNING: called on a task with no ipanema policy set.\n",
-			__func__);
+			       __func__);
 		goto end;
 	}
 
@@ -610,9 +610,9 @@ static void put_prev_task_ipanema(struct rq *rq,
 		 * have a preempt() event. So we just call yield().
 		 */
 		ipanema_yield(&e);
-	/*
-	 * Case 2: preemption caused by a transition to ready in tick().
-	 */
+		/*
+		 * Case 2: preemption caused by a transition to ready in tick().
+		 */
 	} else if (state == IPANEMA_READY_TICK) {
 		/*
 		 * We're just before the preemption of a thread that has just
@@ -626,11 +626,11 @@ static void put_prev_task_ipanema(struct rq *rq,
 		IPA_DBG_SAFE("In %s [prev=%p, rq=%d], following a context switch from a transition to the ready state in tick(). Going from READY_TICK to READY.\n",
 			     __func__, prev, rq->cpu);
 		ipanema_task_state(prev) = IPANEMA_READY;
-	/*
-	 * Case 3: if we're already in the READY state, either a yield() event
-	 * from a call to sched_yield() set us in this state, or we switched to
-	 * ipanema sched_class.
-	 */
+		/*
+		 * Case 3: if we're already in the READY state, either a yield() event
+		 * from a call to sched_yield() set us in this state, or we switched to
+		 * ipanema sched_class.
+		 */
 	} else if (state == IPANEMA_READY) {
 		/* Safety check. */
 		if (!prev->ipanema_metadata.just_yielded) {
@@ -642,29 +642,29 @@ static void put_prev_task_ipanema(struct rq *rq,
 		IPA_DBG_SAFE("In %s following a yield().\n",
 			     __func__);
 		prev->ipanema_metadata.just_yielded = 0;
-	/*
-	 * Case 4: if we're in the BLOCKED state, a block() event (from
-	 * try_to_wake_up() -> enqueue_task_ipanema()) must have set us
-	 * in this state.
-	 */
+		/*
+		 * Case 4: if we're in the BLOCKED state, a block() event (from
+		 * try_to_wake_up() -> enqueue_task_ipanema()) must have set us
+		 * in this state.
+		 */
 	} else if (state == IPANEMA_BLOCKED) {
 		IPA_DBG_SAFE("Blocked in %s, should follow a block() event.\n",
 			     __func__);
-	/*
-	 * Case 5: the thread was terminated during its last dequeue. Don't
-	 * do anything.
-	 */
+		/*
+		 * Case 5: the thread was terminated during its last dequeue. Don't
+		 * do anything.
+		 */
 	} else if (state == IPANEMA_TERMINATED) {
 		IPA_DBG_SAFE("Terminated in %s, should follow a terminate() event.\n",
 			     __func__);
-	/*
-	 * Case 6: the thread is migrating.
-	 */
+		/*
+		 * Case 6: the thread is migrating.
+		 */
 	} else if (state == IPANEMA_MIGRATING) {
 
-	/*
-	 * Case 7: we're in another state: shouldn't happen.
-	 */
+		/*
+		 * Case 7: we're in another state: shouldn't happen.
+		 */
 	} else {
 		IPA_EMERG_SAFE("WARNING! Invalid state (%d) in %s.\n",
 			       state, __func__);
