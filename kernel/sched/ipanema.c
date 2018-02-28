@@ -127,7 +127,7 @@ int ipanema_set_policy(char *str)
 	cpumask_t cores_allowed, removed_cores, added_cores;
 	char *module_name = NULL;
 	int ret = 0, i, cpu, exists = 0, remove = 0;
-	unsigned long flags;
+	unsigned long flags, percpu_flags;
 	unsigned int nr_users;
 
 	/*
@@ -248,14 +248,20 @@ int ipanema_set_policy(char *str)
 			       &policy_cur->allowed_cores,
 			       &removed_cores);
 		for_each_cpu(cpu, &removed_cores) {
+			raw_spin_lock_irqsave(&cpu_rq(cpu)->lock, percpu_flags);
 			ipanema_core_exit(policy_cur, cpu);
+			raw_spin_unlock_irqrestore(&cpu_rq(cpu)->lock,
+						   percpu_flags);
 		}
 		/*
 		 * call core_entry for added_cores, then set them in policy to
 		 * enable load balancing and schedule on these cores
 		 */
 		for_each_cpu(cpu, &added_cores) {
+			raw_spin_lock_irqsave(&cpu_rq(cpu)->lock, percpu_flags);
 			ipanema_core_entry(policy_cur, cpu);
+			raw_spin_unlock_irqrestore(&cpu_rq(cpu)->lock,
+						   percpu_flags);
 		}
 		cpumask_or(&policy_cur->allowed_cores,
 			   &policy_cur->allowed_cores,
@@ -296,7 +302,9 @@ int ipanema_set_policy(char *str)
 		goto free_policy;
 	}
 	for_each_cpu(cpu, &cores_allowed) {
+		raw_spin_lock_irqsave(&cpu_rq(cpu)->lock, percpu_flags);
 		ipanema_core_entry(policy, cpu);
+		raw_spin_unlock_irqrestore(&cpu_rq(cpu)->lock, percpu_flags);
 	}
 
 	/* Insert policy into active policies */
