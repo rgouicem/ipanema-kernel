@@ -79,7 +79,7 @@ struct cfs_ipa_process
         struct ipanema_rq * rq; // Internal
         struct rb_node node; // Internal
         struct task_struct * task; // Internal
-        int progress;
+        ktime_t vruntime;
         ktime_t last_sched;
         int load;
         int curr_quanta;
@@ -96,6 +96,7 @@ struct cfs_ipa_core
         int ___sched_domains_idx; // Internal
         int id; // System
         int cload;
+	ktime_t min_vruntime;
         struct cfs_ipa_sched_domain * sd;
 };
 
@@ -129,25 +130,19 @@ DEFINE_PER_CPU(struct cfs_ipa_core, core);
 static void update_thread (struct cfs_ipa_process *);
 static void update_load (struct cfs_ipa_process *, int);
 
-static int max_progress;
-
-inline static void update_thread(struct cfs_ipa_process * p)
+inline static void update_thread(struct cfs_ipa_process *p)
 {
-	struct timespec ts_13;
+	ktime_t now = ktime_get();
+	ktime_t delta = ktime_sub(now, p->last_sched);
+	int cpu = task_cpu(p->task);
+	struct cfs_ipa_core *c = &ipanema_core(cpu);
+                
+	p->vruntime = ktime_add(p->vruntime, delta);
+	if (p->vruntime > c->min_vruntime)
+		c->min_vruntime = p->vruntime;
 
-        getnstimeofday(&ts_13);
-        {
-        	ktime_t t = timespec_to_ktime(ts_13);
-                int used_time = time_to_ticks(ktime_sub(t, p->last_sched));
-                
-                p->progress = p->progress + used_time;
-                if (max_progress < p->progress)
-                	max_progress = p->progress;
-                
-                p->curr_quanta = p->curr_quanta + used_time;
-                p->last_sched = t;
-                return;
-        }
+	p->curr_quanta = p->curr_quanta + delta;
+	p->last_sched = now;
 }
 
 inline static void update_load(struct cfs_ipa_process * p, int quanta)
@@ -165,7 +160,7 @@ static int ipanema_cfs_order_process(struct ipanema_policy *policy,
 	struct cfs_ipa_process *pa = policy_metadata(a);
 	struct cfs_ipa_process *pb = policy_metadata(b);
 
-        return pa->progress - pb->progress;
+        return pa->vruntime - pb->vruntime;
 }
 
 static int get_class(int state)
@@ -271,6 +266,7 @@ static int migrate_from_to(struct cfs_ipa_core *busiest,
                 
                 if ((busiest->cload - self_cload) >= (2 * t->load)) {
                 	list_add(&pos->ipanema_metadata.ipa_tasks, &tasks);
+			t->vruntime -= busiest->min_vruntime;
                         ipa_change_queue_and_core(t, NULL, MIGRATING_STATE,
                                                   self_38);
                         dbg_cpt = dbg_cpt + 1;
@@ -291,6 +287,7 @@ static int migrate_from_to(struct cfs_ipa_core *busiest,
 				       ipa_tasks);
                 pos = container_of(imd, struct task_struct, ipanema_metadata);
 		t = policy_metadata(pos);
+		t->vruntime += self_38->min_vruntime;
                 ipa_change_queue(t, &ipanema_state(self_38->id).ready,
 				 READY_STATE);
 		self_38->cload = self_38->cload + t->load;
@@ -481,7 +478,7 @@ static int ipanema_cfs_new_prepare(struct ipanema_policy *policy,
 	/* domains where fork placement is allowed */
 	flags |= DOMAIN_SMT | DOMAIN_CACHE | DOMAIN_NUMA;
 
-	/* iterate on all domains with flags to find idlest core */
+	/* find highest domain with flags, and find idlest group, then core */
 	c = &ipanema_core(task_cpu(task_15));
 	for (i = c->___sched_domains_idx - 1; i >= 0; i--) {
 		sd = c->sd + i;
@@ -496,7 +493,7 @@ static int ipanema_cfs_new_prepare(struct ipanema_policy *policy,
 	/* should never happen ? */
 	if (!idlest)
 		idlest = c;
-	tgt->progress = max_progress;
+	tgt->vruntime = idlest->min_vruntime;
 	tgt->load = 1024;
 	tgt->curr_quanta = 0;
 	return idlest->id;
@@ -509,10 +506,11 @@ static void ipanema_cfs_new_place(struct ipanema_policy *policy,
         int idlecore_10 = task_cpu(e->target);
 	struct cfs_ipa_core *c = &ipanema_core(idlecore_10);
 
+	c->cload += tgt->load;
+	smp_wmb();
         ipa_change_queue_and_core(tgt,
                                   &ipanema_state(task_cpu(tgt->task)).ready,
                                   READY_STATE, c);
-	c->cload += tgt->load;
 }
 
 static void ipanema_cfs_new_end(struct ipanema_policy *policy,
@@ -522,19 +520,20 @@ static void ipanema_cfs_new_end(struct ipanema_policy *policy,
 }
 
 static void ipanema_cfs_detach(struct ipanema_policy *policy,
-                                struct process_event *e)
+			       struct process_event *e)
 /* need to free the process metadata memory */
 {
 	struct cfs_ipa_process * tgt = policy_metadata(e->target);
 	struct cfs_ipa_core *c = &ipanema_core(task_cpu(tgt->task));
 
         ipa_change_queue(tgt, NULL, TERMINATED_STATE);
+	smp_wmb();
 	c->cload -= tgt->load;
         kfree(tgt);
 }
 
 static void ipanema_cfs_tick(struct ipanema_policy *policy,
-                              struct process_event *e)
+			     struct process_event *e)
 {
 	struct cfs_ipa_process * tgt = policy_metadata(e->target);
         
@@ -546,7 +545,7 @@ static void ipanema_cfs_tick(struct ipanema_policy *policy,
 }
 
 static void ipanema_cfs_yield(struct ipanema_policy *policy,
-                               struct process_event *e)
+			      struct process_event *e)
 {
 	struct cfs_ipa_process * tgt = policy_metadata(e->target);
 	struct cfs_ipa_core *c = &ipanema_core(task_cpu(e->target));
@@ -560,7 +559,7 @@ static void ipanema_cfs_yield(struct ipanema_policy *policy,
 }
 
 static void ipanema_cfs_block(struct ipanema_policy *policy,
-                               struct process_event *e)
+			      struct process_event *e)
 {
 	struct cfs_ipa_process * tgt = policy_metadata(e->target);
 	struct cfs_ipa_core *c = &ipanema_core(task_cpu(e->target));
@@ -569,11 +568,12 @@ static void ipanema_cfs_block(struct ipanema_policy *policy,
         update_thread((struct cfs_ipa_process *)tgt);
         update_load((struct cfs_ipa_process *)tgt, tgt->curr_quanta);
         ipa_change_queue(tgt, NULL, BLOCKED_STATE);
+	smp_wmb();
 	c->cload -= old_load;
 }
 
 static struct cfs_ipa_core *find_idle_cpu(struct ipanema_policy *policy,
-					   struct cfs_ipa_sched_domain *sd)
+					  struct cfs_ipa_sched_domain *sd)
 {
 	int cpu;
 
@@ -586,19 +586,23 @@ static struct cfs_ipa_core *find_idle_cpu(struct ipanema_policy *policy,
 }
 
 static int ipanema_cfs_unblock_prepare(struct ipanema_policy *policy,
-                                        struct process_event *e)
+				       struct process_event *e)
 {
 	struct task_struct *task_15 = e->target;
+	struct cfs_ipa_process *p = policy_metadata(task_15);
 	struct cfs_ipa_sched_domain *sd = NULL;
 	struct cfs_ipa_sched_group *sg = NULL;
         struct cfs_ipa_core *c, *idlest = NULL;
 	int i, flags = 0;
 
+	/* remove min_vruntime from previous cpu */
+	c = &ipanema_core(task_cpu(task_15));
+	p->vruntime -= c->min_vruntime;
+
 	/* domains where fork placement is allowed */
 	flags |= DOMAIN_SMT | DOMAIN_CACHE;
 
 	/* find closest idle core sharing cache */
-	c = &ipanema_core(task_cpu(task_15));
 	for (i = 0; i < c->___sched_domains_idx; i++) {
 		sd = c->sd + i;
 		if (sd->flags & flags) {
@@ -623,6 +627,9 @@ static int ipanema_cfs_unblock_prepare(struct ipanema_policy *policy,
 	if (!idlest)
 		idlest = c;
 
+	/* add min_vruntime from new cpu */
+	p->vruntime += idlest->min_vruntime;
+
 end:
         return idlest->id;
 }
@@ -634,9 +641,10 @@ static void ipanema_cfs_unblock_place(struct ipanema_policy *policy,
         int idlecore_11 = task_cpu(e->target);
 	struct cfs_ipa_core *c = &ipanema_core(idlecore_11);
 
+        c->cload += tgt->load;
+	smp_wmb();
         ipa_change_queue_and_core(tgt, &ipanema_state(idlecore_11).ready,
                                   READY_STATE, &per_cpu(core, idlecore_11));
-        c->cload += tgt->load;
 }
 
 static void ipanema_cfs_unblock_end(struct ipanema_policy *policy,
