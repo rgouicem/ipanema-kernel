@@ -464,7 +464,6 @@ static int ipanema_cfs_new_prepare(struct ipanema_policy *policy,
 	struct cfs_ipa_sched_group *sg;
 	struct cfs_ipa_core *c, *idlest = NULL;
         struct task_struct *task_15;
-	int i, flags = 0;
         
         task_15 = e->target;
         tgt = kzalloc(sizeof(struct cfs_ipa_process), GFP_ATOMIC);
@@ -475,20 +474,11 @@ static int ipanema_cfs_new_prepare(struct ipanema_policy *policy,
         tgt->task = task_15;
         tgt->rq = NULL;
 
-	/* domains where fork placement is allowed */
-	flags |= DOMAIN_SMT | DOMAIN_CACHE | DOMAIN_NUMA;
-
-	/* find highest domain with flags, and find idlest group, then core */
+	/* find idlest group in highest domain, then idlest core in this group */
 	c = &ipanema_core(task_cpu(task_15));
-	for (i = c->___sched_domains_idx - 1; i >= 0; i--) {
-		sd = c->sd + i;
-		if (sd->flags & flags) {
-			sg = find_idlest_group(policy, sd);
-			idlest = find_idlest_cpu_group(policy, sg);
-			if (idlest)
-				break;
-		}
-	}
+	sd = c->sd + c->___sched_domains_idx - 1;
+	sg = find_idlest_group(policy, sd);
+	idlest = find_idlest_cpu_group(policy, sg);
 
 	/* should never happen ? */
 	if (!idlest)
