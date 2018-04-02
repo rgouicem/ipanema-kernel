@@ -603,6 +603,12 @@ static int ipanema_cfs_unblock_prepare(struct ipanema_policy *policy,
 	c = &ipanema_core(task_cpu(task_15));
 	p->vruntime -= c->min_vruntime;
 
+	/* if c is idle, choose it */
+	if (cpumask_test_cpu(c->id, cstate_info.idle_cores)) {
+		idlest = c;
+		goto end;
+	}
+
 	/* domains where fork placement is allowed */
 	flags |= DOMAIN_SMT | DOMAIN_CACHE;
 
@@ -687,6 +693,7 @@ static void ipanema_cfs_core_exit(struct ipanema_policy *policy,
 {
 	struct cfs_ipa_core *tgt = &per_cpu(core, e->target);
 
+	tgt->min_vruntime = 0;
         set_sleeping_core(tgt, &cstate_info.idle_cores, IDLE_CORES_STATE);
 }
 
