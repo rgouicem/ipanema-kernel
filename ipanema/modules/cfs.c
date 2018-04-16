@@ -259,10 +259,7 @@ static int migrate_from_to(struct cfs_ipa_core *busiest,
         
         /* Remove tasks from busiest */
 	local_irq_save(flags);
-	if (!ipanema_trylock_core(busiest->id)) {
-		local_irq_restore(flags);
-		return -1;
-	}
+	ipanema_lock_core(busiest->id);
 
 	self_cload = self_38->cload;
         rbtree_postorder_for_each_entry_safe(pos, n,
