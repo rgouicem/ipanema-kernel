@@ -1,4 +1,4 @@
-obj-m += Simple.o cfs.o
+obj-m += Simple.o cfs.o cfs_wwc.o
 KERNEL=../../
 UBSAN_SANITIZE := y
 ccflags-y := -O0
