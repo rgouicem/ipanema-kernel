@@ -228,7 +228,7 @@ static void enqueue_task_ipanema(struct rq *rq,
 				 struct task_struct *p,
 				 int flags)
 {
-	struct process_event e = { .target = p };
+	struct process_event e = { .target = p , .cpu = smp_processor_id() };
 	enum ipanema_core_state cstate;
 
 	if (unlikely(ipanema_sched_class_log))
@@ -334,7 +334,7 @@ static void dequeue_task_ipanema(struct rq *rq,
 				 struct task_struct *p,
 				 int flags)
 {
-	struct process_event e = { .target = p };
+	struct process_event e = { .target = p , .cpu = smp_processor_id() };
 
 	if (unlikely(ipanema_sched_class_log))
 		pr_info("In %s [pid=%d, rq=%d]\n",
@@ -429,7 +429,7 @@ end:
 
 static void yield_task_ipanema(struct rq *rq)
 {
-	struct process_event e = { .target = rq->curr };
+	struct process_event e = { .target = rq->curr , .cpu = smp_processor_id() };
 	struct task_struct *p = rq->curr;
 
 	if (unlikely(ipanema_sched_class_log))
@@ -553,7 +553,7 @@ static void put_prev_task_ipanema(struct rq *rq,
 				  struct task_struct *prev)
 {
 	enum ipanema_state state;
-	struct process_event e = { .target = prev };
+	struct process_event e = { .target = prev , .cpu = smp_processor_id() };
 
 	if (unlikely(ipanema_sched_class_log))
 		pr_info("In %s [pid=%d, rq=%d]\n",
@@ -677,7 +677,7 @@ static int select_task_rq_ipanema(struct task_struct *p,
 				  int sd_flag,
 				  int wake_flags)
 {
-	struct process_event e = { .target = p };
+	struct process_event e = { .target = p , .cpu = smp_processor_id() };
 	int ret;
 
 	if (unlikely(ipanema_sched_class_log))
@@ -804,7 +804,7 @@ static void task_tick_ipanema(struct rq *rq,
 			      struct task_struct *curr,
 			      int queued)
 {
-	struct process_event e = { .target = curr };
+	struct process_event e = { .target = curr , .cpu = smp_processor_id() };
 
 	if (unlikely(ipanema_sched_class_log))
 		pr_info("In %s [pid=%d, rq=%d]\n",

@@ -70,6 +70,7 @@ struct ipanema_runtime_metadata;
 
 struct process_event {
 	struct task_struct *target;
+	int cpu;
 };
 
 struct core_event {
