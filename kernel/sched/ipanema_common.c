@@ -536,7 +536,7 @@ static struct task_struct *pick_next_task_ipanema(struct rq *rq,
 
 	if (result != prev) {
 		/* IPA_DBG_SAFE("Pick next -> %p %d.\n", result, */
-		/*	     result ? ipanema_get_metric(result) : 0); */
+		/* 	     result ? ipanema_get_metric(result) : 0); */
 
 		put_prev_task(rq, prev);
 		IPA_DBG_SAFE("put_prev_task() over.\n");
@@ -1012,7 +1012,7 @@ static int create_topology(void)
 				return -ENOMEM;
 			}
 			if (sd->flags & SD_SHARE_CPUCAPACITY)
-				l->flags |= DOMAIN_SMT;
+			        l->flags |= DOMAIN_SMT;
 			if (sd->flags & SD_SHARE_PKG_RESOURCES)
 				l->flags |= DOMAIN_CACHE;
 			if (sd->flags & SD_NUMA)
@@ -1038,15 +1038,15 @@ static void print_topology(void)
 	struct topology_level *l;
 
 	pr_info("+-----------------------+*\n");
-	pr_info("|    ipanema topology	 |\n");
+	pr_info("|    ipanema topology   |\n");
 	pr_info("+-----------------------+\n");
-	pr_info("  cpu	| SMT | CACHE | NUMA |	 cpulist    \n");
+	pr_info("  cpu  | SMT | CACHE | NUMA |   cpulist    \n");
 	for_each_possible_cpu(cpu) {
 		pr_info("-------+-----+-------+------+--------------\n");
 		pr_info(" %5d |\n", cpu);
 		l = per_cpu(topology_levels, cpu);
 		while (l) {
-			pr_info("	|  %d  |   %d	|   %d	| %*pbl \n",
+			pr_info("       |  %d  |   %d   |   %d  | %*pbl \n",
 				l->flags & DOMAIN_SMT ? 1 : 0,
 				l->flags & DOMAIN_CACHE ? 1 : 0,
 				l->flags & DOMAIN_NUMA ? 1 : 0,
