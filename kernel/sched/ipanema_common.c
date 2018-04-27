@@ -116,6 +116,7 @@ void change_state(struct task_struct *p, enum ipanema_state next_state,
 {
 	unsigned int prev_cpu;
 	enum ipanema_state prev_state;
+	struct ipanema_rq *prev_rq = NULL;
 
 	/* Safety checks */
 	if (!p) {
@@ -127,6 +128,7 @@ void change_state(struct task_struct *p, enum ipanema_state next_state,
 	/* Get current task fields */
 	prev_cpu = task_cpu(p);
 	prev_state = ipanema_task_state(p);
+	prev_rq = ipanema_task_rq(p);
 
 	/*
 	 * Safety checks on parameters, if badly set, use the process'
@@ -156,7 +158,9 @@ void change_state(struct task_struct *p, enum ipanema_state next_state,
 	}
 
 	/* If no change, return */
-	if (prev_cpu == next_cpu && prev_state == next_state)
+	if (prev_cpu == next_cpu &&
+	    prev_state == next_state &&
+	    prev_rq == next_rq)
 		return;
 
 	if (unlikely(ipanema_fsm_log))
