@@ -258,7 +258,7 @@ static enum ipanema_core_state get_core_state(int state)
 }
 
 static int ipanema_cfs_get_core_state(struct ipanema_policy *policy,
-					 struct core_event *e)
+				      struct core_event *e)
 {
 	return get_core_state(ipanema_core(e->target).state);
 }
