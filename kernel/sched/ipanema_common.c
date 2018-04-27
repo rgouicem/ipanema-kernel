@@ -232,7 +232,7 @@ static void enqueue_task_ipanema(struct rq *rq,
 				 struct task_struct *p,
 				 int flags)
 {
-	struct process_event e = { .target = p };
+	struct process_event e = { .target = p , .cpu = smp_processor_id() };
 	enum ipanema_core_state cstate;
 
 	if (unlikely(ipanema_sched_class_log))
@@ -338,7 +338,7 @@ static void dequeue_task_ipanema(struct rq *rq,
 				 struct task_struct *p,
 				 int flags)
 {
-	struct process_event e = { .target = p };
+	struct process_event e = { .target = p , .cpu = smp_processor_id() };
 
 	if (unlikely(ipanema_sched_class_log))
 		pr_info("In %s [pid=%d, rq=%d]\n",
@@ -433,7 +433,7 @@ end:
 
 static void yield_task_ipanema(struct rq *rq)
 {
-	struct process_event e = { .target = rq->curr };
+	struct process_event e = { .target = rq->curr , .cpu = smp_processor_id() };
 	struct task_struct *p = rq->curr;
 
 	if (unlikely(ipanema_sched_class_log))
@@ -536,7 +536,7 @@ static struct task_struct *pick_next_task_ipanema(struct rq *rq,
 
 	if (result != prev) {
 		/* IPA_DBG_SAFE("Pick next -> %p %d.\n", result, */
-		/* 	     result ? ipanema_get_metric(result) : 0); */
+		/*	     result ? ipanema_get_metric(result) : 0); */
 
 		put_prev_task(rq, prev);
 		IPA_DBG_SAFE("put_prev_task() over.\n");
@@ -557,7 +557,7 @@ static void put_prev_task_ipanema(struct rq *rq,
 				  struct task_struct *prev)
 {
 	enum ipanema_state state;
-	struct process_event e = { .target = prev };
+	struct process_event e = { .target = prev , .cpu = smp_processor_id() };
 
 	if (unlikely(ipanema_sched_class_log))
 		pr_info("In %s [pid=%d, rq=%d]\n",
@@ -681,7 +681,7 @@ static int select_task_rq_ipanema(struct task_struct *p,
 				  int sd_flag,
 				  int wake_flags)
 {
-	struct process_event e = { .target = p };
+	struct process_event e = { .target = p , .cpu = smp_processor_id() };
 	int ret;
 
 	if (unlikely(ipanema_sched_class_log))
@@ -808,7 +808,7 @@ static void task_tick_ipanema(struct rq *rq,
 			      struct task_struct *curr,
 			      int queued)
 {
-	struct process_event e = { .target = curr };
+	struct process_event e = { .target = curr , .cpu = smp_processor_id() };
 
 	if (unlikely(ipanema_sched_class_log))
 		pr_info("In %s [pid=%d, rq=%d]\n",
@@ -1012,7 +1012,7 @@ static int create_topology(void)
 				return -ENOMEM;
 			}
 			if (sd->flags & SD_SHARE_CPUCAPACITY)
-			        l->flags |= DOMAIN_SMT;
+				l->flags |= DOMAIN_SMT;
 			if (sd->flags & SD_SHARE_PKG_RESOURCES)
 				l->flags |= DOMAIN_CACHE;
 			if (sd->flags & SD_NUMA)
@@ -1038,15 +1038,15 @@ static void print_topology(void)
 	struct topology_level *l;
 
 	pr_info("+-----------------------+*\n");
-	pr_info("|    ipanema topology   |\n");
+	pr_info("|    ipanema topology	 |\n");
 	pr_info("+-----------------------+\n");
-	pr_info("  cpu  | SMT | CACHE | NUMA |   cpulist    \n");
+	pr_info("  cpu	| SMT | CACHE | NUMA |	 cpulist    \n");
 	for_each_possible_cpu(cpu) {
 		pr_info("-------+-----+-------+------+--------------\n");
 		pr_info(" %5d |\n", cpu);
 		l = per_cpu(topology_levels, cpu);
 		while (l) {
-			pr_info("       |  %d  |   %d   |   %d  | %*pbl \n",
+			pr_info("	|  %d  |   %d	|   %d	| %*pbl \n",
 				l->flags & DOMAIN_SMT ? 1 : 0,
 				l->flags & DOMAIN_CACHE ? 1 : 0,
 				l->flags & DOMAIN_NUMA ? 1 : 0,
