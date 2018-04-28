@@ -333,8 +333,8 @@ unlock_busiest:
 static bool can_steal_core(struct ule_wwc_ipa_core *tgt,
 			   struct ule_wwc_ipa_core *thief)
 {
-	return !tgt->balanced ? false :
-		!thief->balanced ? false : tgt->cload - thief->cload >= 2;
+	return tgt->balanced ? false :
+		thief->balanced ? false : tgt->cload - thief->cload >= 2;
 }
 
 static struct ule_wwc_ipa_core *select_core(struct ipanema_policy *policy,
