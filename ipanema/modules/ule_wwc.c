@@ -958,44 +958,50 @@ static void build_hierarchy(void)
 static int proc_show(struct seq_file *s, void *p)
 {
 	long cpu = (long) s->private;
-        /* struct task_struct *pos, *n; */
-        /* struct ule_wwc_ipa_process *pr, *curr_proc; */
-	struct ule_wwc_ipa_sched_domain *sd = ipanema_core(cpu).sd;
-        /* int load_sum = 0; */
-	int i;
+        struct task_struct *pos, *n;
+        struct ule_wwc_ipa_process *pr, *curr_proc;
+        int load_sum = 0;
         
         ipanema_lock_core(cpu);
-        /* pr = ipanema_state(cpu).current_0; */
-        /* seq_printf(s, "CPU: %ld\n", cpu); */
-        /* seq_printf(s, "RUNNING (policy): %d (%d)\n", */
-	/* 	   pr ? pr->task->pid : -1, */
-	/* 	   pr ? pr->load : -1); */
-        /* n = per_cpu(ipanema_current, cpu); */
-        /* seq_printf(s, "RUNNING (runtime): %d\n", n ? n->pid : -1); */
-        /* load_sum += pr ? pr->load : 0; */
-        /* seq_printf(s, "READY: "); */
-        /* rbtree_postorder_for_each_entry_safe(pos, n, */
-	/* 				     &(ipanema_state(cpu).ready).root, */
-	/* 				     ipanema_metadata.node_runqueue) { */
-        /* 	curr_proc = (struct cfs_ipa_process *)policy_metadata(pos); */
-        /* 	load_sum += curr_proc->load; */
-        /* 	seq_printf(s, "%d (%d) -> ", pos->pid, curr_proc->load); */
-        /* } */
-        
-        /* seq_printf(s, "\n"); */
-        /* seq_printf(s, "COUNT(READY) = %d\n", count(IPANEMA_READY, cpu)); */
-        /* seq_printf(s, "load = %d\n", ipanema_core(cpu).cload); */
-        /* seq_printf(s, "load_sum = %d\n", load_sum); */
+        pr = ipanema_state(cpu).current_0;
+        seq_printf(s, "CPU: %ld\n", cpu);
+        seq_printf(s, "RUNNING (policy): %d (%d)\n",
+		   pr ? pr->task->pid : -1,
+		   pr ? pr->load : -1);
+        n = per_cpu(ipanema_current, cpu);
+        seq_printf(s, "RUNNING (runtime): %d\n", n ? n->pid : -1);
+        load_sum += pr ? pr->load : 0;
+	seq_printf(s, "-------------------------------\n");
+	seq_printf(s, "READY[realtime]:\n");
+        seq_printf(s, "rq: ");
+        rbtree_postorder_for_each_entry_safe(pos, n,
+					     &(ipanema_state(cpu).realtime).root,
+					     ipanema_metadata.node_runqueue) {
+		curr_proc = (struct ule_wwc_ipa_process *)policy_metadata(pos);
+		load_sum += curr_proc->load;
+		seq_printf(s, "%d (%d) -> ", pos->pid, curr_proc->load);
+        }
+        seq_printf(s, "\n");
+        seq_printf(s, "nr_tasks = %d\n",
+		   ipanema_state(cpu).realtime.nr_tasks);
 
-	seq_printf(s, "\nTopology:\n");
-	while (sd) {
-		seq_printf(s, "[%*pbl]: ", cpumask_pr_args(sd->cores));
-		for (i = 0; i < sd->___sched_group_idx; i++)
-			seq_printf(s, "{%*pbl}",
-				   cpumask_pr_args(sd->groups[i].cores));
-		seq_printf(s, "\n");
-		sd = sd->parent;
-	}
+	seq_printf(s, "-------------------------------\n");
+	seq_printf(s, "READY[timeshare]:\n");
+        seq_printf(s, "rq: ");
+        rbtree_postorder_for_each_entry_safe(pos, n,
+					     &(ipanema_state(cpu).timeshare).root,
+					     ipanema_metadata.node_runqueue) {
+		curr_proc = (struct ule_wwc_ipa_process *)policy_metadata(pos);
+		load_sum += curr_proc->load;
+		seq_printf(s, "%d (%d) -> ", pos->pid, curr_proc->load);
+        }
+        seq_printf(s, "\n");
+        seq_printf(s, "nr_tasks = %d\n",
+		   ipanema_state(cpu).timeshare.nr_tasks);
+
+	seq_printf(s, "-------------------------------\n");
+        seq_printf(s, "cload = %d\n", ipanema_core(cpu).cload);
+        seq_printf(s, "cload_sum = %d\n", load_sum);
         
         ipanema_unlock_core(cpu);
         
