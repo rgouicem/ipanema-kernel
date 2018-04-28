@@ -319,8 +319,6 @@ unlock_busiest:
 		thief->cload += t->load;
                 list_del_init(&imd->ipa_tasks);
                 dbg_cpt--;
-		pr_info("%s(%d) : cpu%d -> cpu%d\n",
-			__FUNCTION__, pos->pid, busiest->id, thief->id);
         }
 	ipanema_unlock_core(thief->id);
 	local_irq_restore(flags);
