@@ -451,12 +451,6 @@ static void ipanema_ule_wwc_new_place(struct ipanema_policy *policy,
         ipa_change_queue_and_core(tgt,
                                   &ipanema_state(c->id).timeshare,
                                   READY_STATE, c);
-	if (c->id != idlecore_10 || c->id != task_cpu(tgt->task) ||
-	    idlecore_10 != task_cpu(tgt->task)) {
-		pr_err("%s(%d): -> [c->id=%d, idlecore=%d, p->cpu=%d]\n",
-		       __FUNCTION__, e->target->pid,
-		       c->id, idlecore_10, task_cpu(tgt->task));
-	}
 }
 
 static void ipanema_ule_wwc_new_end(struct ipanema_policy *policy,
@@ -607,13 +601,6 @@ static void ipanema_ule_wwc_unblock_place(struct ipanema_policy *policy,
 		ipa_change_queue_and_core(tgt,
 					  &ipanema_state(idlecore_11).timeshare,
 					  READY_STATE, c);
-
-	if (c->id != idlecore_11 || c->id != task_cpu(tgt->task) ||
-	    idlecore_11 != task_cpu(tgt->task)) {
-		pr_err("%s(%d): -> [c->id=%d, idlecore=%d, p->cpu=%d]\n",
-		       __FUNCTION__, e->target->pid,
-		       c->id, idlecore_11, task_cpu(tgt->task));
-	}
 }
 
 static void ipanema_ule_wwc_unblock_end(struct ipanema_policy *policy,
