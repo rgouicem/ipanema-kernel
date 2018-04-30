@@ -276,6 +276,7 @@ static int migrate_from_to(struct ule_wwc_ipa_core *busiest,
                         thief_cload += t->load;
                 }
                 /* Ensure migration cond. and stop cond. use the same ids ! */
+		/* if (busiest->cload == thief_cload) */
 		goto unlock_busiest;
         }
 	// go through timeshare rq
@@ -296,6 +297,7 @@ static int migrate_from_to(struct ule_wwc_ipa_core *busiest,
                         busiest->cload -= t->load;
                         thief_cload += t->load;
                 }
+		/* if (busiest->cload == thief_cload) */
 		break;
 	}
 
@@ -387,14 +389,31 @@ static void steal_for_dom(struct ipanema_policy *policy,
 	migrate_from_to(selected, core_31);
 }
 
+DEFINE_PER_CPU(uint32_t, randomval);
+/**
+ *  As defined in BSD
+ */
+static uint32_t sched_random(void)
+{
+	uint32_t *rnd = &get_cpu_var(randomval);
+	uint32_t res;
+
+	*rnd = *rnd * 69069 + 5;
+	res = *rnd >> 16;
+	put_cpu_var(randomval);
+
+	return *rnd >> 16;
+}
+
 static int ipanema_ule_wwc_new_prepare(struct ipanema_policy *policy,
 				       struct process_event *e)
 {
 	struct ule_wwc_ipa_process *tgt, *parent;
 	struct ule_wwc_ipa_core *c, *idlest = NULL;
-	struct ule_wwc_ipa_sched_domain *sd;
         struct task_struct *task_15;
-	int cpu;
+	int cpu, cnt;
+	/* static int next_cpu = 0; */
+	cpumask_t mask;
         
         task_15 = e->target;
         tgt = kzalloc(sizeof(struct ule_wwc_ipa_process), GFP_ATOMIC);
@@ -409,20 +428,19 @@ static int ipanema_ule_wwc_new_prepare(struct ipanema_policy *policy,
 		tgt->parent = task_15->parent;
         tgt->rq = NULL;
 
-	/* find idlest core on machine */
+	/* find idlest cores on machine */
+	cpumask_clear(&mask);
 	c = &ipanema_core(task_cpu(task_15));
-	sd = c->sd;
-	while (sd) {
-		if (!sd->parent)
-			break;
-		sd = sd->parent;
-	}
 	idlest = c;
-	for_each_cpu_and(cpu, sd->cores, &policy->allowed_cores) {
+	for_each_cpu(cpu, &policy->allowed_cores) {
 		c = &ipanema_core(cpu);
-		if (c->cload < idlest->cload)
-			idlest = c;
+		if (c->cload <= idlest->cload)
+			cpumask_set_cpu(cpu, &mask);
 	}
+	/* draw a random core in mask */
+	cnt = sched_random() % cpumask_weight(&mask);
+	cpu = cpumask_next_wrap(cnt, &mask, cnt, true);
+	idlest = &ipanema_core(cpu);
 
 	tgt->load = 1;
 	if (tgt->parent) {
@@ -433,6 +451,9 @@ static int ipanema_ule_wwc_new_prepare(struct ipanema_policy *policy,
 		tgt->prio = REGULAR;
 	}
 	tgt->last_core = idlest->id;
+
+	/* pr_info("%s(%d): -> cpu%d\n", */
+	/* 	__FUNCTION__, task_15->pid, idlest->id); */
 
 	return idlest->id;
 }
@@ -449,6 +470,9 @@ static void ipanema_ule_wwc_new_place(struct ipanema_policy *policy,
         ipa_change_queue_and_core(tgt,
                                   &ipanema_state(c->id).timeshare,
                                   READY_STATE, c);
+
+	/* pr_info("%s(%d): -> cpu%d\n", */
+	/* 	__FUNCTION__, tgt->task->pid, c->id); */
 }
 
 static void ipanema_ule_wwc_new_end(struct ipanema_policy *policy,
@@ -517,6 +541,9 @@ static void ipanema_ule_wwc_block(struct ipanema_policy *policy,
         ipa_change_queue(tgt, NULL, BLOCKED_STATE);
 	smp_wmb();
 	c->cload -= old_load;
+
+	/* pr_info("%s(%d): -> cpu%d\n", */
+	/* 	__FUNCTION__, tgt->task->pid, c->id); */
 }
 
 static struct ule_wwc_ipa_core *pickup_core(struct ipanema_policy *policy,
@@ -524,7 +551,8 @@ static struct ule_wwc_ipa_core *pickup_core(struct ipanema_policy *policy,
 {
 	struct ule_wwc_ipa_core *c = &ipanema_core(task_cpu(t->task)), *idlest;
 	struct ule_wwc_ipa_sched_domain *sd = c->sd;
-	int cpu, min_cload = INT_MAX;
+	int cpu, cnt, min_cload = INT_MAX;
+	cpumask_t mask;
 
 	/* Run interrupt threads on their core */
 	if (t->prio == INTERRUPT)
@@ -544,13 +572,15 @@ static struct ule_wwc_ipa_core *pickup_core(struct ipanema_policy *policy,
 	}
 
 	/* default */
+	cpumask_clear(&mask);
 	for_each_cpu(cpu, &policy->allowed_cores) {
 		c = &ipanema_core(cpu);
-		if (c->cload < min_cload) {
-			idlest = c;
-			min_cload = c->cload;
-		}
+		if (c->cload < min_cload)
+			cpumask_set_cpu(cpu, &mask);
 	}
+	cnt = sched_random() % cpumask_weight(&mask);
+	cpu = cpumask_next_wrap(cnt, &mask, cnt, true);
+	idlest = &ipanema_core(cpu);
 
 	return idlest;
 }
@@ -610,10 +640,12 @@ static void ipanema_ule_wwc_unblock_end(struct ipanema_policy *policy,
 
 static int get_slice(struct ule_wwc_ipa_process *t)
 {
-	int nb_threads = (&ipanema_core(t->last_core))->cload;
+	int nb_threads = (&ipanema_core(task_cpu(t->task)))->cload;
 
 	if (nb_threads > SCHED_SLICE_MIN_DIVISOR)
 		return SCHED_SLICE / SCHED_SLICE_MIN_DIVISOR;
+	if (nb_threads == 0)
+		nb_threads++;
 	return SCHED_SLICE / nb_threads;
 }
 
