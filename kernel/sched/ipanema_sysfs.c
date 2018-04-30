@@ -7,6 +7,7 @@
 
 #include "sched.h"
 #include "ipanema_common.h"
+#include "monitor.h"
 
 #define IPANEMA_ATTR_RO(_name) \
 static struct kobj_attribute _name##_attr = __ATTR_RO(_name)
@@ -42,13 +43,13 @@ IPANEMA_ATTR_RW(ipanema_fsm_check);
  */
 int ipanema_fsm_log;
 static ssize_t ipanema_fsm_log_show(struct kobject *kobj,
-				      struct kobj_attribute *attr, char *buf)
+				    struct kobj_attribute *attr, char *buf)
 {
 	return sprintf(buf, "%d\n", READ_ONCE(ipanema_fsm_log));
 }
 static ssize_t ipanema_fsm_log_store(struct kobject *kobj,
-				       struct kobj_attribute *attr,
-				       const char *buf, size_t count)
+				     struct kobj_attribute *attr,
+				     const char *buf, size_t count)
 {
 	if (kstrtoint(buf, 0, &ipanema_fsm_log))
 		return -EINVAL;
@@ -62,13 +63,14 @@ IPANEMA_ATTR_RW(ipanema_fsm_log);
  */
 int ipanema_sched_class_log;
 static ssize_t ipanema_sched_class_log_show(struct kobject *kobj,
-				      struct kobj_attribute *attr, char *buf)
+					    struct kobj_attribute *attr,
+					    char *buf)
 {
 	return sprintf(buf, "%d\n", READ_ONCE(ipanema_sched_class_log));
 }
 static ssize_t ipanema_sched_class_log_store(struct kobject *kobj,
-				       struct kobj_attribute *attr,
-				       const char *buf, size_t count)
+					     struct kobj_attribute *attr,
+					     const char *buf, size_t count)
 {
 	if (kstrtoint(buf, 0, &ipanema_sched_class_log))
 		return -EINVAL;
@@ -77,12 +79,40 @@ static ssize_t ipanema_sched_class_log_store(struct kobject *kobj,
 }
 IPANEMA_ATTR_RW(ipanema_sched_class_log);
 
+/*
+ * Measure time spent in scheduler
+ */
+int ipanema_sched_class_time;
+static ssize_t ipanema_sched_class_time_show(struct kobject *kobj,
+					     struct kobj_attribute *attr,
+					     char *buf)
+{
+	return sprintf(buf, "%d\n", READ_ONCE(ipanema_sched_class_time));
+}
+static ssize_t ipanema_sched_class_time_store(struct kobject *kobj,
+					      struct kobj_attribute *attr,
+					      const char *buf, size_t count)
+{
+	int tmp;
+
+	if (kstrtoint(buf, 0, &tmp))
+		return -EINVAL;
+
+	if (tmp)
+		reset_stats();
+	ipanema_sched_class_time = tmp;
+
+	return count;
+}
+IPANEMA_ATTR_RW(ipanema_sched_class_time);
+
 struct kobject *ipanema_kobj;
 
 static struct attribute *ipanema_attrs[] = {
 	&ipanema_fsm_check_attr.attr,
 	&ipanema_fsm_log_attr.attr,
 	&ipanema_sched_class_log_attr.attr,
+	&ipanema_sched_class_time_attr.attr,
 	NULL
 };
 
@@ -116,5 +146,4 @@ exit:
 
 	return error;
 }
-
 late_initcall(ipanema_sysfs_init);

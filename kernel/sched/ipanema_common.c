@@ -1,5 +1,6 @@
 #include "sched.h"
 #include "ipanema_common.h"
+#include "monitor.h"
 
 #ifndef CONFIG_LOCKDEP
 #error CONFIG_LOCKDEP must be enabled
@@ -232,8 +233,12 @@ static void enqueue_task_ipanema(struct rq *rq,
 				 struct task_struct *p,
 				 int flags)
 {
+	ktime_t start = 0, end;
 	struct process_event e = { .target = p , .cpu = smp_processor_id() };
 	enum ipanema_core_state cstate;
+
+	if (unlikely(ipanema_sched_class_time))
+		start = ktime_get();
 
 	if (unlikely(ipanema_sched_class_log))
 		pr_info("In %s [pid=%d, rq=%d]\n",
@@ -332,13 +337,23 @@ end:
 	add_nr_running(rq, 1);
 	rq->nr_ipanema_running++;
 	IPA_DBG_SAFE("Enqueueing %p, nr_running=%d.\n", p, rq->nr_running);
+
+	if (unlikely(ipanema_sched_class_time)) {
+		end = ktime_get();
+		this_cpu_ptr(&ipanema_stats)->time[ENQUEUE] += ktime_sub(end, start);
+		this_cpu_ptr(&ipanema_stats)->hits[ENQUEUE]++;
+	}
 }
 
 static void dequeue_task_ipanema(struct rq *rq,
 				 struct task_struct *p,
 				 int flags)
 {
+	ktime_t start = 0, end;
 	struct process_event e = { .target = p , .cpu = smp_processor_id() };
+
+	if (unlikely(ipanema_sched_class_time))
+		start = ktime_get();
 
 	if (unlikely(ipanema_sched_class_log))
 		pr_info("In %s [pid=%d, rq=%d]\n",
@@ -429,12 +444,22 @@ end:
 	rq->nr_ipanema_running--;
 	IPA_DBG_SAFE("Dequeueing %p, nr_running=%d, p->state=%16lx, p->flags=%8x.\n",
 		     p, rq->nr_running, p->state, p->flags);
+
+	if (unlikely(ipanema_sched_class_time)) {
+		end = ktime_get();
+		this_cpu_ptr(&ipanema_stats)->time[DEQUEUE] += ktime_sub(end, start);
+		this_cpu_ptr(&ipanema_stats)->hits[DEQUEUE]++;
+	}
 }
 
 static void yield_task_ipanema(struct rq *rq)
 {
+	ktime_t start = 0, end;
 	struct process_event e = { .target = rq->curr , .cpu = smp_processor_id() };
 	struct task_struct *p = rq->curr;
+
+	if (unlikely(ipanema_sched_class_time))
+		start = ktime_get();
 
 	if (unlikely(ipanema_sched_class_log))
 		pr_info("In %s [rq=%d]\n",
@@ -446,6 +471,12 @@ static void yield_task_ipanema(struct rq *rq)
 	 */
 	ipanema_yield(&e);
 	p->ipanema_metadata.just_yielded = 1;
+
+	if (unlikely(ipanema_sched_class_time)) {
+		end = ktime_get();
+		this_cpu_ptr(&ipanema_stats)->time[YIELD] += ktime_sub(end, start);
+		this_cpu_ptr(&ipanema_stats)->hits[YIELD]++;
+	}
 }
 
 static bool yield_to_task_ipanema(struct rq *rq,
@@ -471,9 +502,13 @@ static struct task_struct *pick_next_task_ipanema(struct rq *rq,
 						  struct task_struct *prev,
 						  struct rq_flags *rf)
 {
+	ktime_t start = 0, end;
 	struct task_struct *result = NULL;
 	struct ipanema_policy *policy = NULL;
 	enum ipanema_core_state cstate;
+
+	if (unlikely(ipanema_sched_class_time))
+		start = ktime_get();
 
 	if (unlikely(ipanema_sched_class_log))
 		pr_info("In %s [pid=%d, rq=%d]\n",
@@ -522,7 +557,7 @@ static struct task_struct *pick_next_task_ipanema(struct rq *rq,
 	}
 
 	if (!result)
-		return NULL;
+		goto end;
 
 	/*
 	 * Case 1: the next task we pick is the same as the previous one. I
@@ -550,14 +585,24 @@ static struct task_struct *pick_next_task_ipanema(struct rq *rq,
 		ipanema_task_state(result) = IPANEMA_RUNNING;
 	}
 
+end:
+	if (unlikely(ipanema_sched_class_time)) {
+		end = ktime_get();
+		this_cpu_ptr(&ipanema_stats)->time[PICK_NEXT] += ktime_sub(end, start);
+		this_cpu_ptr(&ipanema_stats)->hits[PICK_NEXT]++;
+	}
 	return result;
 }
 
 static void put_prev_task_ipanema(struct rq *rq,
 				  struct task_struct *prev)
 {
+	ktime_t start = 0, end;
 	enum ipanema_state state;
 	struct process_event e = { .target = prev , .cpu = smp_processor_id() };
+
+	if (unlikely(ipanema_sched_class_time))
+		start = ktime_get();
 
 	if (unlikely(ipanema_sched_class_log))
 		pr_info("In %s [pid=%d, rq=%d]\n",
@@ -606,7 +651,7 @@ static void put_prev_task_ipanema(struct rq *rq,
 		 */
 		if (prev->nopreempt) {
 			IPA_DBG_SAFE("Non-preempting %s\n", __func__);
-			return;
+			goto end;
 		}
 
 		/*
@@ -640,7 +685,7 @@ static void put_prev_task_ipanema(struct rq *rq,
 		if (!prev->ipanema_metadata.just_yielded) {
 			IPA_EMERG_SAFE("WARNING! IPANEMA_READY in %s not following a yield().\n",
 				       __func__);
-			return;
+			goto end;
 		}
 
 		IPA_DBG_SAFE("In %s following a yield().\n",
@@ -673,6 +718,13 @@ static void put_prev_task_ipanema(struct rq *rq,
 		IPA_EMERG_SAFE("WARNING! Invalid state (%d) in %s.\n",
 			       state, __func__);
 	}
+
+end:
+	if (unlikely(ipanema_sched_class_time)) {
+		end = ktime_get();
+		this_cpu_ptr(&ipanema_stats)->time[PUT_PREV] += ktime_sub(end, start);
+		this_cpu_ptr(&ipanema_stats)->hits[PUT_PREV]++;
+	}
 }
 
 #ifdef CONFIG_SMP
@@ -681,8 +733,12 @@ static int select_task_rq_ipanema(struct task_struct *p,
 				  int sd_flag,
 				  int wake_flags)
 {
+	ktime_t start = 0, end;
 	struct process_event e = { .target = p , .cpu = smp_processor_id() };
-	int ret;
+	int ret = p->cpu;
+
+	if (unlikely(ipanema_sched_class_time))
+		start = ktime_get();
 
 	if (unlikely(ipanema_sched_class_log))
 		pr_info("In %s [pid=%d]\n",
@@ -710,13 +766,19 @@ static int select_task_rq_ipanema(struct task_struct *p,
 			IPA_EMERG_SAFE("%s: new_prepare failed (pid=%d, policy=%d), reverting to p->cpu\n",
 				       __func__, p->pid,
 				       ipanema_task_policy(p)->id);
-			return p->cpu;
+			ret = p->cpu;
 		}
-		return ret;
-	} else if (p->state == TASK_WAKING)
-		return ipanema_unblock_prepare(&e);
+	} else if (p->state == TASK_WAKING) {
+		ret = ipanema_unblock_prepare(&e);
+	}
 
-	return p->cpu;
+	if (unlikely(ipanema_sched_class_time)) {
+		end = ktime_get();
+		this_cpu_ptr(&ipanema_stats)->time[SELECT_RQ] += ktime_sub(end, start);
+		this_cpu_ptr(&ipanema_stats)->hits[SELECT_RQ]++;
+	}
+
+	return ret;
 }
 
 static void migrate_task_rq_ipanema(struct task_struct *p)
@@ -938,7 +1000,18 @@ static void task_change_group_ipanema(struct task_struct *p, int type)
 
 void run_rebalance_domains(struct softirq_action *h)
 {
+	ktime_t start = 0, end;
+	
+	if (unlikely(ipanema_sched_class_time))
+		start = ktime_get();
+
 	ipanema_balancing_select();
+	
+	if (unlikely(ipanema_sched_class_time)) {
+		end = ktime_get();
+		this_cpu_ptr(&ipanema_stats)->time[LB_PERIOD] += ktime_sub(end, start);
+		this_cpu_ptr(&ipanema_stats)->hits[LB_PERIOD]++;
+	}
 }
 
 const struct sched_class ipanema_sched_class = {
