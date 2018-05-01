@@ -11,18 +11,8 @@
 #define LB_PERIOD  6
 #define NR_EVENTS  (LB_PERIOD + 1)
 
-static char *evts_names[] = {
-	"enqueue",
-	"dequeue",
-	"yield",
-	"pick_next",
-	"put_prev",
-	"select_rq",
-	"lb_period"
-};
-
 struct sched_stats {
-	ktime_t time[NR_EVENTS];
+	u64 time[NR_EVENTS];
 	u64 hits[NR_EVENTS];
 };
 

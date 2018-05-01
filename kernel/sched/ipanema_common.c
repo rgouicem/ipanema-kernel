@@ -233,12 +233,12 @@ static void enqueue_task_ipanema(struct rq *rq,
 				 struct task_struct *p,
 				 int flags)
 {
-	ktime_t start = 0, end;
+	u64 start = 0, end;
 	struct process_event e = { .target = p , .cpu = smp_processor_id() };
 	enum ipanema_core_state cstate;
 
 	if (unlikely(ipanema_sched_class_time))
-		start = ktime_get();
+		start = local_clock();
 
 	if (unlikely(ipanema_sched_class_log))
 		pr_info("In %s [pid=%d, rq=%d]\n",
@@ -339,8 +339,8 @@ end:
 	IPA_DBG_SAFE("Enqueueing %p, nr_running=%d.\n", p, rq->nr_running);
 
 	if (unlikely(ipanema_sched_class_time)) {
-		end = ktime_get();
-		this_cpu_ptr(&ipanema_stats)->time[ENQUEUE] += ktime_sub(end, start);
+		end = local_clock();
+		this_cpu_ptr(&ipanema_stats)->time[ENQUEUE] += (end - start);
 		this_cpu_ptr(&ipanema_stats)->hits[ENQUEUE]++;
 	}
 }
@@ -349,11 +349,11 @@ static void dequeue_task_ipanema(struct rq *rq,
 				 struct task_struct *p,
 				 int flags)
 {
-	ktime_t start = 0, end;
+	u64 start = 0, end;
 	struct process_event e = { .target = p , .cpu = smp_processor_id() };
 
 	if (unlikely(ipanema_sched_class_time))
-		start = ktime_get();
+		start = local_clock();
 
 	if (unlikely(ipanema_sched_class_log))
 		pr_info("In %s [pid=%d, rq=%d]\n",
@@ -446,20 +446,20 @@ end:
 		     p, rq->nr_running, p->state, p->flags);
 
 	if (unlikely(ipanema_sched_class_time)) {
-		end = ktime_get();
-		this_cpu_ptr(&ipanema_stats)->time[DEQUEUE] += ktime_sub(end, start);
+		end = local_clock();
+		this_cpu_ptr(&ipanema_stats)->time[DEQUEUE] += (end - start);
 		this_cpu_ptr(&ipanema_stats)->hits[DEQUEUE]++;
 	}
 }
 
 static void yield_task_ipanema(struct rq *rq)
 {
-	ktime_t start = 0, end;
+	u64 start = 0, end;
 	struct process_event e = { .target = rq->curr , .cpu = smp_processor_id() };
 	struct task_struct *p = rq->curr;
 
 	if (unlikely(ipanema_sched_class_time))
-		start = ktime_get();
+		start = local_clock();
 
 	if (unlikely(ipanema_sched_class_log))
 		pr_info("In %s [rq=%d]\n",
@@ -471,10 +471,11 @@ static void yield_task_ipanema(struct rq *rq)
 	 */
 	ipanema_yield(&e);
 	p->ipanema_metadata.just_yielded = 1;
+	pr_info("%s\n", __FUNCTION__);
 
 	if (unlikely(ipanema_sched_class_time)) {
-		end = ktime_get();
-		this_cpu_ptr(&ipanema_stats)->time[YIELD] += ktime_sub(end, start);
+		end = local_clock();
+		this_cpu_ptr(&ipanema_stats)->time[YIELD] += (end - start);
 		this_cpu_ptr(&ipanema_stats)->hits[YIELD]++;
 	}
 }
@@ -502,13 +503,13 @@ static struct task_struct *pick_next_task_ipanema(struct rq *rq,
 						  struct task_struct *prev,
 						  struct rq_flags *rf)
 {
-	ktime_t start = 0, end;
+	u64 start = 0, end;
 	struct task_struct *result = NULL;
 	struct ipanema_policy *policy = NULL;
 	enum ipanema_core_state cstate;
 
 	if (unlikely(ipanema_sched_class_time))
-		start = ktime_get();
+		start = local_clock();
 
 	if (unlikely(ipanema_sched_class_log))
 		pr_info("In %s [pid=%d, rq=%d]\n",
@@ -587,8 +588,8 @@ static struct task_struct *pick_next_task_ipanema(struct rq *rq,
 
 end:
 	if (unlikely(ipanema_sched_class_time)) {
-		end = ktime_get();
-		this_cpu_ptr(&ipanema_stats)->time[PICK_NEXT] += ktime_sub(end, start);
+		end = local_clock();
+		this_cpu_ptr(&ipanema_stats)->time[PICK_NEXT] += (end - start);
 		this_cpu_ptr(&ipanema_stats)->hits[PICK_NEXT]++;
 	}
 	return result;
@@ -597,12 +598,12 @@ end:
 static void put_prev_task_ipanema(struct rq *rq,
 				  struct task_struct *prev)
 {
-	ktime_t start = 0, end;
+	u64 start = 0, end;
 	enum ipanema_state state;
 	struct process_event e = { .target = prev , .cpu = smp_processor_id() };
 
 	if (unlikely(ipanema_sched_class_time))
-		start = ktime_get();
+		start = local_clock();
 
 	if (unlikely(ipanema_sched_class_log))
 		pr_info("In %s [pid=%d, rq=%d]\n",
@@ -721,8 +722,8 @@ static void put_prev_task_ipanema(struct rq *rq,
 
 end:
 	if (unlikely(ipanema_sched_class_time)) {
-		end = ktime_get();
-		this_cpu_ptr(&ipanema_stats)->time[PUT_PREV] += ktime_sub(end, start);
+		end = local_clock();
+		this_cpu_ptr(&ipanema_stats)->time[PUT_PREV] += (end - start);
 		this_cpu_ptr(&ipanema_stats)->hits[PUT_PREV]++;
 	}
 }
@@ -733,12 +734,12 @@ static int select_task_rq_ipanema(struct task_struct *p,
 				  int sd_flag,
 				  int wake_flags)
 {
-	ktime_t start = 0, end;
+	u64 start = 0, end;
 	struct process_event e = { .target = p , .cpu = smp_processor_id() };
 	int ret = p->cpu;
 
 	if (unlikely(ipanema_sched_class_time))
-		start = ktime_get();
+		start = local_clock();
 
 	if (unlikely(ipanema_sched_class_log))
 		pr_info("In %s [pid=%d]\n",
@@ -773,8 +774,8 @@ static int select_task_rq_ipanema(struct task_struct *p,
 	}
 
 	if (unlikely(ipanema_sched_class_time)) {
-		end = ktime_get();
-		this_cpu_ptr(&ipanema_stats)->time[SELECT_RQ] += ktime_sub(end, start);
+		end = local_clock();
+		this_cpu_ptr(&ipanema_stats)->time[SELECT_RQ] += (end - start);
 		this_cpu_ptr(&ipanema_stats)->hits[SELECT_RQ]++;
 	}
 
@@ -1000,16 +1001,16 @@ static void task_change_group_ipanema(struct task_struct *p, int type)
 
 void run_rebalance_domains(struct softirq_action *h)
 {
-	ktime_t start = 0, end;
+	u64 start = 0, end;
 	
 	if (unlikely(ipanema_sched_class_time))
-		start = ktime_get();
+		start = local_clock();
 
 	ipanema_balancing_select();
 	
 	if (unlikely(ipanema_sched_class_time)) {
-		end = ktime_get();
-		this_cpu_ptr(&ipanema_stats)->time[LB_PERIOD] += ktime_sub(end, start);
+		end = local_clock();
+		this_cpu_ptr(&ipanema_stats)->time[LB_PERIOD] += (end - start);
 		this_cpu_ptr(&ipanema_stats)->hits[LB_PERIOD]++;
 	}
 }

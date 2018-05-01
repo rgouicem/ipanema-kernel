@@ -7,6 +7,16 @@
 #include "ipanema_common.h"
 #include "monitor.h"
 
+static char *evts_names[] = {
+	"enqueue",
+	"dequeue",
+	"yield",
+	"pick_next",
+	"put_prev",
+	"select_rq",
+	"lb_period"
+};
+
 DEFINE_PER_CPU(struct sched_stats, fair_stats);
 DEFINE_PER_CPU(struct sched_stats, ipanema_stats);
 

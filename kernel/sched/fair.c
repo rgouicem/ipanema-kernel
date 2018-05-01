@@ -4867,12 +4867,12 @@ static inline void hrtick_update(struct rq *rq)
 static void
 enqueue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 {
-	ktime_t start = 0, end;
+	u64 start = 0, end;
 	struct cfs_rq *cfs_rq;
 	struct sched_entity *se = &p->se;
 
 	if (unlikely(ipanema_sched_class_time))
-		start = ktime_get();
+		start = local_clock();
 
 	/*
 	 * If in_iowait is set, the code below may not trigger any cpufreq
@@ -4918,8 +4918,8 @@ enqueue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 	hrtick_update(rq);
 
 	if (unlikely(ipanema_sched_class_time)) {
-		end = ktime_get();
-		this_cpu_ptr(&fair_stats)->time[ENQUEUE] += ktime_sub(end, start);
+		end = local_clock();
+		this_cpu_ptr(&fair_stats)->time[ENQUEUE] += (end - start);
 		this_cpu_ptr(&fair_stats)->hits[ENQUEUE]++;
 	}
 }
@@ -4933,13 +4933,13 @@ static void set_next_buddy(struct sched_entity *se);
  */
 static void dequeue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 {
-	ktime_t start = 0, end;
+	u64 start = 0, end;
 	struct cfs_rq *cfs_rq;
 	struct sched_entity *se = &p->se;
 	int task_sleep = flags & DEQUEUE_SLEEP;
 
 	if (unlikely(ipanema_sched_class_time))
-		start = ktime_get();
+		start = local_clock();
 
 	for_each_sched_entity(se) {
 		cfs_rq = cfs_rq_of(se);
@@ -4987,8 +4987,8 @@ static void dequeue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 	hrtick_update(rq);
 
 	if (unlikely(ipanema_sched_class_time)) {
-		end = ktime_get();
-		this_cpu_ptr(&fair_stats)->time[DEQUEUE] += ktime_sub(end, start);
+		end = local_clock();
+		this_cpu_ptr(&fair_stats)->time[DEQUEUE] += (end - start);
 		this_cpu_ptr(&fair_stats)->hits[DEQUEUE]++;
 	}
 }
@@ -5892,7 +5892,7 @@ static int wake_cap(struct task_struct *p, int cpu, int prev_cpu)
 static int
 select_task_rq_fair(struct task_struct *p, int prev_cpu, int sd_flag, int wake_flags)
 {
-	ktime_t start = 0, end;
+	u64 start = 0, end;
 	struct sched_domain *tmp, *affine_sd = NULL, *sd = NULL;
 	int cpu = smp_processor_id();
 	int new_cpu = prev_cpu;
@@ -5900,7 +5900,7 @@ select_task_rq_fair(struct task_struct *p, int prev_cpu, int sd_flag, int wake_f
 	int sync = wake_flags & WF_SYNC;
 
 	if (unlikely(ipanema_sched_class_time))
-		start = ktime_get();
+		start = local_clock();
 
 	if (sd_flag & SD_BALANCE_WAKE) {
 		record_wakee(p);
@@ -5980,8 +5980,8 @@ select_task_rq_fair(struct task_struct *p, int prev_cpu, int sd_flag, int wake_f
 	rcu_read_unlock();
 
 	if (unlikely(ipanema_sched_class_time)) {
-		end = ktime_get();
-		this_cpu_ptr(&fair_stats)->time[SELECT_RQ] += ktime_sub(end, start);
+		end = local_clock();
+		this_cpu_ptr(&fair_stats)->time[SELECT_RQ] += (end - start);
 		this_cpu_ptr(&fair_stats)->hits[SELECT_RQ]++;
 	}
 
@@ -6212,14 +6212,14 @@ preempt:
 static struct task_struct *
 pick_next_task_fair(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 {
-	ktime_t start = 0, end;
+	u64 start = 0, end;
 	struct cfs_rq *cfs_rq = &rq->cfs;
 	struct sched_entity *se;
 	struct task_struct *p;
 	int new_tasks;
 
 	if (unlikely(ipanema_sched_class_time))
-		start = ktime_get();
+		start = local_clock();
 again:
 #ifdef CONFIG_FAIR_GROUP_SCHED
 	if (!cfs_rq->nr_running)
@@ -6297,8 +6297,8 @@ again:
 		hrtick_start_fair(rq, p);
 
 	if (unlikely(ipanema_sched_class_time)) {
-		end = ktime_get();
-		this_cpu_ptr(&fair_stats)->time[PICK_NEXT] += ktime_sub(end, start);
+		end = local_clock();
+		this_cpu_ptr(&fair_stats)->time[PICK_NEXT] += (end -start);
 		this_cpu_ptr(&fair_stats)->hits[PICK_NEXT]++;
 	}
 
@@ -6324,8 +6324,8 @@ simple:
 		hrtick_start_fair(rq, p);
 
 	if (unlikely(ipanema_sched_class_time)) {
-		end = ktime_get();
-		this_cpu_ptr(&fair_stats)->time[PICK_NEXT] += ktime_sub(end, start);
+		end = local_clock();
+		this_cpu_ptr(&fair_stats)->time[PICK_NEXT] += (end - start);
 		this_cpu_ptr(&fair_stats)->hits[PICK_NEXT]++;
 	}
 
@@ -6356,8 +6356,8 @@ idle:
 
 end:
 	if (unlikely(ipanema_sched_class_time)) {
-		end = ktime_get();
-		this_cpu_ptr(&fair_stats)->time[PICK_NEXT] += ktime_sub(end, start);
+		end = local_clock();
+		this_cpu_ptr(&fair_stats)->time[PICK_NEXT] += (end -start);
 		this_cpu_ptr(&fair_stats)->hits[PICK_NEXT]++;
 	}
 
@@ -6369,12 +6369,12 @@ end:
  */
 static void put_prev_task_fair(struct rq *rq, struct task_struct *prev)
 {
-	ktime_t start = 0, end;
+	u64 start = 0, end;
 	struct sched_entity *se = &prev->se;
 	struct cfs_rq *cfs_rq;
 
 	if (unlikely(ipanema_sched_class_time))
-		start = ktime_get();
+		start = local_clock();
 
 	for_each_sched_entity(se) {
 		cfs_rq = cfs_rq_of(se);
@@ -6383,7 +6383,7 @@ static void put_prev_task_fair(struct rq *rq, struct task_struct *prev)
 
 	if (unlikely(ipanema_sched_class_time)) {
 		end = ktime_get();
-		this_cpu_ptr(&fair_stats)->time[PUT_PREV] += ktime_sub(end, start);
+		this_cpu_ptr(&fair_stats)->time[PUT_PREV] += (end -start);
 		this_cpu_ptr(&fair_stats)->hits[PUT_PREV]++;
 	}
 }
@@ -6395,13 +6395,13 @@ static void put_prev_task_fair(struct rq *rq, struct task_struct *prev)
  */
 static void yield_task_fair(struct rq *rq)
 {
-	ktime_t start = 0, end;
+	u64 start = 0, end;
 	struct task_struct *curr = rq->curr;
 	struct cfs_rq *cfs_rq = task_cfs_rq(curr);
 	struct sched_entity *se = &curr->se;
 
 	if (unlikely(ipanema_sched_class_time))
-		start = ktime_get();
+		start = local_clock();
 	
 	/*
 	 * Are we the only task in the tree?
@@ -6428,8 +6428,8 @@ static void yield_task_fair(struct rq *rq)
 	set_skip_buddy(se);
 
 	if (unlikely(ipanema_sched_class_time)) {
-		end = ktime_get();
-		this_cpu_ptr(&fair_stats)->time[YIELD] += ktime_sub(end, start);
+		end = local_clock();
+		this_cpu_ptr(&fair_stats)->time[YIELD] += (end -start);
 		this_cpu_ptr(&fair_stats)->hits[YIELD]++;
 	}
 }
@@ -8976,13 +8976,13 @@ static void nohz_idle_balance(struct rq *this_rq, enum cpu_idle_type idle) { }
  */
 static __latent_entropy void run_rebalance_domains(struct softirq_action *h)
 {
-	ktime_t start = 0, end;
+	u64 start = 0, end;
 	struct rq *this_rq = this_rq();
 	enum cpu_idle_type idle = this_rq->idle_balance ?
 						CPU_IDLE : CPU_NOT_IDLE;
 
 	if (unlikely(ipanema_sched_class_time))
-		start = ktime_get();
+		start = local_clock();
 	/*
 	 * If this cpu has a pending nohz_balance_kick, then do the
 	 * balancing on behalf of the other idle cpus whose ticks are
@@ -8995,8 +8995,8 @@ static __latent_entropy void run_rebalance_domains(struct softirq_action *h)
 	rebalance_domains(this_rq, idle);
 
 	if (unlikely(ipanema_sched_class_time)) {
-		end = ktime_get();
-		this_cpu_ptr(&fair_stats)->time[LB_PERIOD] += ktime_sub(end, start);
+		end = local_clock();
+		this_cpu_ptr(&fair_stats)->time[LB_PERIOD] += (end - start);
 		this_cpu_ptr(&fair_stats)->hits[LB_PERIOD]++;
 	}
 }
