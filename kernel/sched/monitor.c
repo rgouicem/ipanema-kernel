@@ -32,15 +32,13 @@ static struct dentry *ipanema_monitor;
 
 static void *sched_monitor_seq_start(struct seq_file *s, loff_t *pos)
 {
-	int cpu = *pos - (long)SEQ_START_TOKEN - 1;
-
 	if (*pos == 0)
 		return SEQ_START_TOKEN;
 
-	if (!cpu_possible(cpu))
+	if (!cpu_possible(*pos - (long)SEQ_START_TOKEN))
 		return NULL;
 
-	return (void *)*pos;
+	return (void *)*pos + 1;
 }
 
 static int sched_monitor_seq_show(struct seq_file *m, void *v)
