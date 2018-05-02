@@ -20,6 +20,7 @@ static char *evts_names[] = {
 DEFINE_PER_CPU(struct sched_stats, fair_stats);
 DEFINE_PER_CPU(struct sched_stats, ipanema_stats);
 DEFINE_PER_CPU(struct idle_stats, idle_stats);
+DECLARE_PER_CPU(u64, last_sched);
 
 void reset_stats(void)
 {
@@ -36,6 +37,7 @@ void reset_stats(void)
 		memset(s, 0, sizeof(struct sched_stats));
 		i = per_cpu_ptr(&idle_stats, cpu);
 		i->time = i->hits = 0;
+		*per_cpu_ptr(&last_sched, cpu) = cpu_clock(cpu);
 		rq_unlock(cpu_rq(cpu), &rf);
 	}
 }
