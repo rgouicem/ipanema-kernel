@@ -16,8 +16,14 @@ struct sched_stats {
 	u64 hits[NR_EVENTS];
 };
 
+struct idle_stats {
+	u64 time, hits;
+};
+
 DECLARE_PER_CPU(struct sched_stats, fair_stats);
 DECLARE_PER_CPU(struct sched_stats, ipanema_stats);
+DECLARE_PER_CPU(struct idle_stats, idle_stats);
+
 
 void reset_stats(void);
 

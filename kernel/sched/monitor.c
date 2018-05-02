@@ -19,11 +19,13 @@ static char *evts_names[] = {
 
 DEFINE_PER_CPU(struct sched_stats, fair_stats);
 DEFINE_PER_CPU(struct sched_stats, ipanema_stats);
+DEFINE_PER_CPU(struct idle_stats, idle_stats);
 
 void reset_stats(void)
 {
 	int cpu;
 	struct sched_stats *s;
+	struct idle_stats *i;
 	struct rq_flags rf;
 
 	for_each_possible_cpu(cpu) {
@@ -32,6 +34,8 @@ void reset_stats(void)
 		memset(s, 0, sizeof(struct sched_stats));
 		s = per_cpu_ptr(&ipanema_stats, cpu);
 		memset(s, 0, sizeof(struct sched_stats));
+		i = per_cpu_ptr(&idle_stats, cpu);
+		i->time = i->hits = 0;
 		rq_unlock(cpu_rq(cpu), &rf);
 	}
 }
@@ -55,6 +59,7 @@ static int sched_monitor_seq_show(struct seq_file *m, void *v)
 {
 	int cpu = (int)(v - SEQ_START_TOKEN - 1);
 	struct sched_stats *s = per_cpu_ptr(m->private, cpu);
+	struct idle_stats *is = per_cpu_ptr(&idle_stats, cpu);
 	int i;
 
 	if (unlikely(v == SEQ_START_TOKEN)) {
@@ -62,7 +67,7 @@ static int sched_monitor_seq_show(struct seq_file *m, void *v)
 		for (i = 0; i < NR_EVENTS; i++)
 			seq_printf(m, ";%s (time);%s (hits)",
 				   evts_names[i], evts_names[i]);
-		seq_printf(m, "\n");
+		seq_printf(m, ";idle (time); idle (hits)\n");
 		return 0;
 	}
 
@@ -70,7 +75,7 @@ static int sched_monitor_seq_show(struct seq_file *m, void *v)
 	for (i = 0; i < NR_EVENTS; i++)
 		seq_printf(m, ";%llu;%llu",
 			   s->time[i], s->hits[i]);
-	seq_printf(m, "\n");
+	seq_printf(m, ";%llu;%llu\n", is->time, is->hits);
 
 	return 0;
 }
