@@ -286,10 +286,18 @@ static int grp_load(struct cfs_ipa_sched_group *sg)
 	return cload;
 }
 
+struct lb_env {
+	int busiest_grp_cload;
+	int thief_grp_cload;
+	int busiest_grp_runnable;
+	int thief_grp_runnable;
+};
+
 static int migrate_from_to(struct cfs_ipa_core *busiest,
 			   struct cfs_ipa_sched_group *busiest_grp,
 			   struct cfs_ipa_core *self_38,
-			   struct cfs_ipa_sched_group *thief_grp)
+			   struct cfs_ipa_sched_group *thief_grp,
+			   struct lb_env *env)
 {
 	struct task_struct *pos, *n;
         LIST_HEAD(tasks);
@@ -310,9 +318,9 @@ static int migrate_from_to(struct cfs_ipa_core *busiest,
                 if (pos->on_cpu)
                 	continue;
 
-                if (runnable(busiest_grp) > cpumask_weight(busiest_grp->cores) &&
-		    (runnable(thief_grp) < cpumask_weight(thief_grp->cores) ||
-		     grp_load(busiest_grp) - grp_load(thief_grp) >= t->load)) {
+                if (env->busiest_grp_runnable > cpumask_weight(busiest_grp->cores) &&
+		    (env->thief_grp_runnable < cpumask_weight(thief_grp->cores) ||
+		     env->busiest_grp_cload - env->thief_grp_cload >= t->load)) {
                 	list_add(&pos->ipanema_metadata.ipa_tasks, &tasks);
 			t->vruntime -= busiest->min_vruntime;
                         ipa_change_queue_and_core(t, NULL, MIGRATING_STATE,
@@ -320,10 +328,14 @@ static int migrate_from_to(struct cfs_ipa_core *busiest,
                         dbg_cpt = dbg_cpt + 1;
                         busiest->cload = busiest->cload - t->load;
                         self_cload = self_cload + t->load;
+			env->busiest_grp_cload -= t->load;
+			env->busiest_grp_runnable--;
+			env->thief_grp_cload += t->load;
+			env->thief_grp_runnable++;
                 }
                 /* Ensure migration cond. and stop cond. use the same ids ! */
-                if (grp_load(busiest_grp) <= grp_load(thief_grp) ||
-		    runnable(busiest_grp) <= cpumask_weight(busiest_grp->cores))
+                if (env->busiest_grp_cload <= env->thief_grp_cload ||
+		    env->busiest_grp_runnable <= cpumask_weight(busiest_grp->cores))
                 	break;
         }
         ipanema_unlock_core(busiest->id);
@@ -452,6 +464,7 @@ static void steal_for_dom(struct ipanema_policy *policy,
 			  struct cfs_ipa_core *core_31,
 			  struct cfs_ipa_sched_domain *sd)
 {
+	struct lb_env env;
 	DECLARE_BITMAP(stealable_groups, sd->___sched_group_idx);
 	cpumask_t stealable_cores;
         struct cfs_ipa_core *selected, *c;
@@ -471,6 +484,9 @@ static void steal_for_dom(struct ipanema_policy *policy,
 		}
 	}
 
+	env.thief_grp_cload = grp_load(thief_group);
+	env.thief_grp_runnable = runnable(thief_group);
+
 	/* Step 1: can_steal_group() */
 	for (i = 0; i < sd->___sched_group_idx; i++) {
 		sg = sd->groups + i;
@@ -484,11 +500,13 @@ static void steal_for_dom(struct ipanema_policy *policy,
 
 	/* Iterate on steps 2-5 until all groups were tried */
 	while (!bitmap_empty(stealable_groups, sd->___sched_group_idx) &&
-	       runnable(thief_group) < cpumask_weight(thief_group->cores)) {
+	       env.thief_grp_runnable < cpumask_weight(thief_group->cores)) {
 		/* Step 2: select_group() */
 		target_group = select_group(policy, sd, stealable_groups);
 		if (!target_group)
 			goto forward_next_balance;
+		env.busiest_grp_cload = grp_load(target_group);
+		env.busiest_grp_runnable = runnable(target_group);
 
 		/* Step 3: can_steal_core() */
 		for_each_cpu_and(i, target_group->cores,
@@ -502,7 +520,7 @@ static void steal_for_dom(struct ipanema_policy *policy,
 
 		/* Iterate on steps 4-5 until all cores were tried */
 		while (!cpumask_empty(&stealable_cores) &&
-		       runnable(thief_group) < cpumask_weight(thief_group->cores)) {
+		       env.thief_grp_runnable < cpumask_weight(thief_group->cores)) {
 			/* Step 4: select_core() */
 			selected = select_core(policy, target_group,
 					       &stealable_cores);
@@ -511,7 +529,8 @@ static void steal_for_dom(struct ipanema_policy *policy,
 
 			/* Step 5: steal_thread() */
 			migrate_from_to(selected, target_group,
-					core_31, thief_group);
+					core_31, thief_group,
+					&env);
 
 			/* remove cpu from stealable_cores */
 			cpumask_clear_cpu(selected->id, &stealable_cores);
