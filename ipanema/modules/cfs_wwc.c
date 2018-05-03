@@ -263,8 +263,33 @@ static int ipanema_cfs_get_core_state(struct ipanema_policy *policy,
 	return get_core_state(ipanema_core(e->target).state);
 }
 
+static int runnable(struct cfs_ipa_sched_group *sg)
+{
+	int cpu, nr_threads = 0;
+
+	for_each_cpu(cpu, sg->cores) {
+		nr_threads += ipanema_state(cpu).ready.nr_tasks;
+		nr_threads += ipanema_state(cpu).current_0 ? 1 : 0;
+	}
+
+	return nr_threads;
+}
+
+static int grp_load(struct cfs_ipa_sched_group *sg)
+{
+	int cload = 0, cpu;
+
+	for_each_cpu(cpu, sg->cores) {
+		cload += ipanema_core(cpu).cload;
+	}
+
+	return cload;
+}
+
 static int migrate_from_to(struct cfs_ipa_core *busiest,
-			   struct cfs_ipa_core *self_38)
+			   struct cfs_ipa_sched_group *busiest_grp,
+			   struct cfs_ipa_core *self_38,
+			   struct cfs_ipa_sched_group *thief_grp)
 {
 	struct task_struct *pos, *n;
         LIST_HEAD(tasks);
@@ -284,8 +309,10 @@ static int migrate_from_to(struct cfs_ipa_core *busiest,
         	t = policy_metadata(pos);
                 if (pos->on_cpu)
                 	continue;
-                
-                if ((busiest->cload - self_cload) >= (2 * t->load)) {
+
+                if (runnable(busiest_grp) > cpumask_weight(busiest_grp->cores) &&
+		    (runnable(thief_grp) < cpumask_weight(thief_grp->cores) ||
+		     grp_load(busiest_grp) - grp_load(thief_grp) >= t->load)) {
                 	list_add(&pos->ipanema_metadata.ipa_tasks, &tasks);
 			t->vruntime -= busiest->min_vruntime;
                         ipa_change_queue_and_core(t, NULL, MIGRATING_STATE,
@@ -295,7 +322,8 @@ static int migrate_from_to(struct cfs_ipa_core *busiest,
                         self_cload = self_cload + t->load;
                 }
                 /* Ensure migration cond. and stop cond. use the same ids ! */
-                if (busiest->cload == self_cload) 
+                if (grp_load(busiest_grp) <= grp_load(thief_grp) ||
+		    runnable(busiest_grp) <= cpumask_weight(busiest_grp->cores))
                 	break;
         }
         ipanema_unlock_core(busiest->id);
@@ -387,6 +415,7 @@ static bool can_steal_group(struct ipanema_policy *policy,
 
 	for_each_cpu_and(cpu, tgt->cores, &policy->allowed_cores) {
 		nr_threads += ipanema_state(cpu).ready.nr_tasks;
+		nr_threads += ipanema_state(cpu).current_0 ? 1 : 0;
 		nr_cores++;
 	}
 
@@ -402,7 +431,12 @@ static struct cfs_ipa_sched_group *select_group(struct ipanema_policy *policy,
 
 static bool can_steal_core(struct cfs_ipa_core *tgt, struct cfs_ipa_core *thief)
 {
-	return ipanema_state(tgt->id).ready.nr_tasks > 0 && tgt->cload > thief->cload;
+	int nr_threads = 0;
+
+	nr_threads += ipanema_state(tgt->id).ready.nr_tasks;
+	nr_threads += ipanema_state(tgt->id).current_0 ? 1 : 0;
+
+	return nr_threads > 1;
 }
 
 static struct cfs_ipa_core *select_core(struct ipanema_policy *policy,
@@ -449,7 +483,8 @@ static void steal_for_dom(struct ipanema_policy *policy,
 		goto forward_next_balance;
 
 	/* Iterate on steps 2-5 until all groups were tried */
-	while (!bitmap_empty(stealable_groups, sd->___sched_group_idx)) {
+	while (!bitmap_empty(stealable_groups, sd->___sched_group_idx) &&
+	       runnable(thief_group) < cpumask_weight(thief_group->cores)) {
 		/* Step 2: select_group() */
 		target_group = select_group(policy, sd, stealable_groups);
 		if (!target_group)
@@ -466,7 +501,8 @@ static void steal_for_dom(struct ipanema_policy *policy,
 			goto forward_next_balance;
 
 		/* Iterate on steps 4-5 until all cores were tried */
-		while (!cpumask_empty(&stealable_cores)) {
+		while (!cpumask_empty(&stealable_cores) &&
+		       runnable(thief_group) < cpumask_weight(thief_group->cores)) {
 			/* Step 4: select_core() */
 			selected = select_core(policy, target_group,
 					       &stealable_cores);
@@ -474,7 +510,8 @@ static void steal_for_dom(struct ipanema_policy *policy,
 				goto forward_next_balance;
 
 			/* Step 5: steal_thread() */
-			migrate_from_to(selected, core_31);
+			migrate_from_to(selected, target_group,
+					core_31, thief_group);
 
 			/* remove cpu from stealable_cores */
 			cpumask_clear_cpu(selected->id, &stealable_cores);
