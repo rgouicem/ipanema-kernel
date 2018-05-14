@@ -149,7 +149,6 @@ struct ipanema_module {
 #define DOMAIN_CACHE 0x2	/* cpus share a hardware cache */
 #define DOMAIN_NUMA  0x4	/* cpus may be on different NUMA nodes */
 
-struct topology_level;
 struct topology_level {
 	cpumask_t cores;
 	int flags;
