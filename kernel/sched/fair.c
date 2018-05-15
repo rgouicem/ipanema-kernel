@@ -4867,12 +4867,10 @@ static inline void hrtick_update(struct rq *rq)
 static void
 enqueue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 {
-	u64 start = 0, end;
 	struct cfs_rq *cfs_rq;
 	struct sched_entity *se = &p->se;
 
-	if (unlikely(ipanema_sched_class_time))
-		start = local_clock();
+	sched_monitor_test();
 
 	/*
 	 * If in_iowait is set, the code below may not trigger any cpufreq
@@ -4916,12 +4914,6 @@ enqueue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 		add_nr_running(rq, 1);
 
 	hrtick_update(rq);
-
-	if (unlikely(ipanema_sched_class_time)) {
-		end = local_clock();
-		this_cpu_ptr(&fair_stats)->time[ENQUEUE] += (end - start);
-		this_cpu_ptr(&fair_stats)->hits[ENQUEUE]++;
-	}
 }
 
 static void set_next_buddy(struct sched_entity *se);
@@ -4933,13 +4925,11 @@ static void set_next_buddy(struct sched_entity *se);
  */
 static void dequeue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 {
-	u64 start = 0, end;
 	struct cfs_rq *cfs_rq;
 	struct sched_entity *se = &p->se;
 	int task_sleep = flags & DEQUEUE_SLEEP;
 
-	if (unlikely(ipanema_sched_class_time))
-		start = local_clock();
+	sched_monitor_test();
 
 	for_each_sched_entity(se) {
 		cfs_rq = cfs_rq_of(se);
@@ -4985,12 +4975,6 @@ static void dequeue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 		sub_nr_running(rq, 1);
 
 	hrtick_update(rq);
-
-	if (unlikely(ipanema_sched_class_time)) {
-		end = local_clock();
-		this_cpu_ptr(&fair_stats)->time[DEQUEUE] += (end - start);
-		this_cpu_ptr(&fair_stats)->hits[DEQUEUE]++;
-	}
 }
 
 #ifdef CONFIG_SMP
@@ -5892,15 +5876,13 @@ static int wake_cap(struct task_struct *p, int cpu, int prev_cpu)
 static int
 select_task_rq_fair(struct task_struct *p, int prev_cpu, int sd_flag, int wake_flags)
 {
-	u64 start = 0, end;
 	struct sched_domain *tmp, *affine_sd = NULL, *sd = NULL;
 	int cpu = smp_processor_id();
 	int new_cpu = prev_cpu;
 	int want_affine = 0;
 	int sync = wake_flags & WF_SYNC;
 
-	if (unlikely(ipanema_sched_class_time))
-		start = local_clock();
+	sched_monitor_test();
 
 	if (sd_flag & SD_BALANCE_WAKE) {
 		record_wakee(p);
@@ -5979,12 +5961,6 @@ select_task_rq_fair(struct task_struct *p, int prev_cpu, int sd_flag, int wake_f
 	}
 	rcu_read_unlock();
 
-	if (unlikely(ipanema_sched_class_time)) {
-		end = local_clock();
-		this_cpu_ptr(&fair_stats)->time[SELECT_RQ] += (end - start);
-		this_cpu_ptr(&fair_stats)->hits[SELECT_RQ]++;
-	}
-
 	return new_cpu;
 }
 
@@ -5995,6 +5971,8 @@ select_task_rq_fair(struct task_struct *p, int prev_cpu, int sd_flag, int wake_f
  */
 static void migrate_task_rq_fair(struct task_struct *p)
 {
+
+	sched_monitor_test();
 	/*
 	 * As blocked tasks retain absolute vruntime the migration needs to
 	 * deal with this by subtracting the old and adding the new
@@ -6039,6 +6017,8 @@ static void migrate_task_rq_fair(struct task_struct *p)
 
 static void task_dead_fair(struct task_struct *p)
 {
+
+	sched_monitor_test();
 	remove_entity_load_avg(&p->se);
 }
 #endif /* CONFIG_SMP */
@@ -6134,6 +6114,8 @@ static void check_preempt_wakeup(struct rq *rq, struct task_struct *p, int wake_
 	int scale = cfs_rq->nr_running >= sched_nr_latency;
 	int next_buddy_marked = 0;
 
+	sched_monitor_test();
+
 	if (unlikely(se == pse))
 		return;
 
@@ -6212,14 +6194,12 @@ preempt:
 static struct task_struct *
 pick_next_task_fair(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 {
-	u64 start = 0, end;
 	struct cfs_rq *cfs_rq = &rq->cfs;
 	struct sched_entity *se;
 	struct task_struct *p;
 	int new_tasks;
 
-	if (unlikely(ipanema_sched_class_time))
-		start = local_clock();
+	sched_monitor_test();
 again:
 #ifdef CONFIG_FAIR_GROUP_SCHED
 	if (!cfs_rq->nr_running)
@@ -6296,12 +6276,6 @@ again:
 	if (hrtick_enabled(rq))
 		hrtick_start_fair(rq, p);
 
-	if (unlikely(ipanema_sched_class_time)) {
-		end = local_clock();
-		this_cpu_ptr(&fair_stats)->time[PICK_NEXT] += (end -start);
-		this_cpu_ptr(&fair_stats)->hits[PICK_NEXT]++;
-	}
-
 	return p;
 simple:
 	cfs_rq = &rq->cfs;
@@ -6323,12 +6297,6 @@ simple:
 	if (hrtick_enabled(rq))
 		hrtick_start_fair(rq, p);
 
-	if (unlikely(ipanema_sched_class_time)) {
-		end = local_clock();
-		this_cpu_ptr(&fair_stats)->time[PICK_NEXT] += (end - start);
-		this_cpu_ptr(&fair_stats)->hits[PICK_NEXT]++;
-	}
-
 	return p;
 
 idle:
@@ -6339,7 +6307,7 @@ idle:
 	 * balancing only if SCHED_IPANEMA has no runnable task
 	 */
 	if (rq->nr_ipanema_running)
-		goto end;
+		return NULL;
 
 	new_tasks = idle_balance(rq, rf);
 
@@ -6354,13 +6322,6 @@ idle:
 	if (new_tasks > 0)
 		goto again;
 
-end:
-	if (unlikely(ipanema_sched_class_time)) {
-		end = local_clock();
-		this_cpu_ptr(&fair_stats)->time[PICK_NEXT] += (end -start);
-		this_cpu_ptr(&fair_stats)->hits[PICK_NEXT]++;
-	}
-
 	return NULL;
 }
 
@@ -6369,22 +6330,14 @@ end:
  */
 static void put_prev_task_fair(struct rq *rq, struct task_struct *prev)
 {
-	u64 start = 0, end;
 	struct sched_entity *se = &prev->se;
 	struct cfs_rq *cfs_rq;
 
-	if (unlikely(ipanema_sched_class_time))
-		start = local_clock();
+	sched_monitor_test();
 
 	for_each_sched_entity(se) {
 		cfs_rq = cfs_rq_of(se);
 		put_prev_entity(cfs_rq, se);
-	}
-
-	if (unlikely(ipanema_sched_class_time)) {
-		end = ktime_get();
-		this_cpu_ptr(&fair_stats)->time[PUT_PREV] += (end -start);
-		this_cpu_ptr(&fair_stats)->hits[PUT_PREV]++;
 	}
 }
 
@@ -6395,13 +6348,11 @@ static void put_prev_task_fair(struct rq *rq, struct task_struct *prev)
  */
 static void yield_task_fair(struct rq *rq)
 {
-	u64 start = 0, end;
 	struct task_struct *curr = rq->curr;
 	struct cfs_rq *cfs_rq = task_cfs_rq(curr);
 	struct sched_entity *se = &curr->se;
 
-	if (unlikely(ipanema_sched_class_time))
-		start = local_clock();
+	sched_monitor_test();
 	
 	/*
 	 * Are we the only task in the tree?
@@ -6426,17 +6377,13 @@ static void yield_task_fair(struct rq *rq)
 	}
 
 	set_skip_buddy(se);
-
-	if (unlikely(ipanema_sched_class_time)) {
-		end = local_clock();
-		this_cpu_ptr(&fair_stats)->time[YIELD] += (end -start);
-		this_cpu_ptr(&fair_stats)->hits[YIELD]++;
-	}
 }
 
 static bool yield_to_task_fair(struct rq *rq, struct task_struct *p, bool preempt)
 {
 	struct sched_entity *se = &p->se;
+
+	sched_monitor_test();
 
 	/* throttled hierarchies are not runnable */
 	if (!se->on_rq || throttled_hierarchy(cfs_rq_of(se)))
@@ -8976,13 +8923,12 @@ static void nohz_idle_balance(struct rq *this_rq, enum cpu_idle_type idle) { }
  */
 static __latent_entropy void run_rebalance_domains(struct softirq_action *h)
 {
-	u64 start = 0, end;
 	struct rq *this_rq = this_rq();
 	enum cpu_idle_type idle = this_rq->idle_balance ?
 						CPU_IDLE : CPU_NOT_IDLE;
 
-	if (unlikely(ipanema_sched_class_time))
-		start = local_clock();
+	sched_monitor_start(&run_rebalance_domains);
+
 	/*
 	 * If this cpu has a pending nohz_balance_kick, then do the
 	 * balancing on behalf of the other idle cpus whose ticks are
@@ -8994,11 +8940,7 @@ static __latent_entropy void run_rebalance_domains(struct softirq_action *h)
 	nohz_idle_balance(this_rq, idle);
 	rebalance_domains(this_rq, idle);
 
-	if (unlikely(ipanema_sched_class_time)) {
-		end = local_clock();
-		this_cpu_ptr(&fair_stats)->time[LB_PERIOD] += (end - start);
-		this_cpu_ptr(&fair_stats)->hits[LB_PERIOD]++;
-	}
+	sched_monitor_stop(&run_rebalance_domains);
 }
 
 /*
@@ -9020,6 +8962,8 @@ void trigger_load_balance(struct rq *rq)
 
 static void rq_online_fair(struct rq *rq)
 {
+
+	sched_monitor_test();
 	update_sysctl();
 
 	update_runtime_enabled(rq);
@@ -9027,6 +8971,8 @@ static void rq_online_fair(struct rq *rq)
 
 static void rq_offline_fair(struct rq *rq)
 {
+
+	sched_monitor_test();
 	update_sysctl();
 
 	/* Ensure any throttled groups are reachable by pick_next_task */
@@ -9042,6 +8988,8 @@ static void task_tick_fair(struct rq *rq, struct task_struct *curr, int queued)
 {
 	struct cfs_rq *cfs_rq;
 	struct sched_entity *se = &curr->se;
+
+	sched_monitor_test();
 
 	for_each_sched_entity(se) {
 		cfs_rq = cfs_rq_of(se);
@@ -9063,6 +9011,8 @@ static void task_fork_fair(struct task_struct *p)
 	struct sched_entity *se = &p->se, *curr;
 	struct rq *rq = this_rq();
 	struct rq_flags rf;
+
+	sched_monitor_test();
 
 	rq_lock(rq, &rf);
 	update_rq_clock(rq);
@@ -9095,6 +9045,8 @@ static void task_fork_fair(struct task_struct *p)
 static void
 prio_changed_fair(struct rq *rq, struct task_struct *p, int oldprio)
 {
+
+	sched_monitor_test();
 	if (!task_on_rq_queued(p))
 		return;
 
@@ -9222,11 +9174,15 @@ static void attach_task_cfs_rq(struct task_struct *p)
 
 static void switched_from_fair(struct rq *rq, struct task_struct *p)
 {
+
+	sched_monitor_test();
 	detach_task_cfs_rq(p);
 }
 
 static void switched_to_fair(struct rq *rq, struct task_struct *p)
 {
+
+	sched_monitor_test();
 	attach_task_cfs_rq(p);
 
 	if (task_on_rq_queued(p)) {
@@ -9250,6 +9206,8 @@ static void switched_to_fair(struct rq *rq, struct task_struct *p)
 static void set_curr_task_fair(struct rq *rq)
 {
 	struct sched_entity *se = &rq->curr->se;
+
+	sched_monitor_test();
 
 	for_each_sched_entity(se) {
 		struct cfs_rq *cfs_rq = cfs_rq_of(se);
@@ -9299,6 +9257,8 @@ static void task_move_group_fair(struct task_struct *p)
 
 static void task_change_group_fair(struct task_struct *p, int type)
 {
+
+	sched_monitor_test();
 	switch (type) {
 	case TASK_SET_GROUP:
 		task_set_group_fair(p);

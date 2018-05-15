@@ -1,4 +1,5 @@
 #include "sched.h"
+#include "monitor.h"
 
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
@@ -127,12 +128,14 @@ bool task_wants_autogroup(struct task_struct *p, struct task_group *tg)
 
 void sched_autogroup_exit_task(struct task_struct *p)
 {
+	sched_monitor_start(&sched_autogroup_exit_task);
 	/*
 	 * We are going to call exit_notify() and autogroup_move_group() can't
 	 * see this thread after that: we can no longer use signal->autogroup.
 	 * See the PF_EXITING check in task_wants_autogroup().
 	 */
 	sched_move_task(p);
+	sched_monitor_stop(&sched_autogroup_exit_task);
 }
 
 static void

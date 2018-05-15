@@ -7,6 +7,8 @@
 #include "ipanema_common.h"
 #include "monitor.h"
 
+bool sched_monitor_enabled;
+
 static char *evts_names[] = {
 	"enqueue",
 	"dequeue",
@@ -45,6 +47,8 @@ void reset_stats(void)
 static struct dentry *sched_monitor_dir;
 static struct dentry *fair_monitor;
 static struct dentry *ipanema_monitor;
+static struct dentry *sched_monitor_enable_debugfs;
+static struct dentry *time_dir_debugfs;
 
 static void *sched_monitor_seq_start(struct seq_file *s, loff_t *pos)
 {
@@ -128,8 +132,20 @@ static struct file_operations sched_monitor_file_ops = {
 	.release = seq_release
 };
 
+/*
+ * sched_monitor
+ */
+DEFINE_PER_CPU(u64, sched_time);
+DEFINE_PER_CPU(u64, sched_time_start);
+DEFINE_PER_CPU(bool, sched_monitoring);
+DEFINE_PER_CPU(void *, sched_monitoring_fn);
+
 static int __init monitor_debugfs_init(void)
 {
+	int cpu;
+	struct dentry *f;
+	char buf[10];
+
 	sched_monitor_dir = debugfs_create_dir("sched_monitor", NULL);
 	if (!sched_monitor_dir)
 		goto exit;
@@ -139,6 +155,16 @@ static int __init monitor_debugfs_init(void)
 	ipanema_monitor = debugfs_create_file("ipanema", 0444,
 					      sched_monitor_dir, NULL,
 					      &sched_monitor_file_ops);
+
+	sched_monitor_enable_debugfs = debugfs_create_bool("enable", 0666,
+							   sched_monitor_dir,
+							   &sched_monitor_enabled);
+	time_dir_debugfs = debugfs_create_dir("sched_time", sched_monitor_dir);
+	for_each_possible_cpu(cpu) {
+		snprintf(buf, 10, "%d", cpu);
+		f = debugfs_create_u64(buf, 0444, time_dir_debugfs,
+				       (u64 *)&per_cpu(sched_time, cpu));
+	}
 
 	return 0;
 exit:

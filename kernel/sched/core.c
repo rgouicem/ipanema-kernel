@@ -35,6 +35,7 @@
 
 #include "sched.h"
 #include "ipanema_common.h"
+#include "monitor.h"
 #include "../workqueue_internal.h"
 #include "../smpboot.h"
 
@@ -255,10 +256,14 @@ static enum hrtimer_restart hrtick(struct hrtimer *timer)
 
 	WARN_ON_ONCE(cpu_of(rq) != smp_processor_id());
 
+	sched_monitor_start(&hrtick);
+
 	rq_lock(rq, &rf);
 	update_rq_clock(rq);
 	rq->curr->sched_class->task_tick(rq, rq->curr, 1);
 	rq_unlock(rq, &rf);
+
+	sched_monitor_stop(&hrtick);
 
 	return HRTIMER_NORESTART;
 }
@@ -977,6 +982,8 @@ static int migration_cpu_stop(void *data)
 	struct rq *rq = this_rq();
 	struct rq_flags rf;
 
+	sched_monitor_start(&migration_cpu_stop);
+
 	/*
 	 * The original target CPU might have gone down and we might
 	 * be on another CPU but it doesn't matter.
@@ -1006,6 +1013,8 @@ static int migration_cpu_stop(void *data)
 	raw_spin_unlock(&p->pi_lock);
 
 	local_irq_enable();
+
+	sched_monitor_stop(&migration_cpu_stop);
 	return 0;
 }
 
@@ -1744,6 +1753,8 @@ void sched_ttwu_pending(void)
 	if (!llist)
 		return;
 
+	sched_monitor_start(&sched_ttwu_pending);
+
 	rq_lock_irqsave(rq, &rf);
 	update_rq_clock(rq);
 
@@ -1751,6 +1762,8 @@ void sched_ttwu_pending(void)
 		ttwu_do_activate(rq, p, p->sched_remote_wakeup ? WF_MIGRATED : 0, &rf);
 
 	rq_unlock_irqrestore(rq, &rf);
+
+	sched_monitor_stop(&sched_ttwu_pending);
 }
 
 void scheduler_ipi(void)
@@ -1968,6 +1981,8 @@ try_to_wake_up(struct task_struct *p, unsigned int state, int wake_flags)
 	unsigned long flags;
 	int cpu, success = 0;
 
+	sched_monitor_start(&try_to_wake_up);
+
 	/*
 	 * If we are going to wake up a thread waiting for CONDITION we
 	 * need to ensure that CONDITION=1 done by the caller can not be
@@ -2069,6 +2084,8 @@ stat:
 	ttwu_stat(p, cpu, wake_flags);
 out:
 	raw_spin_unlock_irqrestore(&p->pi_lock, flags);
+
+	sched_monitor_stop(&try_to_wake_up);
 
 	return success;
 }
@@ -2331,6 +2348,8 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 	unsigned long flags;
 	int cpu = get_cpu();
 
+	sched_monitor_start(&sched_fork);
+
 	__sched_fork(clone_flags, p);
 	/*
 	 * We mark the process as NEW here. This guarantees that
@@ -2369,6 +2388,7 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 		p->sched_class = &ipanema_sched_class;
 	else if (dl_prio(p->prio)) {
 		put_cpu();
+		sched_monitor_stop(&sched_fork);
 		return -EAGAIN;
 	} else if (rt_prio(p->prio)) {
 		p->sched_class = &rt_sched_class;
@@ -2409,6 +2429,8 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 #endif
 
 	put_cpu();
+
+	sched_monitor_stop(&sched_fork);
 	return 0;
 }
 
@@ -2439,6 +2461,8 @@ void wake_up_new_task(struct task_struct *p)
 {
 	struct rq_flags rf;
 	struct rq *rq;
+
+	sched_monitor_start(&wake_up_new_task);
 
 	raw_spin_lock_irqsave(&p->pi_lock, rf.flags);
 	p->state = TASK_RUNNING;
@@ -2473,6 +2497,8 @@ void wake_up_new_task(struct task_struct *p)
 	}
 #endif
 	task_rq_unlock(rq, p, &rf);
+
+	sched_monitor_stop(&wake_up_new_task);
 }
 
 #ifdef CONFIG_PREEMPT_NOTIFIERS
@@ -2901,6 +2927,8 @@ void sched_exec(void)
 	unsigned long flags;
 	int dest_cpu;
 
+	sched_monitor_start(&sched_exec);
+
 	raw_spin_lock_irqsave(&p->pi_lock, flags);
 	dest_cpu = p->sched_class->select_task_rq(p, task_cpu(p), SD_BALANCE_EXEC, 0);
 	if (dest_cpu == smp_processor_id())
@@ -2911,10 +2939,14 @@ void sched_exec(void)
 
 		raw_spin_unlock_irqrestore(&p->pi_lock, flags);
 		stop_one_cpu(task_cpu(p), migration_cpu_stop, &arg);
+
+		sched_monitor_stop(&sched_exec);
 		return;
 	}
 unlock:
 	raw_spin_unlock_irqrestore(&p->pi_lock, flags);
+
+	sched_monitor_stop(&sched_exec);
 }
 
 #endif
@@ -2997,6 +3029,8 @@ void scheduler_tick(void)
 	struct task_struct *curr = rq->curr;
 	struct rq_flags rf;
 
+	sched_monitor_start(&scheduler_tick);
+
 	sched_clock_tick();
 
 	rq_lock(rq, &rf);
@@ -3016,6 +3050,8 @@ void scheduler_tick(void)
 	trigger_load_balance_ipanema(rq);
 #endif
 	rq_last_tick_reset(rq);
+
+	sched_monitor_stop(&scheduler_tick);
 }
 
 #ifdef CONFIG_NO_HZ_FULL
@@ -3274,6 +3310,8 @@ static void __sched notrace __schedule(bool preempt)
 	struct rq *rq;
 	int cpu;
 
+	sched_monitor_start(&__schedule);
+
 	cpu = smp_processor_id();
 	rq = cpu_rq(cpu);
 	prev = rq->curr;
@@ -3346,6 +3384,8 @@ static void __sched notrace __schedule(bool preempt)
 	}
 
 	balance_callback(rq);
+
+	sched_monitor_stop(&__schedule);
 }
 
 void __noreturn do_task_dead(void)
@@ -4093,6 +4133,8 @@ recheck:
 			return retval;
 	}
 
+
+	sched_monitor_start(&__sched_setscheduler);
 	/*
 	 * Make sure no PI-waiters arrive (or leave) while we are
 	 * changing the priority of the task:
@@ -4108,6 +4150,8 @@ recheck:
 	 */
 	if (p == rq->stop) {
 		task_rq_unlock(rq, p, &rf);
+
+		sched_monitor_stop(&__sched_setscheduler);
 		return -EINVAL;
 	}
 
@@ -4131,6 +4175,8 @@ recheck:
 			task_rq_unlock(rq, p, &rf);
 			pr_err("ipanema: policy %d does not exist (pid=%d)\n",
 			       attr->sched_ipa_policy, p->pid);
+
+			sched_monitor_stop(&__sched_setscheduler);
 			return -EINVAL;
 		}
 	}
@@ -4152,6 +4198,8 @@ recheck:
 
 		p->sched_reset_on_fork = reset_on_fork;
 		task_rq_unlock(rq, p, &rf);
+
+		sched_monitor_stop(&__sched_setscheduler);
 		return 0;
 	}
 change:
@@ -4166,6 +4214,8 @@ change:
 		    task_group(p)->rt_bandwidth.rt_runtime == 0 &&
 		    !task_group_is_autogroup(task_group(p))) {
 			task_rq_unlock(rq, p, &rf);
+
+			sched_monitor_stop(&__sched_setscheduler);
 			return -EPERM;
 		}
 #endif
@@ -4181,6 +4231,8 @@ change:
 			if (!cpumask_subset(span, &p->cpus_allowed) ||
 			    rq->rd->dl_bw.bw == 0) {
 				task_rq_unlock(rq, p, &rf);
+
+				sched_monitor_stop(&__sched_setscheduler);
 				return -EPERM;
 			}
 		}
@@ -4201,6 +4253,8 @@ change:
 	 */
 	if ((dl_policy(policy) || dl_task(p)) && sched_dl_overflow(p, policy, attr)) {
 		task_rq_unlock(rq, p, &rf);
+
+		sched_monitor_stop(&__sched_setscheduler);
 		return -EBUSY;
 	}
 
@@ -4261,6 +4315,8 @@ change:
 	/* Run balance callbacks after we've adjusted the PI chain: */
 	balance_callback(rq);
 	preempt_enable();
+
+	sched_monitor_stop(&__sched_setscheduler);
 
 	return 0;
 }
@@ -4652,6 +4708,7 @@ long sched_setaffinity(pid_t pid, const struct cpumask *in_mask)
 		return -ESRCH;
 	}
 
+	sched_monitor_start(&sched_setaffinity);
 	/* Prevent p going away */
 	get_task_struct(p);
 	rcu_read_unlock();
@@ -4724,6 +4781,7 @@ out_free_cpus_allowed:
 	free_cpumask_var(cpus_allowed);
 out_put_task:
 	put_task_struct(p);
+	sched_monitor_stop(&sched_setaffinity);
 	return retval;
 }
 
@@ -4839,6 +4897,8 @@ SYSCALL_DEFINE0(sched_yield)
 	struct rq_flags rf;
 	struct rq *rq;
 
+	sched_monitor_start(&sys_sched_yield);
+
 	local_irq_disable();
 	rq = this_rq();
 	rq_lock(rq, &rf);
@@ -4855,6 +4915,8 @@ SYSCALL_DEFINE0(sched_yield)
 	sched_preempt_enable_no_resched();
 
 	schedule();
+
+	sched_monitor_stop(&sys_sched_yield);
 
 	return 0;
 }
@@ -6349,12 +6411,16 @@ static void cpu_cgroup_fork(struct task_struct *task)
 	struct rq_flags rf;
 	struct rq *rq;
 
+	sched_monitor_start(&cpu_cgroup_fork);
+
 	rq = task_rq_lock(task, &rf);
 
 	update_rq_clock(rq);
 	sched_change_group(task, TASK_SET_GROUP);
 
 	task_rq_unlock(rq, task, &rf);
+
+	sched_monitor_stop(&cpu_cgroup_fork);
 }
 
 static int cpu_cgroup_can_attach(struct cgroup_taskset *tset)
@@ -6397,8 +6463,12 @@ static void cpu_cgroup_attach(struct cgroup_taskset *tset)
 	struct task_struct *task;
 	struct cgroup_subsys_state *css;
 
+	sched_monitor_start(&cpu_cgroup_attach);
+
 	cgroup_taskset_for_each(task, css, tset)
 		sched_move_task(task);
+
+	sched_monitor_stop(&cpu_cgroup_attach);
 }
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
