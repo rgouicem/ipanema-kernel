@@ -7,16 +7,19 @@
 #include "ipanema_common.h"
 #include "monitor.h"
 
+#define F_DENTRY(filp) ((filp)->f_path.dentry)
+
 bool sched_monitor_enabled;
+bool sched_monitor_idle_enabled;
+bool sched_monitor_fair_enabled;
+bool sched_monitor_ipanema_enabled;
 
 static char *evts_names[] = {
-	"enqueue",
-	"dequeue",
-	"yield",
-	"pick_next",
-	"put_prev",
-	"select_rq",
-	"lb_period"
+	"enqueue_task", "dequeue_task", "yield_task", "yield_to_task",
+	"check_preempt_curr", "pick_next_task", "put_prev_task",
+	"select_task_rq", "migrate_task_rq", "task_woken", "rq_online",
+	"rq_offline", "set_curr_task", "task_tick", "task_fork", "task_dead",
+	"switched_from", "switched_to", "prio_changed", "lb_periodic"
 };
 
 DEFINE_PER_CPU(struct sched_stats, fair_stats);
@@ -40,6 +43,7 @@ void reset_stats(void)
 		i = per_cpu_ptr(&idle_stats, cpu);
 		i->time = i->hits = 0;
 		*per_cpu_ptr(&last_sched, cpu) = cpu_clock(cpu);
+		per_cpu(sched_time, cpu) = 0;
 		rq_unlock(cpu_rq(cpu), &rf);
 	}
 }
@@ -47,8 +51,10 @@ void reset_stats(void)
 static struct dentry *sched_monitor_dir;
 static struct dentry *fair_monitor;
 static struct dentry *ipanema_monitor;
-static struct dentry *sched_monitor_enable_debugfs;
 static struct dentry *time_dir_debugfs;
+static struct dentry *fair_dir_debugfs;
+static struct dentry *ipanema_dir_debugfs;
+static struct dentry *idle_dir_debugfs;
 
 static void *sched_monitor_seq_start(struct seq_file *s, loff_t *pos)
 {
@@ -140,10 +146,93 @@ DEFINE_PER_CPU(u64, sched_time_start);
 DEFINE_PER_CPU(bool, sched_monitoring);
 DEFINE_PER_CPU(void *, sched_monitoring_fn);
 
+ssize_t sched_monitor_reset_write(struct file *file,
+				  const char __user *user_buf,
+				  size_t count, loff_t *ppos)
+{
+	reset_stats();
+	return count;
+}
+
+static const struct file_operations sched_monitor_reset_fops = {
+	.open   = simple_open,
+	.llseek = default_llseek,
+	.write  = sched_monitor_reset_write,
+};
+
+int sched_monitor_sched_class_stats_open(struct inode *inode, struct file *file)
+{
+	struct dentry *parent = F_DENTRY(file)->d_parent;
+
+	if (!parent)
+		return -EACCES;
+
+	if (!strncmp(parent->d_iname, "fair_stats", 10))
+		file->private_data = (void *)&fair_stats;
+	else if (!strncmp(parent->d_iname, "ipanema_stats", 13))
+		file->private_data = (void *)&ipanema_stats;
+	else if (!strncmp(parent->d_iname, "idle_stats", 10))
+		file->private_data = (void *)&idle_stats;
+	else
+		return -EPERM;
+
+	return 0;
+}
+
+ssize_t sched_monitor_sched_class_stats_read(struct file *file,
+					     char __user *user_buf,
+					     size_t count, loff_t *ppos)
+{
+	int ret, i, cpu;
+	size_t n = 0;
+	char *buf;
+	struct sched_stats *s;
+	struct idle_stats *is;
+
+	if (*ppos != 0)
+		return 0;
+
+	ret = kstrtoint(F_DENTRY(file)->d_name.name, 10, &cpu);
+	if (ret)
+		return ret;
+
+	buf = kzalloc(PAGE_SIZE, GFP_KERNEL);
+	if (!buf)
+		return -ENOMEM;
+	if (file->private_data == &idle_stats) {
+		is = per_cpu_ptr(file->private_data, cpu);
+		n += scnprintf(buf + n, PAGE_SIZE - n,
+			       "Idle: %llu ns (%llu hits)\n",
+			       is->time, is->hits);
+	} else {
+		s = per_cpu_ptr(file->private_data, cpu);
+		for (i = 0; i < NR_EVENTS; i++) {
+			n += scnprintf(buf + n, PAGE_SIZE - n,
+				       "%19s: %llu ns (%llu hits)\n",
+				       evts_names[i], s->time[i], s->hits[i]);
+			if (n >= PAGE_SIZE)
+				break;
+		}
+	}
+
+	n = min(n, count);
+	copy_to_user(user_buf, buf, n);
+	*ppos += n;
+
+	kfree(buf);
+
+	return n;
+}
+
+static const struct file_operations sched_monitor_sched_class_fops = {
+	.open   = sched_monitor_sched_class_stats_open,
+	.llseek = default_llseek,
+	.read   = sched_monitor_sched_class_stats_read,
+};
+
 static int __init monitor_debugfs_init(void)
 {
 	int cpu;
-	struct dentry *f;
 	char buf[10];
 
 	sched_monitor_dir = debugfs_create_dir("sched_monitor", NULL);
@@ -156,14 +245,35 @@ static int __init monitor_debugfs_init(void)
 					      sched_monitor_dir, NULL,
 					      &sched_monitor_file_ops);
 
-	sched_monitor_enable_debugfs = debugfs_create_bool("enable", 0666,
-							   sched_monitor_dir,
-							   &sched_monitor_enabled);
+	debugfs_create_bool("enable", 0666, sched_monitor_dir,
+			    &sched_monitor_enabled);
+	debugfs_create_bool("enable_fair", 0666, sched_monitor_dir,
+			    &sched_monitor_fair_enabled);
+	debugfs_create_bool("enable_ipanema", 0666, sched_monitor_dir,
+			    &sched_monitor_ipanema_enabled);
+	debugfs_create_bool("enable_idle", 0666, sched_monitor_dir,
+			    &sched_monitor_idle_enabled);
+
+	debugfs_create_file("reset", 0222, sched_monitor_dir, NULL,
+			    &sched_monitor_reset_fops);
+
 	time_dir_debugfs = debugfs_create_dir("sched_time", sched_monitor_dir);
+	fair_dir_debugfs = debugfs_create_dir("fair_stats", sched_monitor_dir);
+	ipanema_dir_debugfs = debugfs_create_dir("ipanema_stats",
+						 sched_monitor_dir);
+	idle_dir_debugfs = debugfs_create_dir("idle_stats",
+					      sched_monitor_dir);
+
 	for_each_possible_cpu(cpu) {
 		snprintf(buf, 10, "%d", cpu);
-		f = debugfs_create_u64(buf, 0444, time_dir_debugfs,
-				       (u64 *)&per_cpu(sched_time, cpu));
+		debugfs_create_u64(buf, 0444, time_dir_debugfs,
+				   (u64 *)&per_cpu(sched_time, cpu));
+		debugfs_create_file(buf, 0444, fair_dir_debugfs, NULL,
+				    &sched_monitor_sched_class_fops);
+		debugfs_create_file(buf, 0444, ipanema_dir_debugfs, NULL,
+				    &sched_monitor_sched_class_fops);
+		debugfs_create_file(buf, 0444, idle_dir_debugfs, NULL,
+				    &sched_monitor_sched_class_fops);
 	}
 
 	return 0;

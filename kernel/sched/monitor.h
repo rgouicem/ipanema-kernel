@@ -2,14 +2,27 @@
 #define _SCHED_MONITOR_H_
 
 /* Events */
-#define ENQUEUE    0
-#define DEQUEUE    1
-#define YIELD      2
-#define PICK_NEXT  3
-#define PUT_PREV   4
-#define SELECT_RQ  5
-#define LB_PERIOD  6
-#define NR_EVENTS  (LB_PERIOD + 1)
+#define ENQUEUE            0
+#define DEQUEUE            1
+#define YIELD              2
+#define YIELD_TO           3
+#define CHECK_PREEMPT_CURR 4
+#define PICK_NEXT          5
+#define PUT_PREV           6
+#define SELECT_RQ          7
+#define MIGRATE            8
+#define WOKEN              9
+#define RQ_ONLINE         10
+#define RQ_OFFLINE        11
+#define SET_CURR          12
+#define TICK              13
+#define FORK              14
+#define DEAD              15
+#define SWITCHED_FROM     16
+#define SWITCHED_TO       17
+#define PRIO_CHANGED      18
+#define LB_PERIOD         19
+#define NR_EVENTS         LB_PERIOD + 1
 
 struct sched_stats {
 	u64 time[NR_EVENTS];
@@ -31,6 +44,9 @@ void reset_stats(void);
 extern int ipanema_sched_class_time;
 
 extern bool sched_monitor_enabled;
+extern bool sched_monitor_idle_enabled;
+extern bool sched_monitor_fair_enabled;
+extern bool sched_monitor_ipanema_enabled;
 DECLARE_PER_CPU(u64, sched_time);
 DECLARE_PER_CPU(u64, sched_time_start);
 DECLARE_PER_CPU(bool, sched_monitoring);
@@ -38,7 +54,7 @@ DECLARE_PER_CPU(void *, sched_monitoring_fn);
 
 #define sched_monitor_start(fn)						\
 	do {								\
-		if (!sched_monitor_enabled)				\
+		if (likely(!sched_monitor_enabled))			\
 			break;						\
 		if (this_cpu_read(sched_monitoring))			\
 			break;						\
@@ -49,52 +65,73 @@ DECLARE_PER_CPU(void *, sched_monitoring_fn);
 
 #define sched_monitor_stop(fn)						\
 	do {								\
-		if (!sched_monitor_enabled)				\
+		if (likely(!sched_monitor_enabled))			\
 			break;						\
 		if (!this_cpu_ptr(&sched_monitoring))			\
 			break;						\
 		if (this_cpu_read(sched_monitoring_fn) != fn)		\
 			break;						\
 		this_cpu_add(sched_time,				\
-			     local_clock() - this_cpu_read(sched_time_start));	\
+			     local_clock() - this_cpu_read(sched_time_start)); \
 		this_cpu_write(sched_monitoring, false);		\
 		this_cpu_write(sched_monitoring_fn, NULL);		\
 	} while (0)
 
 #define sched_monitor_test()						\
 	do {								\
-		if (sched_monitor_enabled &&				\
-		    !this_cpu_read(sched_monitoring)) {			\
+		if (likely(!sched_monitor_enabled))			\
+			break;						\
+		if (!this_cpu_read(sched_monitoring)) {			\
 			pr_err("%s(): sched_monitor didn't catch me!\n", \
 			       __FUNCTION__);				\
 			dump_stack();					\
 		}							\
 	} while (0)
 
-#define sched_monitor_fair_start(start)		\
-	do {						\
-		if (unlikely(ipanema_sched_class_time))	\
-			start = local_clock();		\
+#define sched_monitor_fair_start(start)				\
+	do {							\
+		if (unlikely(sched_monitor_fair_enabled))	\
+			start = local_clock();			\
 	} while (0)
 
 #define sched_monitor_fair_stop(evt, start)				\
 	do {								\
-		if (unlikely(ipanema_sched_class_time)) {		\
+		if (unlikely(sched_monitor_fair_enabled && start != 0)) { \
 			u64 delta = local_clock() - start;		\
 			this_cpu_ptr(&fair_stats)->time[evt] += delta;	\
 			this_cpu_ptr(&fair_stats)->hits[evt]++;		\
 		}							\
 	} while (0)
 
-#define sched_monitor_ipanema_start(start) (sched_monitor_fair_start(start))
+#define sched_monitor_ipanema_start(start)			\
+	do {							\
+		if (unlikely(sched_monitor_ipanema_enabled))	\
+			start = local_clock();			\
+	} while (0)
 
 #define sched_monitor_ipanema_stop(evt, start)				\
 	do {								\
-		if (unlikely(ipanema_sched_class_time)) {		\
+		if (unlikely(sched_monitor_ipanema_enabled && start != 0)) { \
 			u64 delta = local_clock() - start;		\
 			this_cpu_ptr(&ipanema_stats)->time[evt] += delta; \
 			this_cpu_ptr(&ipanema_stats)->hits[evt]++;	\
 		}							\
 	} while (0)
+
+#define sched_monitor_idle_start()					\
+	do {								\
+		if (unlikely(sched_monitor_idle_enabled))		\
+			this_cpu_write(last_sched, local_clock());	\
+	} while (0)
+
+#define sched_monitor_idle_stop()					\
+	do {								\
+		if (unlikely(sched_monitor_idle_enabled)) {		\
+			u64 delta = local_clock() - this_cpu_read(last_sched); \
+			this_cpu_ptr(&idle_stats)->time += delta;	\
+			this_cpu_ptr(&idle_stats)->hits++;		\
+		}							\
+	} while (0)
+
 
 #endif	/* _SCHED_MONITOR_H_ */

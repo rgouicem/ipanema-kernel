@@ -33,8 +33,8 @@ pick_next_task_idle(struct rq *rq, struct task_struct *prev, struct rq_flags *rf
 	update_idle_core(rq);
 	schedstat_inc(rq->sched_goidle);
 
-	if (unlikely(ipanema_sched_class_time))
-		*this_cpu_ptr(&last_sched) = local_clock();
+	sched_monitor_idle_start();
+
 	return rq->idle;
 }
 
@@ -53,14 +53,9 @@ dequeue_task_idle(struct rq *rq, struct task_struct *p, int flags)
 
 static void put_prev_task_idle(struct rq *rq, struct task_struct *prev)
 {
-	u64 end;
 	rq_last_tick_reset(rq);
 
-	if (unlikely(ipanema_sched_class_time)) {
-		end = local_clock();
-		this_cpu_ptr(&idle_stats)->time += (end - *this_cpu_ptr(&last_sched));
-		this_cpu_ptr(&idle_stats)->hits++;
-	}
+	sched_monitor_idle_stop();
 }
 
 static void task_tick_idle(struct rq *rq, struct task_struct *curr, int queued)

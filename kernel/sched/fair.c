@@ -4869,8 +4869,9 @@ enqueue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 {
 	struct cfs_rq *cfs_rq;
 	struct sched_entity *se = &p->se;
+	u64 start = 0;
 
-	sched_monitor_test();
+	sched_monitor_fair_start(start);
 
 	/*
 	 * If in_iowait is set, the code below may not trigger any cpufreq
@@ -4914,6 +4915,8 @@ enqueue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 		add_nr_running(rq, 1);
 
 	hrtick_update(rq);
+
+	sched_monitor_fair_stop(ENQUEUE, start);
 }
 
 static void set_next_buddy(struct sched_entity *se);
@@ -4925,11 +4928,12 @@ static void set_next_buddy(struct sched_entity *se);
  */
 static void dequeue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 {
+	u64 start = 0;
 	struct cfs_rq *cfs_rq;
 	struct sched_entity *se = &p->se;
 	int task_sleep = flags & DEQUEUE_SLEEP;
 
-	sched_monitor_test();
+	sched_monitor_fair_start(start);
 
 	for_each_sched_entity(se) {
 		cfs_rq = cfs_rq_of(se);
@@ -4975,6 +4979,8 @@ static void dequeue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 		sub_nr_running(rq, 1);
 
 	hrtick_update(rq);
+
+	sched_monitor_fair_stop(DEQUEUE, start);
 }
 
 #ifdef CONFIG_SMP
@@ -5876,13 +5882,14 @@ static int wake_cap(struct task_struct *p, int cpu, int prev_cpu)
 static int
 select_task_rq_fair(struct task_struct *p, int prev_cpu, int sd_flag, int wake_flags)
 {
+	u64 start = 0;
 	struct sched_domain *tmp, *affine_sd = NULL, *sd = NULL;
 	int cpu = smp_processor_id();
 	int new_cpu = prev_cpu;
 	int want_affine = 0;
 	int sync = wake_flags & WF_SYNC;
 
-	sched_monitor_test();
+	sched_monitor_fair_start(start);
 
 	if (sd_flag & SD_BALANCE_WAKE) {
 		record_wakee(p);
@@ -5961,6 +5968,8 @@ select_task_rq_fair(struct task_struct *p, int prev_cpu, int sd_flag, int wake_f
 	}
 	rcu_read_unlock();
 
+	sched_monitor_fair_stop(SELECT_RQ, start);
+
 	return new_cpu;
 }
 
@@ -5971,8 +5980,9 @@ select_task_rq_fair(struct task_struct *p, int prev_cpu, int sd_flag, int wake_f
  */
 static void migrate_task_rq_fair(struct task_struct *p)
 {
+	u64 start = 0;
 
-	sched_monitor_test();
+	sched_monitor_fair_start(start);
 	/*
 	 * As blocked tasks retain absolute vruntime the migration needs to
 	 * deal with this by subtracting the old and adding the new
@@ -6013,13 +6023,19 @@ static void migrate_task_rq_fair(struct task_struct *p)
 
 	/* We have migrated, no longer consider this task hot */
 	p->se.exec_start = 0;
+
+	sched_monitor_fair_stop(MIGRATE, start);
 }
 
 static void task_dead_fair(struct task_struct *p)
 {
+	u64 start = 0;
 
-	sched_monitor_test();
+	sched_monitor_fair_start(start);
+
 	remove_entity_load_avg(&p->se);
+
+	sched_monitor_fair_stop(DEAD, start);
 }
 #endif /* CONFIG_SMP */
 
@@ -6113,8 +6129,7 @@ static void check_preempt_wakeup(struct rq *rq, struct task_struct *p, int wake_
 	struct cfs_rq *cfs_rq = task_cfs_rq(curr);
 	int scale = cfs_rq->nr_running >= sched_nr_latency;
 	int next_buddy_marked = 0;
-
-	sched_monitor_test();
+	u64 start = 0;
 
 	if (unlikely(se == pse))
 		return;
@@ -6127,6 +6142,8 @@ static void check_preempt_wakeup(struct rq *rq, struct task_struct *p, int wake_
 	 */
 	if (unlikely(throttled_hierarchy(cfs_rq_of(pse))))
 		return;
+
+	sched_monitor_fair_start(start);
 
 	if (sched_feat(NEXT_BUDDY) && scale && !(wake_flags & WF_FORK)) {
 		set_next_buddy(pse);
@@ -6143,8 +6160,10 @@ static void check_preempt_wakeup(struct rq *rq, struct task_struct *p, int wake_
 	 * prevents us from potentially nominating it as a false LAST_BUDDY
 	 * below.
 	 */
-	if (test_tsk_need_resched(curr))
+	if (test_tsk_need_resched(curr)) {
+		sched_monitor_fair_stop(CHECK_PREEMPT_CURR, start);
 		return;
+	}
 
 	/* Idle tasks are by definition preempted by non-idle tasks. */
 	if (unlikely(curr->policy == SCHED_IDLE) &&
@@ -6155,8 +6174,10 @@ static void check_preempt_wakeup(struct rq *rq, struct task_struct *p, int wake_
 	 * Batch and idle tasks do not preempt non-idle tasks (their preemption
 	 * is driven by the tick):
 	 */
-	if (unlikely(p->policy != SCHED_NORMAL) || !sched_feat(WAKEUP_PREEMPTION))
+	if (unlikely(p->policy != SCHED_NORMAL) || !sched_feat(WAKEUP_PREEMPTION)) {
+		sched_monitor_fair_stop(CHECK_PREEMPT_CURR, start);
 		return;
+	}
 
 	find_matching_se(&se, &pse);
 	update_curr(cfs_rq_of(se));
@@ -6171,6 +6192,8 @@ static void check_preempt_wakeup(struct rq *rq, struct task_struct *p, int wake_
 		goto preempt;
 	}
 
+	sched_monitor_fair_stop(CHECK_PREEMPT_CURR, start);
+
 	return;
 
 preempt:
@@ -6184,11 +6207,15 @@ preempt:
 	 * Also, during early boot the idle thread is in the fair class,
 	 * for obvious reasons its a bad idea to schedule back to it.
 	 */
-	if (unlikely(!se->on_rq || curr == rq->idle))
+	if (unlikely(!se->on_rq || curr == rq->idle)) {
+		sched_monitor_fair_stop(CHECK_PREEMPT_CURR, start);
 		return;
+	}
 
 	if (sched_feat(LAST_BUDDY) && scale && entity_is_task(se))
 		set_last_buddy(se);
+
+	sched_monitor_fair_stop(CHECK_PREEMPT_CURR, start);
 }
 
 static struct task_struct *
@@ -6198,8 +6225,9 @@ pick_next_task_fair(struct rq *rq, struct task_struct *prev, struct rq_flags *rf
 	struct sched_entity *se;
 	struct task_struct *p;
 	int new_tasks;
+	u64 start = 0;
 
-	sched_monitor_test();
+	sched_monitor_fair_start(start);
 again:
 #ifdef CONFIG_FAIR_GROUP_SCHED
 	if (!cfs_rq->nr_running)
@@ -6276,6 +6304,8 @@ again:
 	if (hrtick_enabled(rq))
 		hrtick_start_fair(rq, p);
 
+	sched_monitor_fair_stop(PICK_NEXT, start);
+
 	return p;
 simple:
 	cfs_rq = &rq->cfs;
@@ -6297,6 +6327,8 @@ simple:
 	if (hrtick_enabled(rq))
 		hrtick_start_fair(rq, p);
 
+	sched_monitor_fair_stop(PICK_NEXT, start);
+
 	return p;
 
 idle:
@@ -6306,8 +6338,10 @@ idle:
 	 * SCHED_IPANEMA has tasks to schedule. Check this and perform idle
 	 * balancing only if SCHED_IPANEMA has no runnable task
 	 */
-	if (rq->nr_ipanema_running)
+	if (rq->nr_ipanema_running) {
+		sched_monitor_fair_stop(PICK_NEXT, start);
 		return NULL;
+	}
 
 	new_tasks = idle_balance(rq, rf);
 
@@ -6322,6 +6356,8 @@ idle:
 	if (new_tasks > 0)
 		goto again;
 
+	sched_monitor_fair_stop(PICK_NEXT, start);
+
 	return NULL;
 }
 
@@ -6332,13 +6368,16 @@ static void put_prev_task_fair(struct rq *rq, struct task_struct *prev)
 {
 	struct sched_entity *se = &prev->se;
 	struct cfs_rq *cfs_rq;
+	u64 start = 0;
 
-	sched_monitor_test();
+	sched_monitor_fair_start(start);
 
 	for_each_sched_entity(se) {
 		cfs_rq = cfs_rq_of(se);
 		put_prev_entity(cfs_rq, se);
 	}
+
+	sched_monitor_fair_stop(PUT_PREV, start);
 }
 
 /*
@@ -6348,17 +6387,18 @@ static void put_prev_task_fair(struct rq *rq, struct task_struct *prev)
  */
 static void yield_task_fair(struct rq *rq)
 {
+	u64 start = 0;
 	struct task_struct *curr = rq->curr;
 	struct cfs_rq *cfs_rq = task_cfs_rq(curr);
 	struct sched_entity *se = &curr->se;
-
-	sched_monitor_test();
 	
 	/*
 	 * Are we the only task in the tree?
 	 */
 	if (unlikely(rq->nr_running == 1))
 		return;
+
+	sched_monitor_fair_start(start);
 
 	clear_buddies(cfs_rq, se);
 
@@ -6377,22 +6417,29 @@ static void yield_task_fair(struct rq *rq)
 	}
 
 	set_skip_buddy(se);
+
+	sched_monitor_fair_stop(YIELD, start);
 }
 
 static bool yield_to_task_fair(struct rq *rq, struct task_struct *p, bool preempt)
 {
+	u64 start = 0;
 	struct sched_entity *se = &p->se;
 
-	sched_monitor_test();
+	sched_monitor_fair_start(start);
 
 	/* throttled hierarchies are not runnable */
-	if (!se->on_rq || throttled_hierarchy(cfs_rq_of(se)))
+	if (!se->on_rq || throttled_hierarchy(cfs_rq_of(se))) {
+		sched_monitor_fair_stop(YIELD_TO, start);
 		return false;
+	}
 
 	/* Tell the scheduler that we'd really like pse to run next. */
 	set_next_buddy(se);
 
 	yield_task_fair(rq);
+
+	sched_monitor_fair_stop(YIELD_TO, start);
 
 	return true;
 }
@@ -8923,11 +8970,13 @@ static void nohz_idle_balance(struct rq *this_rq, enum cpu_idle_type idle) { }
  */
 static __latent_entropy void run_rebalance_domains(struct softirq_action *h)
 {
+	u64 start = 0;
 	struct rq *this_rq = this_rq();
 	enum cpu_idle_type idle = this_rq->idle_balance ?
 						CPU_IDLE : CPU_NOT_IDLE;
 
 	sched_monitor_start(&run_rebalance_domains);
+	sched_monitor_fair_start(start);
 
 	/*
 	 * If this cpu has a pending nohz_balance_kick, then do the
@@ -8940,6 +8989,7 @@ static __latent_entropy void run_rebalance_domains(struct softirq_action *h)
 	nohz_idle_balance(this_rq, idle);
 	rebalance_domains(this_rq, idle);
 
+	sched_monitor_fair_stop(LB_PERIOD, start);
 	sched_monitor_stop(&run_rebalance_domains);
 }
 
@@ -8962,21 +9012,28 @@ void trigger_load_balance(struct rq *rq)
 
 static void rq_online_fair(struct rq *rq)
 {
+	u64 start = 0;
 
-	sched_monitor_test();
+	sched_monitor_fair_start(start);
 	update_sysctl();
 
 	update_runtime_enabled(rq);
+
+	sched_monitor_fair_stop(RQ_ONLINE, start);
 }
 
 static void rq_offline_fair(struct rq *rq)
 {
+	u64 start = 0;
 
-	sched_monitor_test();
+	sched_monitor_fair_start(start);
+
 	update_sysctl();
 
 	/* Ensure any throttled groups are reachable by pick_next_task */
 	unthrottle_offline_cfs_rqs(rq);
+
+	sched_monitor_fair_stop(RQ_OFFLINE, start);
 }
 
 #endif /* CONFIG_SMP */
@@ -8986,10 +9043,11 @@ static void rq_offline_fair(struct rq *rq)
  */
 static void task_tick_fair(struct rq *rq, struct task_struct *curr, int queued)
 {
+	u64 start = 0;
 	struct cfs_rq *cfs_rq;
 	struct sched_entity *se = &curr->se;
 
-	sched_monitor_test();
+	sched_monitor_fair_start(start);
 
 	for_each_sched_entity(se) {
 		cfs_rq = cfs_rq_of(se);
@@ -8998,6 +9056,8 @@ static void task_tick_fair(struct rq *rq, struct task_struct *curr, int queued)
 
 	if (static_branch_unlikely(&sched_numa_balancing))
 		task_tick_numa(rq, curr);
+
+	sched_monitor_fair_stop(TICK, start);
 }
 
 /*
@@ -9007,12 +9067,13 @@ static void task_tick_fair(struct rq *rq, struct task_struct *curr, int queued)
  */
 static void task_fork_fair(struct task_struct *p)
 {
+	u64 start = 0;
 	struct cfs_rq *cfs_rq;
 	struct sched_entity *se = &p->se, *curr;
 	struct rq *rq = this_rq();
 	struct rq_flags rf;
 
-	sched_monitor_test();
+	sched_monitor_fair_start(start);
 
 	rq_lock(rq, &rf);
 	update_rq_clock(rq);
@@ -9036,6 +9097,8 @@ static void task_fork_fair(struct task_struct *p)
 
 	se->vruntime -= cfs_rq->min_vruntime;
 	rq_unlock(rq, &rf);
+
+	sched_monitor_fair_stop(FORK, start);
 }
 
 /*
@@ -9045,10 +9108,14 @@ static void task_fork_fair(struct task_struct *p)
 static void
 prio_changed_fair(struct rq *rq, struct task_struct *p, int oldprio)
 {
+	u64 start = 0;
 
-	sched_monitor_test();
-	if (!task_on_rq_queued(p))
+	sched_monitor_fair_start(start);
+
+	if (!task_on_rq_queued(p)) {
+		sched_monitor_fair_stop(PRIO_CHANGED, start);
 		return;
+	}
 
 	/*
 	 * Reschedule if we are currently running on this runqueue and
@@ -9060,6 +9127,8 @@ prio_changed_fair(struct rq *rq, struct task_struct *p, int oldprio)
 			resched_curr(rq);
 	} else
 		check_preempt_curr(rq, p, 0);
+
+	sched_monitor_fair_stop(PRIO_CHANGED, start);
 }
 
 static inline bool vruntime_normalized(struct task_struct *p)
@@ -9174,15 +9243,21 @@ static void attach_task_cfs_rq(struct task_struct *p)
 
 static void switched_from_fair(struct rq *rq, struct task_struct *p)
 {
+	u64 start = 0;
 
-	sched_monitor_test();
+	sched_monitor_fair_start(start);
+
 	detach_task_cfs_rq(p);
+
+	sched_monitor_fair_stop(SWITCHED_FROM, start);
 }
 
 static void switched_to_fair(struct rq *rq, struct task_struct *p)
 {
+	u64 start = 0;
 
-	sched_monitor_test();
+	sched_monitor_fair_start(start);
+
 	attach_task_cfs_rq(p);
 
 	if (task_on_rq_queued(p)) {
@@ -9196,6 +9271,8 @@ static void switched_to_fair(struct rq *rq, struct task_struct *p)
 		else
 			check_preempt_curr(rq, p, 0);
 	}
+
+	sched_monitor_fair_stop(SWITCHED_TO, start);
 }
 
 /* Account for a task changing its policy or group.
@@ -9205,9 +9282,10 @@ static void switched_to_fair(struct rq *rq, struct task_struct *p)
  */
 static void set_curr_task_fair(struct rq *rq)
 {
+	u64 start = 0;
 	struct sched_entity *se = &rq->curr->se;
 
-	sched_monitor_test();
+	sched_monitor_fair_start(start);
 
 	for_each_sched_entity(se) {
 		struct cfs_rq *cfs_rq = cfs_rq_of(se);
@@ -9216,6 +9294,8 @@ static void set_curr_task_fair(struct rq *rq)
 		/* ensure bandwidth has been allocated on our new cfs_rq */
 		account_cfs_rq_runtime(cfs_rq, 0);
 	}
+
+	sched_monitor_fair_stop(SET_CURR, start);
 }
 
 void init_cfs_rq(struct cfs_rq *cfs_rq)
@@ -9257,8 +9337,6 @@ static void task_move_group_fair(struct task_struct *p)
 
 static void task_change_group_fair(struct task_struct *p, int type)
 {
-
-	sched_monitor_test();
 	switch (type) {
 	case TASK_SET_GROUP:
 		task_set_group_fair(p);
