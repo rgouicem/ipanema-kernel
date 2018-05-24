@@ -25,6 +25,7 @@ static char *evts_names[] = {
 DEFINE_PER_CPU(struct sched_stats, fair_stats);
 DEFINE_PER_CPU(struct sched_stats, ipanema_stats);
 DEFINE_PER_CPU(struct idle_stats, idle_stats);
+struct wc_stats wc_stats;
 DECLARE_PER_CPU(u64, last_sched);
 
 void reset_stats(void)
@@ -46,6 +47,7 @@ void reset_stats(void)
 		per_cpu(sched_time, cpu) = 0;
 		rq_unlock(cpu_rq(cpu), &rf);
 	}
+	atomic64_set(&(wc_stats.time), 0);
 }
 
 static struct dentry *sched_monitor_dir;
@@ -263,6 +265,12 @@ static int __init monitor_debugfs_init(void)
 						 sched_monitor_dir);
 	idle_dir_debugfs = debugfs_create_dir("idle_stats",
 					      sched_monitor_dir);
+	debugfs_create_atomic64_t("nr_runnable", 0444, idle_dir_debugfs,
+				  &(wc_stats.nr_runnable));
+	debugfs_create_atomic64_t("nr_busy", 0444, idle_dir_debugfs,
+				  &(wc_stats.nr_busy));
+	debugfs_create_atomic64_t("time_not_wc", 0444, idle_dir_debugfs,
+				  &(wc_stats.time));
 
 	for_each_possible_cpu(cpu) {
 		snprintf(buf, 10, "%d", cpu);

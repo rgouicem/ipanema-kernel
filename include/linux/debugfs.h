@@ -141,7 +141,10 @@ struct dentry *debugfs_create_x64(const char *name, umode_t mode,
 struct dentry *debugfs_create_size_t(const char *name, umode_t mode,
 				     struct dentry *parent, size_t *value);
 struct dentry *debugfs_create_atomic_t(const char *name, umode_t mode,
-				     struct dentry *parent, atomic_t *value);
+				       struct dentry *parent, atomic_t *value);
+struct dentry *debugfs_create_atomic64_t(const char *name, umode_t mode,
+					 struct dentry *parent,
+					 atomic64_t *value);
 struct dentry *debugfs_create_bool(const char *name, umode_t mode,
 				  struct dentry *parent, bool *value);
 

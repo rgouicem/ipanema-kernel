@@ -31,8 +31,12 @@ struct sched_stats {
 
 struct idle_stats {
 	u64 time, hits;
-	u64 no_wc_time, no_wc_hits;
 };
+
+extern struct wc_stats {
+	atomic64_t nr_runnable, nr_busy;
+	atomic64_t time;
+} wc_stats;
 
 DECLARE_PER_CPU(struct sched_stats, fair_stats);
 DECLARE_PER_CPU(struct sched_stats, ipanema_stats);
@@ -132,6 +136,21 @@ DECLARE_PER_CPU(void *, sched_monitoring_fn);
 			this_cpu_ptr(&idle_stats)->hits++;		\
 		}							\
 	} while (0)
+
+#define sched_monitor_nr_runnable_inc(v)		\
+	(atomic64_add(v, &(wc_stats.nr_runnable)))
+#define sched_monitor_nr_runnable_dec(v)		\
+	(atomic64_sub(v, &(wc_stats.nr_runnable)))
+#define sched_monitor_nr_busy_inc(v) (atomic64_add(v, &(wc_stats.nr_busy)))
+#define sched_monitor_nr_busy_dec(v) (atomic64_sub(v, &(wc_stats.nr_busy)))
+
+static inline bool is_wc(void)
+{
+	long nr_run = atomic64_read(&(wc_stats.nr_runnable));
+	long nr_busy = atomic64_read(&(wc_stats.nr_busy));
+
+	return min(nr_run, (long)num_possible_cpus()) == nr_busy;
+}
 
 
 #endif	/* _SCHED_MONITOR_H_ */
