@@ -981,7 +981,11 @@ config SCHED_MC_PRIO
 
 source "kernel/Kconfig.preempt"
 
+menu "Scheduler monitoring"
+
 source "kernel/sched/Kconfig.sched_monitor"
+
+endmenu
 
 config UP_LATE_INIT
        def_bool y

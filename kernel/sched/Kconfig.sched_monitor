@@ -1,7 +1,7 @@
 
 config SCHED_MONITOR
         def_bool n
-	prompt "Scheduler monitor"
+	prompt "Enable scheduler monitoring"
 	---help---
 	  Scheduler monitoring facility.
 
@@ -27,6 +27,16 @@ config SCHED_MONITOR_FAIR
 
 	  Say N for peak scheduling performance.
 
+config SCHED_MONITOR_FAIR_IDLE_BALANCING
+        def_bool n
+	prompt "Fair scheduling class monitoring: idle balancing"
+	depends on SCHED_MONITOR_FAIR
+	---help---
+	  Monitor the idle balancing triggered by the fair scheduling class, and
+	  expose the results through the debugfs interface /sys/kernel/debug/sched_monitor/fair_stats/idle_balancing
+
+	  Say N for peak scheduling performance.
+
 config SCHED_MONITOR_IPANEMA
         def_bool n
 	prompt "Ipanema scheduling class monitoring"
@@ -34,6 +44,16 @@ config SCHED_MONITOR_IPANEMA
 	---help---
 	  Monitor the ipanema scheduling class, and expose the results through the
 	  debugfs interface /sys/kernel/debug/sched_monitor/ipanema_stats
+
+	  Say N for peak scheduling performance.
+
+config SCHED_MONITOR_IPANEMA_IDLE_BALANCING
+        def_bool n
+	prompt "Ipanema scheduling class monitoring: idle balancing"
+	depends on SCHED_MONITOR_IPANEMA
+	---help---
+	  Monitor the idle balancing triggered by the Ipanema scheduling class, and
+	  expose the results through the debugfs interface /sys/kernel/debug/sched_monitor/ipanema_stats/idle_balancing
 
 	  Say N for peak scheduling performance.
 

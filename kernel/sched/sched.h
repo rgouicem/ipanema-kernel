@@ -1596,15 +1596,20 @@ static inline void sched_update_tick_dependency(struct rq *rq)
 static inline void sched_update_tick_dependency(struct rq *rq) { }
 #endif
 
+#ifdef CONFIG_SCHED_MONITOR_IDLE_WC
 static atomic64_t last_wc_time;
+#endif
 
 static inline void add_nr_running(struct rq *rq, unsigned count)
 {
 	unsigned prev_nr = rq->nr_running;
+#ifdef CONFIG_SCHED_MONITOR_IDLE_WC
 	bool wc = is_wc();
+#endif
 
 	rq->nr_running = prev_nr + count;
 	sched_monitor_nr_runnable_inc(count);
+#ifdef CONFIG_SCHED_MONITOR_IDLE_WC
 	/*
 	 * 4 cases: -  WC -> !WC: start timer
 	 *          -  WC ->  WC: nothing
@@ -1622,6 +1627,7 @@ static inline void add_nr_running(struct rq *rq, unsigned count)
 		/* start timer */
 		atomic64_set(&last_wc_time, cpu_clock(0));
 	}
+#endif
 
 	if (prev_nr < 2 && rq->nr_running >= 2) {
 #ifdef CONFIG_SMP
@@ -1635,10 +1641,13 @@ static inline void add_nr_running(struct rq *rq, unsigned count)
 
 static inline void sub_nr_running(struct rq *rq, unsigned count)
 {
+#ifdef CONFIG_SCHED_MONITOR_IDLE_WC
 	bool wc = is_wc();
+#endif
 
 	rq->nr_running -= count;
 	sched_monitor_nr_runnable_dec(count);
+#ifdef CONFIG_SCHED_MONITOR_IDLE_WC
 	/*
 	 * 4 cases: -  WC -> !WC: start timer
 	 *          -  WC ->  WC: nothing
@@ -1656,6 +1665,7 @@ static inline void sub_nr_running(struct rq *rq, unsigned count)
 		/* start timer */
 		atomic64_set(&last_wc_time, cpu_clock(0));
 	}
+#endif
 
 	/* Check if we still need preemption */
 	sched_update_tick_dependency(rq);
