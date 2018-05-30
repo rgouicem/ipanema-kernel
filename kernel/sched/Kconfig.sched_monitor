@@ -1,0 +1,59 @@
+
+config SCHED_MONITOR
+        def_bool n
+	prompt "Scheduler monitor"
+	---help---
+	  Scheduler monitoring facility.
+
+	  Say N for peak scheduling performance.
+
+config SCHED_MONITOR_CORE
+        def_bool n
+	prompt "Scheduler subsystem monitoring"
+	depends on SCHED_MONITOR
+	---help---
+	  Monitor the scheduler subsystem, and expose the results through the
+	  debugfs interface /sys/kernel/debug/sched_monitor/sched_time
+
+	  Say N for peak scheduling performance.
+
+config SCHED_MONITOR_FAIR
+        def_bool n
+	prompt "Fair scheduling class monitoring"
+	depends on SCHED_MONITOR
+	---help---
+	  Monitor the fair scheduling class, and expose the results through the
+	  debugfs interface /sys/kernel/debug/sched_monitor/fair_stats
+
+	  Say N for peak scheduling performance.
+
+config SCHED_MONITOR_IPANEMA
+        def_bool n
+	prompt "Ipanema scheduling class monitoring"
+	depends on SCHED_MONITOR
+	---help---
+	  Monitor the ipanema scheduling class, and expose the results through the
+	  debugfs interface /sys/kernel/debug/sched_monitor/ipanema_stats
+
+	  Say N for peak scheduling performance.
+
+config SCHED_MONITOR_IDLE
+        def_bool n
+	prompt "Idle scheduling class monitoring"
+	depends on SCHED_MONITOR
+	---help---
+	  Monitor the idle scheduling class, and expose the results through the
+	  debugfs interface /sys/kernel/debug/sched_monitor/idle_stats
+
+	  Say N for peak scheduling performance.
+
+config SCHED_MONITOR_IDLE_WC
+        def_bool n
+	prompt "Work-conservation monitoring"
+	depends on SCHED_MONITOR_IDLE
+	---help---
+	  Monitor the time spent being work conserving, and expose the results
+	  through the debugfs interface located in
+	  /sys/kernel/debug/sched_monitor/idle_stats
+
+	  Say N for peak scheduling performance.

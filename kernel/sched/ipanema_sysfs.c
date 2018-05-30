@@ -79,40 +79,12 @@ static ssize_t ipanema_sched_class_log_store(struct kobject *kobj,
 }
 IPANEMA_ATTR_RW(ipanema_sched_class_log);
 
-/*
- * Measure time spent in scheduler
- */
-int ipanema_sched_class_time;
-static ssize_t ipanema_sched_class_time_show(struct kobject *kobj,
-					     struct kobj_attribute *attr,
-					     char *buf)
-{
-	return sprintf(buf, "%d\n", READ_ONCE(ipanema_sched_class_time));
-}
-static ssize_t ipanema_sched_class_time_store(struct kobject *kobj,
-					      struct kobj_attribute *attr,
-					      const char *buf, size_t count)
-{
-	int tmp;
-
-	if (kstrtoint(buf, 0, &tmp))
-		return -EINVAL;
-
-	if (tmp)
-		reset_stats();
-	ipanema_sched_class_time = tmp;
-
-	return count;
-}
-IPANEMA_ATTR_RW(ipanema_sched_class_time);
-
 struct kobject *ipanema_kobj;
 
 static struct attribute *ipanema_attrs[] = {
 	&ipanema_fsm_check_attr.attr,
 	&ipanema_fsm_log_attr.attr,
 	&ipanema_sched_class_log_attr.attr,
-	&ipanema_sched_class_time_attr.attr,
 	NULL
 };
 

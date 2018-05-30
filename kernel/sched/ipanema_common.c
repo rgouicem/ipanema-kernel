@@ -235,7 +235,9 @@ static void enqueue_task_ipanema(struct rq *rq,
 {
 	struct process_event e = { .target = p , .cpu = smp_processor_id() };
 	enum ipanema_core_state cstate;
+#ifdef CONFIG_SCHED_MONITOR_IPANEMA
 	u64 start = 0;
+#endif
 
 	sched_monitor_ipanema_start(start);
 
@@ -344,8 +346,10 @@ static void dequeue_task_ipanema(struct rq *rq,
 				 struct task_struct *p,
 				 int flags)
 {
-	u64 start = 0;
 	struct process_event e = { .target = p , .cpu = smp_processor_id() };
+#ifdef CONFIG_SCHED_MONITOR_IPANEMA
+	u64 start = 0;
+#endif
 
 	sched_monitor_ipanema_start(start);
 
@@ -444,9 +448,11 @@ end:
 
 static void yield_task_ipanema(struct rq *rq)
 {
-	u64 start = 0;
 	struct process_event e = { .target = rq->curr , .cpu = smp_processor_id() };
 	struct task_struct *p = rq->curr;
+#ifdef CONFIG_SCHED_MONITOR_IPANEMA
+	u64 start = 0;
+#endif
 
 	sched_monitor_ipanema_start(start);
 
@@ -468,7 +474,9 @@ static bool yield_to_task_ipanema(struct rq *rq,
 				  struct task_struct *p,
 				  bool preempt)
 {
+#ifdef CONFIG_SCHED_MONITOR_IPANEMA
 	u64 start = 0;
+#endif
 
 	sched_monitor_ipanema_start(start);
 
@@ -485,7 +493,9 @@ static void check_preempt_wakeup(struct rq *rq,
 				 struct task_struct *p,
 				 int wake_flags)
 {
+#ifdef CONFIG_SCHED_MONITOR_IPANEMA
 	u64 start = 0;
+#endif
 
 	sched_monitor_ipanema_start(start);
 
@@ -500,10 +510,12 @@ static struct task_struct *pick_next_task_ipanema(struct rq *rq,
 						  struct task_struct *prev,
 						  struct rq_flags *rf)
 {
-	u64 start = 0;
 	struct task_struct *result = NULL;
 	struct ipanema_policy *policy = NULL;
 	enum ipanema_core_state cstate;
+#ifdef CONFIG_SCHED_MONITOR_IPANEMA
+	u64 start = 0;
+#endif
 
 	sched_monitor_ipanema_start(start);
 
@@ -591,9 +603,11 @@ end:
 static void put_prev_task_ipanema(struct rq *rq,
 				  struct task_struct *prev)
 {
-	u64 start = 0;
 	enum ipanema_state state;
 	struct process_event e = { .target = prev , .cpu = smp_processor_id() };
+#ifdef CONFIG_SCHED_MONITOR_IPANEMA
+	u64 start = 0;
+#endif
 
 	sched_monitor_ipanema_start(start);
 
@@ -722,9 +736,11 @@ static int select_task_rq_ipanema(struct task_struct *p,
 				  int sd_flag,
 				  int wake_flags)
 {
-	u64 start = 0;
 	struct process_event e = { .target = p , .cpu = smp_processor_id() };
 	int ret = p->cpu;
+#ifdef CONFIG_SCHED_MONITOR_IPANEMA
+	u64 start = 0;
+#endif
 
 	sched_monitor_ipanema_start(start);
 
@@ -768,7 +784,9 @@ static int select_task_rq_ipanema(struct task_struct *p,
 
 static void migrate_task_rq_ipanema(struct task_struct *p)
 {
+#ifdef CONFIG_SCHED_MONITOR_IPANEMA
 	u64 start = 0;
+#endif
 
 	sched_monitor_ipanema_start(start);
 
@@ -781,8 +799,10 @@ static void migrate_task_rq_ipanema(struct task_struct *p)
 
 static void rq_online_ipanema(struct rq *rq)
 {
-	u64 start = 0;
 	struct ipanema_policy *policy = NULL;
+#ifdef CONFIG_SCHED_MONITOR_IPANEMA
+	u64 start = 0;
+#endif
 
 	sched_monitor_ipanema_start(start);
 
@@ -800,8 +820,10 @@ static void rq_online_ipanema(struct rq *rq)
 
 static void rq_offline_ipanema(struct rq *rq)
 {
-	u64 start = 0;
 	struct ipanema_policy *policy = NULL;
+#ifdef CONFIG_SCHED_MONITOR_IPANEMA
+	u64 start = 0;
+#endif
 
 	sched_monitor_ipanema_start(start);
 
@@ -819,7 +841,9 @@ static void rq_offline_ipanema(struct rq *rq)
 
 static void task_woken_ipanema(struct rq *this_rq, struct task_struct *p)
 {
+#ifdef CONFIG_SCHED_MONITOR_IPANEMA
 	u64 start = 0;
+#endif
 
 	sched_monitor_ipanema_start(start);
 
@@ -832,7 +856,9 @@ static void task_woken_ipanema(struct rq *this_rq, struct task_struct *p)
 
 static void task_dead_ipanema(struct task_struct *p)
 {
+#ifdef CONFIG_SCHED_MONITOR_IPANEMA
 	u64 start = 0;
+#endif
 
 	sched_monitor_ipanema_start(start);
 
@@ -861,7 +887,9 @@ static void task_dead_ipanema(struct task_struct *p)
 
 static void set_curr_task_ipanema(struct rq *rq)
 {
+#ifdef CONFIG_SCHED_MONITOR_IPANEMA
 	u64 start = 0;
+#endif
 
 	sched_monitor_ipanema_start(start);
 
@@ -889,8 +917,10 @@ static void task_tick_ipanema(struct rq *rq,
 			      struct task_struct *curr,
 			      int queued)
 {
-	u64 start = 0;
 	struct process_event e = { .target = curr , .cpu = smp_processor_id() };
+#ifdef CONFIG_SCHED_MONITOR_IPANEMA
+	u64 start = 0;
+#endif
 
 	sched_monitor_ipanema_start(start);
 
@@ -922,7 +952,9 @@ static void task_tick_ipanema(struct rq *rq,
 
 static void task_fork_ipanema(struct task_struct *p)
 {
+#ifdef CONFIG_SCHED_MONITOR_IPANEMA
 	u64 start = 0;
+#endif
 
 	sched_monitor_ipanema_start(start);
 
@@ -944,7 +976,9 @@ static void prio_changed_ipanema(struct rq *rq,
 				 struct task_struct *p,
 				 int oldprio)
 {
+#ifdef CONFIG_SCHED_MONITOR_IPANEMA
 	u64 start = 0;
+#endif
 
 	sched_monitor_ipanema_start(start);
 
@@ -957,7 +991,9 @@ static void prio_changed_ipanema(struct rq *rq,
 
 static void switched_from_ipanema(struct rq *rq, struct task_struct *p)
 {
+#ifdef CONFIG_SCHED_MONITOR_IPANEMA
 	u64 start = 0;
+#endif
 
 	sched_monitor_ipanema_start(start);
 
@@ -970,7 +1006,9 @@ static void switched_from_ipanema(struct rq *rq, struct task_struct *p)
 
 static void switched_to_ipanema(struct rq *rq, struct task_struct *p)
 {
+#ifdef CONFIG_SCHED_MONITOR_IPANEMA
 	u64 start = 0;
+#endif
 
 	sched_monitor_ipanema_start(start);
 
@@ -1006,8 +1044,6 @@ static void update_curr_ipanema(struct rq *rq)
 	struct task_struct *curr = rq->curr;
 	u64 delta_exec;
 
-	sched_monitor_test();
-
 	if (unlikely(ipanema_sched_class_log))
 		pr_info("In %s [rq=%d]\n", __func__, rq->cpu);
 
@@ -1032,8 +1068,6 @@ static void update_curr_ipanema(struct rq *rq)
 #ifdef CONFIG_FAIR_GROUP_SCHED
 static void task_change_group_ipanema(struct task_struct *p, int type)
 {
-
-	sched_monitor_test();
 	if (unlikely(ipanema_sched_class_log))
 		pr_info("In task_change_group_ipanema() [pid=%d]\n",
 			p->pid);
@@ -1052,10 +1086,12 @@ static void task_change_group_ipanema(struct task_struct *p, int type)
 
 void run_rebalance_domains(struct softirq_action *h)
 {
+#ifdef CONFIG_SCHED_MONITOR_IPANEMA
 	u64 start = 0;
+#endif
 
-	sched_monitor_start(&run_rebalance_domains);
 	sched_monitor_ipanema_start(start);
+	sched_monitor_start(&run_rebalance_domains);
 
 	ipanema_balancing_select();
 

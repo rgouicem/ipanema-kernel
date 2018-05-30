@@ -4869,7 +4869,9 @@ enqueue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 {
 	struct cfs_rq *cfs_rq;
 	struct sched_entity *se = &p->se;
+#ifdef CONFIG_SCHED_MONITOR_FAIR
 	u64 start = 0;
+#endif
 
 	sched_monitor_fair_start(start);
 
@@ -4928,7 +4930,9 @@ static void set_next_buddy(struct sched_entity *se);
  */
 static void dequeue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 {
+#ifdef CONFIG_SCHED_MONITOR_FAIR
 	u64 start = 0;
+#endif
 	struct cfs_rq *cfs_rq;
 	struct sched_entity *se = &p->se;
 	int task_sleep = flags & DEQUEUE_SLEEP;
@@ -5882,7 +5886,9 @@ static int wake_cap(struct task_struct *p, int cpu, int prev_cpu)
 static int
 select_task_rq_fair(struct task_struct *p, int prev_cpu, int sd_flag, int wake_flags)
 {
+#ifdef CONFIG_SCHED_MONITOR_FAIR
 	u64 start = 0;
+#endif
 	struct sched_domain *tmp, *affine_sd = NULL, *sd = NULL;
 	int cpu = smp_processor_id();
 	int new_cpu = prev_cpu;
@@ -5980,7 +5986,9 @@ select_task_rq_fair(struct task_struct *p, int prev_cpu, int sd_flag, int wake_f
  */
 static void migrate_task_rq_fair(struct task_struct *p)
 {
+#ifdef CONFIG_SCHED_MONITOR_FAIR
 	u64 start = 0;
+#endif
 
 	sched_monitor_fair_start(start);
 	/*
@@ -6029,7 +6037,9 @@ static void migrate_task_rq_fair(struct task_struct *p)
 
 static void task_dead_fair(struct task_struct *p)
 {
+#ifdef CONFIG_SCHED_MONITOR_FAIR
 	u64 start = 0;
+#endif
 
 	sched_monitor_fair_start(start);
 
@@ -6129,7 +6139,9 @@ static void check_preempt_wakeup(struct rq *rq, struct task_struct *p, int wake_
 	struct cfs_rq *cfs_rq = task_cfs_rq(curr);
 	int scale = cfs_rq->nr_running >= sched_nr_latency;
 	int next_buddy_marked = 0;
+#ifdef CONFIG_SCHED_MONITOR_FAIR
 	u64 start = 0;
+#endif
 
 	if (unlikely(se == pse))
 		return;
@@ -6225,7 +6237,9 @@ pick_next_task_fair(struct rq *rq, struct task_struct *prev, struct rq_flags *rf
 	struct sched_entity *se;
 	struct task_struct *p;
 	int new_tasks;
+#ifdef CONFIG_SCHED_MONITOR_FAIR
 	u64 start = 0;
+#endif
 
 	sched_monitor_fair_start(start);
 again:
@@ -6368,7 +6382,9 @@ static void put_prev_task_fair(struct rq *rq, struct task_struct *prev)
 {
 	struct sched_entity *se = &prev->se;
 	struct cfs_rq *cfs_rq;
+#ifdef CONFIG_SCHED_MONITOR_FAIR
 	u64 start = 0;
+#endif
 
 	sched_monitor_fair_start(start);
 
@@ -6387,7 +6403,9 @@ static void put_prev_task_fair(struct rq *rq, struct task_struct *prev)
  */
 static void yield_task_fair(struct rq *rq)
 {
+#ifdef CONFIG_SCHED_MONITOR_FAIR
 	u64 start = 0;
+#endif
 	struct task_struct *curr = rq->curr;
 	struct cfs_rq *cfs_rq = task_cfs_rq(curr);
 	struct sched_entity *se = &curr->se;
@@ -6423,7 +6441,9 @@ static void yield_task_fair(struct rq *rq)
 
 static bool yield_to_task_fair(struct rq *rq, struct task_struct *p, bool preempt)
 {
+#ifdef CONFIG_SCHED_MONITOR_FAIR
 	u64 start = 0;
+#endif
 	struct sched_entity *se = &p->se;
 
 	sched_monitor_fair_start(start);
@@ -8970,7 +8990,9 @@ static void nohz_idle_balance(struct rq *this_rq, enum cpu_idle_type idle) { }
  */
 static __latent_entropy void run_rebalance_domains(struct softirq_action *h)
 {
+#ifdef CONFIG_SCHED_MONITOR_FAIR
 	u64 start = 0;
+#endif
 	struct rq *this_rq = this_rq();
 	enum cpu_idle_type idle = this_rq->idle_balance ?
 						CPU_IDLE : CPU_NOT_IDLE;
@@ -9012,7 +9034,9 @@ void trigger_load_balance(struct rq *rq)
 
 static void rq_online_fair(struct rq *rq)
 {
+#ifdef CONFIG_SCHED_MONITOR_FAIR
 	u64 start = 0;
+#endif
 
 	sched_monitor_fair_start(start);
 	update_sysctl();
@@ -9024,7 +9048,9 @@ static void rq_online_fair(struct rq *rq)
 
 static void rq_offline_fair(struct rq *rq)
 {
+#ifdef CONFIG_SCHED_MONITOR_FAIR
 	u64 start = 0;
+#endif
 
 	sched_monitor_fair_start(start);
 
@@ -9043,7 +9069,9 @@ static void rq_offline_fair(struct rq *rq)
  */
 static void task_tick_fair(struct rq *rq, struct task_struct *curr, int queued)
 {
+#ifdef CONFIG_SCHED_MONITOR_FAIR
 	u64 start = 0;
+#endif
 	struct cfs_rq *cfs_rq;
 	struct sched_entity *se = &curr->se;
 
@@ -9067,7 +9095,9 @@ static void task_tick_fair(struct rq *rq, struct task_struct *curr, int queued)
  */
 static void task_fork_fair(struct task_struct *p)
 {
+#ifdef CONFIG_SCHED_MONITOR_FAIR
 	u64 start = 0;
+#endif
 	struct cfs_rq *cfs_rq;
 	struct sched_entity *se = &p->se, *curr;
 	struct rq *rq = this_rq();
@@ -9108,7 +9138,9 @@ static void task_fork_fair(struct task_struct *p)
 static void
 prio_changed_fair(struct rq *rq, struct task_struct *p, int oldprio)
 {
+#ifdef CONFIG_SCHED_MONITOR_FAIR
 	u64 start = 0;
+#endif
 
 	sched_monitor_fair_start(start);
 
@@ -9243,7 +9275,9 @@ static void attach_task_cfs_rq(struct task_struct *p)
 
 static void switched_from_fair(struct rq *rq, struct task_struct *p)
 {
+#ifdef CONFIG_SCHED_MONITOR_FAIR
 	u64 start = 0;
+#endif
 
 	sched_monitor_fair_start(start);
 
@@ -9254,7 +9288,9 @@ static void switched_from_fair(struct rq *rq, struct task_struct *p)
 
 static void switched_to_fair(struct rq *rq, struct task_struct *p)
 {
+#ifdef CONFIG_SCHED_MONITOR_FAIR
 	u64 start = 0;
+#endif
 
 	sched_monitor_fair_start(start);
 
@@ -9282,7 +9318,9 @@ static void switched_to_fair(struct rq *rq, struct task_struct *p)
  */
 static void set_curr_task_fair(struct rq *rq)
 {
+#ifdef CONFIG_SCHED_MONITOR_FAIR
 	u64 start = 0;
+#endif
 	struct sched_entity *se = &rq->curr->se;
 
 	sched_monitor_fair_start(start);

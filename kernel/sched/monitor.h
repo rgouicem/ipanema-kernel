@@ -38,24 +38,35 @@ extern struct wc_stats {
 	atomic64_t time;
 } wc_stats;
 
-DECLARE_PER_CPU(struct sched_stats, fair_stats);
-DECLARE_PER_CPU(struct sched_stats, ipanema_stats);
-DECLARE_PER_CPU(struct idle_stats, idle_stats);
 
-
-void reset_stats(void);
-
-extern int ipanema_sched_class_time;
-
-extern bool sched_monitor_enabled;
-extern bool sched_monitor_idle_enabled;
-extern bool sched_monitor_fair_enabled;
-extern bool sched_monitor_ipanema_enabled;
+#ifdef CONFIG_SCHED_MONITOR_CORE
 DECLARE_PER_CPU(u64, sched_time);
 DECLARE_PER_CPU(u64, sched_time_start);
 DECLARE_PER_CPU(bool, sched_monitoring);
 DECLARE_PER_CPU(void *, sched_monitoring_fn);
+extern bool sched_monitor_enabled;
+#endif	/* CONFIG_SCHED_MONITOR_CORE */
 
+#ifdef CONFIG_SCHED_MONITOR_FAIR
+DECLARE_PER_CPU(struct sched_stats, fair_stats);
+extern bool sched_monitor_fair_enabled;
+#endif	/* CONFIG_SCHED_MONITOR_FAIR */
+
+#ifdef CONFIG_SCHED_MONITOR_IPANEMA
+DECLARE_PER_CPU(struct sched_stats, ipanema_stats);
+extern bool sched_monitor_ipanema_enabled;
+#endif	/* CONFIG_SCHED_MONITOR_IPANEMA */
+
+#ifdef CONFIG_SCHED_MONITOR_IDLE
+DECLARE_PER_CPU(struct idle_stats, idle_stats);
+extern bool sched_monitor_idle_enabled;
+#endif	/* CONFIG_SCHED_MONITOR_IDLE */
+
+
+void reset_stats(void);
+
+/* extern int ipanema_sched_class_time; */
+#ifdef CONFIG_SCHED_MONITOR_CORE
 #define sched_monitor_start(fn)						\
 	do {								\
 		if (likely(!sched_monitor_enabled))			\
@@ -92,6 +103,14 @@ DECLARE_PER_CPU(void *, sched_monitoring_fn);
 		}							\
 	} while (0)
 
+#else
+#define sched_monitor_start(fn)
+#define sched_monitor_stop(fn)
+#define sched_monitor_test()
+
+#endif	/* CONFIG_SCHED_MONITOR_CORE */
+
+#ifdef CONFIG_SCHED_MONITOR_FAIR
 #define sched_monitor_fair_start(start)				\
 	do {							\
 		if (unlikely(sched_monitor_fair_enabled))	\
@@ -107,6 +126,13 @@ DECLARE_PER_CPU(void *, sched_monitoring_fn);
 		}							\
 	} while (0)
 
+#else
+#define sched_monitor_fair_start(start)
+#define sched_monitor_fair_stop(evt, start)
+
+#endif	/* CONFIG_SCHED_MONITOR_FAIR */
+
+#ifdef CONFIG_SCHED_MONITOR_IPANEMA
 #define sched_monitor_ipanema_start(start)			\
 	do {							\
 		if (unlikely(sched_monitor_ipanema_enabled))	\
@@ -122,6 +148,13 @@ DECLARE_PER_CPU(void *, sched_monitoring_fn);
 		}							\
 	} while (0)
 
+#else
+#define sched_monitor_ipanema_start(start)
+#define sched_monitor_ipanema_stop(evt, start)
+
+#endif	/* CONFIG_SCHED_MONITOR_IPANEMA */
+
+#ifdef CONFIG_SCHED_MONITOR_IDLE
 #define sched_monitor_idle_start()					\
 	do {								\
 		if (unlikely(sched_monitor_idle_enabled))		\
@@ -137,6 +170,13 @@ DECLARE_PER_CPU(void *, sched_monitoring_fn);
 		}							\
 	} while (0)
 
+#else
+#define sched_monitor_idle_start()
+#define sched_monitor_idle_stop()
+
+#endif	/* CONFIG_SCHED_MONITOR_IDLE */
+
+#ifdef CONFIG_SCHED_MONITOR_IDLE_WC
 #define sched_monitor_nr_runnable_inc(v)		\
 	(atomic64_add(v, &(wc_stats.nr_runnable)))
 #define sched_monitor_nr_runnable_dec(v)		\
@@ -152,5 +192,16 @@ static inline bool is_wc(void)
 	return min(nr_run, (long)num_possible_cpus()) == nr_busy;
 }
 
+#else
+#define sched_monitor_nr_runnable_inc(v)
+#define sched_monitor_nr_runnable_dec(v)
+#define sched_monitor_nr_busy_inc(v)
+#define sched_monitor_nr_busy_dec(v)
+static inline bool is_wc(void)
+{
+	return true;
+}
+
+#endif	/* CONFIG_SCHED_MONITOR_IDLE_WC */
 
 #endif	/* _SCHED_MONITOR_H_ */

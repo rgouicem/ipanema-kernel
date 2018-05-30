@@ -24,7 +24,9 @@ static void check_preempt_curr_idle(struct rq *rq, struct task_struct *p, int fl
 	resched_curr(rq);
 }
 
+#ifdef CONFIG_SCHED_MONITOR_IDLE
 DEFINE_PER_CPU(u64, last_sched);
+#endif
 
 static struct task_struct *
 pick_next_task_idle(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
