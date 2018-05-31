@@ -52,27 +52,26 @@ extern bool sched_monitor_enabled;
 DECLARE_PER_CPU(struct sched_stats, fair_stats);
 extern bool sched_monitor_fair_enabled;
 
+#endif	/* CONFIG_SCHED_MONITOR_FAIR */
+
 #ifdef CONFIG_SCHED_MONITOR_FAIR_IDLE_BALANCING
 
 DECLARE_PER_CPU(struct idle_balance_stats, fair_idle_balance_stats);
 
 #endif	/* SCHED_MONITOR_FAIR_IDLE_BALANCING */
 
-#endif	/* CONFIG_SCHED_MONITOR_FAIR */
-
-
 #ifdef CONFIG_SCHED_MONITOR_IPANEMA
 
 DECLARE_PER_CPU(struct sched_stats, ipanema_stats);
 extern bool sched_monitor_ipanema_enabled;
+
+#endif	/* CONFIG_SCHED_MONITOR_IPANEMA */
 
 #ifdef CONFIG_SCHED_MONITOR_IPANEMA_IDLE_BALANCING
 
 DECLARE_PER_CPU(struct idle_balance_stats, ipanema_idle_balance_stats);
 
 #endif	/* SCHED_MONITOR_IPANEMA_IDLE_BALANCING */
-
-#endif	/* CONFIG_SCHED_MONITOR_IPANEMA */
 
 
 #ifdef CONFIG_SCHED_MONITOR_IDLE
@@ -161,6 +160,13 @@ void reset_stats(void);
 		}							\
 	} while (0)
 
+#else  /* !CONFIG_SCHED_MONITOR_FAIR */
+
+#define sched_monitor_fair_start(start)
+#define sched_monitor_fair_stop(evt, start)
+
+#endif	/* CONFIG_SCHED_MONITOR_FAIR */
+
 #ifdef CONFIG_SCHED_MONITOR_FAIR_IDLE_BALANCING
 
 #define sched_monitor_fair_idle_balance()				\
@@ -174,13 +180,6 @@ void reset_stats(void);
 #define sched_monitor_fair_idle_balance()
 
 #endif	/* CONFIG_SCHED_MONITOR_FAIR_IDLE_BALANCING */
-
-#else  /* !CONFIG_SCHED_MONITOR_FAIR */
-
-#define sched_monitor_fair_start(start)
-#define sched_monitor_fair_stop(evt, start)
-
-#endif	/* CONFIG_SCHED_MONITOR_FAIR */
 
 #ifdef CONFIG_SCHED_MONITOR_IPANEMA
 
@@ -199,6 +198,13 @@ void reset_stats(void);
 		}							\
 	} while (0)
 
+#else  /* !CONFIG_SCHED_MONITOR_IPANEMA */
+
+#define sched_monitor_ipanema_start(start)
+#define sched_monitor_ipanema_stop(evt, start)
+
+#endif	/* CONFIG_SCHED_MONITOR_IPANEMA */
+
 #ifdef CONFIG_SCHED_MONITOR_IPANEMA_IDLE_BALANCING
 
 #define sched_monitor_ipanema_idle_balance()				\
@@ -212,13 +218,6 @@ void reset_stats(void);
 #define sched_monitor_ipanema_idle_balance()
 
 #endif	/* CONFIG_SCHED_MONITOR_IPANEMA_IDLE_BALANCING */
-
-#else  /* !CONFIG_SCHED_MONITOR_IPANEMA */
-
-#define sched_monitor_ipanema_start(start)
-#define sched_monitor_ipanema_stop(evt, start)
-
-#endif	/* CONFIG_SCHED_MONITOR_IPANEMA */
 
 
 #ifdef CONFIG_SCHED_MONITOR_IDLE
