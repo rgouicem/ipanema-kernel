@@ -5,8 +5,6 @@ config SCHED_MONITOR
 	---help---
 	  Scheduler monitoring facility.
 
-	  Say N for peak scheduling performance.
-
 config SCHED_MONITOR_CORE
         def_bool n
 	prompt "Scheduler subsystem monitoring"
@@ -14,8 +12,6 @@ config SCHED_MONITOR_CORE
 	---help---
 	  Monitor the scheduler subsystem, and expose the results through the
 	  debugfs interface /sys/kernel/debug/sched_monitor/sched_time
-
-	  Say N for peak scheduling performance.
 
 config SCHED_MONITOR_FAIR
         def_bool n
@@ -25,8 +21,6 @@ config SCHED_MONITOR_FAIR
 	  Monitor the fair scheduling class, and expose the results through the
 	  debugfs interface /sys/kernel/debug/sched_monitor/fair_stats
 
-	  Say N for peak scheduling performance.
-
 config SCHED_MONITOR_FAIR_IDLE_BALANCING
         def_bool n
 	prompt "Fair scheduling class monitoring: idle balancing"
@@ -34,8 +28,6 @@ config SCHED_MONITOR_FAIR_IDLE_BALANCING
 	---help---
 	  Monitor the idle balancing triggered by the fair scheduling class, and
 	  expose the results through the debugfs interface /sys/kernel/debug/sched_monitor/fair_stats/idle_balancing
-
-	  Say N for peak scheduling performance.
 
 config SCHED_MONITOR_IPANEMA
         def_bool n
@@ -45,8 +37,6 @@ config SCHED_MONITOR_IPANEMA
 	  Monitor the ipanema scheduling class, and expose the results through the
 	  debugfs interface /sys/kernel/debug/sched_monitor/ipanema_stats
 
-	  Say N for peak scheduling performance.
-
 config SCHED_MONITOR_IPANEMA_IDLE_BALANCING
         def_bool n
 	prompt "Ipanema scheduling class monitoring: idle balancing"
@@ -55,8 +45,6 @@ config SCHED_MONITOR_IPANEMA_IDLE_BALANCING
 	  Monitor the idle balancing triggered by the Ipanema scheduling class, and
 	  expose the results through the debugfs interface /sys/kernel/debug/sched_monitor/ipanema_stats/idle_balancing
 
-	  Say N for peak scheduling performance.
-
 config SCHED_MONITOR_IDLE
         def_bool n
 	prompt "Idle scheduling class monitoring"
@@ -64,8 +52,6 @@ config SCHED_MONITOR_IDLE
 	---help---
 	  Monitor the idle scheduling class, and expose the results through the
 	  debugfs interface /sys/kernel/debug/sched_monitor/idle_stats
-
-	  Say N for peak scheduling performance.
 
 config SCHED_MONITOR_IDLE_WC
         def_bool n
@@ -76,4 +62,4 @@ config SCHED_MONITOR_IDLE_WC
 	  through the debugfs interface located in
 	  /sys/kernel/debug/sched_monitor/idle_stats
 
-	  Say N for peak scheduling performance.
+	  Greatly hurts performance. Say N for peak scheduling performance.
