@@ -267,6 +267,9 @@ static int runnable(struct cfs_ipa_sched_group *sg)
 {
 	int cpu, nr_threads = 0;
 
+	if (!sg)
+		return 0;
+
 	for_each_cpu(cpu, sg->cores) {
 		nr_threads += ipanema_state(cpu).ready.nr_tasks;
 		nr_threads += ipanema_state(cpu).current_0 ? 1 : 0;
@@ -467,8 +470,11 @@ static void steal_for_dom(struct ipanema_policy *policy,
 	struct lb_env env;
 	DECLARE_BITMAP(stealable_groups, sd->___sched_group_idx);
 	cpumask_t stealable_cores;
-        struct cfs_ipa_core *selected, *c;
-	struct cfs_ipa_sched_group *sg, *thief_group, *target_group;
+        struct cfs_ipa_core *selected = NULL, *c = NULL;
+	struct cfs_ipa_sched_group
+		*sg = NULL,
+		*thief_group = NULL,
+		*target_group = NULL;
 	int i;
 
 	/* init bitmaps */
@@ -749,7 +755,7 @@ static int ipanema_cfs_unblock_prepare(struct ipanema_policy *policy,
 {
 	struct task_struct *task_15 = e->target;
 	struct cfs_ipa_process *p = policy_metadata(task_15);
-	struct cfs_ipa_sched_domain *sd = NULL, *highest;
+	struct cfs_ipa_sched_domain *sd = NULL, *highest = NULL;
 	struct cfs_ipa_sched_group *sg = NULL;
         struct cfs_ipa_core *c, *idlest = NULL;
 	int flags = 0;
