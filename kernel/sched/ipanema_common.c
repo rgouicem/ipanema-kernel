@@ -31,15 +31,15 @@ static void check_ipanema_transition(struct task_struct *p,
 
 	switch (prev_state) {
 	case IPANEMA_NOT_QUEUED:
+	case IPANEMA_BLOCKED:
 		if (next_state != IPANEMA_READY)
 			goto wrong_transition;
-		break;
+		goto no_cpu_check;
 	case IPANEMA_READY:
-		if (next_state == IPANEMA_NOT_QUEUED ||
-		    next_state == IPANEMA_READY_TICK)
-			goto wrong_transition;
 		if (next_state == IPANEMA_MIGRATING)
 			goto no_cpu_check;
+		if (next_state != IPANEMA_RUNNING)
+			goto wrong_transition;
 		break;
 	case IPANEMA_RUNNING:
 		if (next_state == IPANEMA_NOT_QUEUED ||
@@ -47,18 +47,16 @@ static void check_ipanema_transition(struct task_struct *p,
 			goto wrong_transition;
 		break;
 	case IPANEMA_READY_TICK:
-		if (next_state == IPANEMA_NOT_QUEUED ||
-		    next_state == IPANEMA_MIGRATING ||
-		    next_state == IPANEMA_READY)
+		if (next_state != IPANEMA_READY)
 			goto wrong_transition;
 		break;
-	case IPANEMA_BLOCKED:
 	case IPANEMA_MIGRATING:
-		if (next_state != IPANEMA_READY &&
-		    next_state != IPANEMA_TERMINATED)
+		if (next_state != IPANEMA_READY)
 			goto wrong_transition;
 		break;
 	case IPANEMA_TERMINATED:
+		goto wrong_transition;
+	default:
 		goto wrong_transition;
 	}
 
@@ -69,9 +67,10 @@ no_cpu_check:
 	return;
 
 wrong_transition:
-	IPA_EMERG_SAFE("WARNING! Incorrect transition %s[%d] -> %s[%d]\n",
-		       ipanema_state_to_str(prev_state), prev_cpu,
-		       ipanema_state_to_str(next_state), next_cpu);
+	pr_err("%s:%d: WARNING! [pid=%d] Incorrect transition %s[%d] -> %s[%d]\n",
+	       __FUNCTION__, __LINE__, p->pid,
+	       ipanema_state_to_str(prev_state), prev_cpu,
+	       ipanema_state_to_str(next_state), next_cpu);
 }
 
 /*
@@ -580,9 +579,6 @@ static struct task_struct *pick_next_task_ipanema(struct rq *rq,
 		IPA_DBG_SAFE("We picked the same task as before! Don't call put_prev_task!\n");
 
 	if (result != prev) {
-		/* IPA_DBG_SAFE("Pick next -> %p %d.\n", result, */
-		/* 	     result ? ipanema_get_metric(result) : 0); */
-
 		put_prev_task(rq, prev);
 		IPA_DBG_SAFE("put_prev_task() over.\n");
 

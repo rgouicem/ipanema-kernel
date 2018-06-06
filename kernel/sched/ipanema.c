@@ -340,8 +340,8 @@ int ipanema_order_process(struct task_struct *a, struct task_struct *b)
 		       struct task_struct *b);
 
 	if (a->ipanema_metadata.policy != b->ipanema_metadata.policy) {
-		IPA_EMERG_SAFE("%s: tasks a and b have different ipanema policies [%p, %p]\n",
-			       __FUNCTION__,
+		IPA_EMERG_SAFE("%s: tasks %d and %d have different ipanema policies [%p, %p]\n",
+			       __FUNCTION__, a->pid, b->pid,
 			       a->ipanema_metadata.policy,
 			       b->ipanema_metadata.policy);
 		BUG();
@@ -359,29 +359,12 @@ int ipanema_order_process(struct task_struct *a, struct task_struct *b)
 	return res;
 }
 
-int ipanema_get_metric(struct task_struct *a)
-{
-	int res = 0;
-	struct ipanema_policy *policy;
-	int (*handler)(struct ipanema_policy *policy_p,
-		       struct task_struct *a);
-
-	policy = a->ipanema_metadata.policy;
-	handler = policy->module->routines->get_metric;
-
-	if (!handler)
-		IPA_EMERG_SAFE("%s: WARNING: invalid function pointer!\n",
-			       __FUNCTION__);
-	else
-		res = (*handler)(policy, a);
-
-	return res;
-}
-
-int ipanema_get_core_state(struct ipanema_policy *policy, unsigned int core)
+enum ipanema_core_state ipanema_get_core_state(struct ipanema_policy *policy,
+					       unsigned int core)
 {
 	struct core_event e = { .target = core };
-	int (*handler)(struct ipanema_policy *policy, struct core_event *e);
+	enum ipanema_core_state (*handler)(struct ipanema_policy *policy,
+					   struct core_event *e);
 	int res = 0;
 
 	handler = policy->module->routines->get_core_state;

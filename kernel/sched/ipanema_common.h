@@ -18,8 +18,8 @@
 struct ipanema_policy;
 
 int ipanema_order_process(struct task_struct *a, struct task_struct *b);
-int ipanema_get_metric(struct task_struct *a);
-int ipanema_get_core_state(struct ipanema_policy *policy, unsigned int core);
+enum ipanema_core_state ipanema_get_core_state(struct ipanema_policy *policy,
+					       unsigned int core);
 
 int ipanema_new_prepare(struct process_event *e);
 void ipanema_new_place(struct process_event *e);

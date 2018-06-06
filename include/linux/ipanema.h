@@ -92,9 +92,8 @@ struct ipanema_policy {
 struct ipanema_module_routines {
 	int (*order_process)(struct ipanema_policy *policy,
 			     struct task_struct *a, struct task_struct *b);
-	int (*get_metric)(struct ipanema_policy *policy, struct task_struct *a);
-	int (*get_core_state)(struct ipanema_policy *policy,
-			       struct core_event *e);
+	enum ipanema_core_state (*get_core_state)(struct ipanema_policy *policy,
+						  struct core_event *e);
 
 	int (*new_prepare)(struct ipanema_policy *policy,
 			   struct process_event *e);
