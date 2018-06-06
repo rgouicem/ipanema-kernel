@@ -170,36 +170,23 @@ static void ipa_change_queue_and_core(struct Simple_ipa_process *proc,
 	change_state(proc->task, get_class(state), core->id, rq);
 }
 
-static void set_active_core(struct Simple_ipa_core *core, cpumask_var_t cores,
-			    int state)
+static void set_active_core(struct Simple_ipa_core *core, cpumask_var_t cores)
 {
-	core->state = state;
+	core->state = IPANEMA_ACTIVE_CORE;
 	cpumask_set_cpu(core->id, cores);
 }
 
-static void set_inactive_core(struct Simple_ipa_core *core, cpumask_var_t cores,
-			      int state)
+static void set_inactive_core(struct Simple_ipa_core *core, cpumask_var_t cores)
 {
-	core->state = state;
+	core->state = IPANEMA_IDLE_CORE;
 	cpumask_clear_cpu(core->id, cores);
 }
 
-static enum ipanema_core_state get_core_state(int state)
+static enum ipanema_core_state
+ipanema_Simple_get_core_state(struct ipanema_policy *policy,
+			      struct core_event *e)
 {
-	switch (state) {
-	case ACTIVE_CORES_STATE:
-		return IPANEMA_ACTIVE_CORE;
-	case INACTIVE_CORES_STATE:
-		return IPANEMA_IDLE_CORE;
-	default:
-		return -1;
-	}
-}
-
-static int ipanema_Simple_get_core_state(struct ipanema_policy *policy,
-					 struct core_event *e)
-{
-	return get_core_state(ipanema_core(e->target).state);
+	return ipanema_core(e->target).state;
 }
 
 static int ipanema_Simple_new_prepare(struct ipanema_policy *policy,
@@ -353,7 +340,7 @@ static void ipanema_Simple_core_entry(struct ipanema_policy *policy,
 {
 	struct Simple_ipa_core * tgt = &ipanema_core(e->target);
 
-	set_active_core(tgt, cstate_info.active_cores, ACTIVE_CORES_STATE);
+	set_active_core(tgt, cstate_info.active_cores);
 }
 
 static void ipanema_Simple_core_exit(struct ipanema_policy *policy,
@@ -361,7 +348,7 @@ static void ipanema_Simple_core_exit(struct ipanema_policy *policy,
 {
 	struct Simple_ipa_core * tgt = &ipanema_core(e->target);
 
-	set_inactive_core(tgt, cstate_info.active_cores, INACTIVE_CORES_STATE);
+	set_inactive_core(tgt, cstate_info.active_cores);
 	/* TODO: Migrate all tasks to another cpu */
 }
 

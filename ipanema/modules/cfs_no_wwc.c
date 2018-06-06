@@ -245,9 +245,10 @@ static void set_sleeping_core(struct cfs_ipa_core *core, cpumask_var_t *cores, i
 	core->cpuset = cores;
 }
 
-static enum ipanema_core_state get_core_state(int state)
+static enum ipanema_core_state
+ipanema_cfs_get_core_state(struct ipanema_policy *policy, struct core_event *e)
 {
-	switch (state) {
+	switch (ipanema_core(e->target).state) {
 	case ACTIVE_CORES_STATE:
 		return IPANEMA_ACTIVE_CORE;
 	case IDLE_CORES_STATE:
@@ -255,12 +256,6 @@ static enum ipanema_core_state get_core_state(int state)
 	default:
 		return -1;
 	}
-}
-
-static int ipanema_cfs_get_core_state(struct ipanema_policy *policy,
-				      struct core_event *e)
-{
-	return get_core_state(ipanema_core(e->target).state);
 }
 
 static int migrate_from_to(struct cfs_ipa_core *busiest,
