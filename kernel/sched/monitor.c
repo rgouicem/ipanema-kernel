@@ -67,6 +67,13 @@ static struct dentry *idle_dir_debugfs;
 struct wc_stats wc_stats;
 #endif	/* CONFIG_SCHED_MONITOR_IDLE_WC */
 
+#ifdef CONFIG_SCHED_MONITOR_TRACER
+static struct dentry *tracer_dir_debugfs;
+bool sched_monitor_tracer_enabled;
+DEFINE_PER_CPU(struct sched_tracer_log, sched_tracer_log);
+#endif	/* CONFIG_SCHED_MONITOR_TRACER */
+
+
 void reset_stats(void)
 {
 	int cpu;
@@ -228,6 +235,171 @@ static const struct file_operations sched_monitor_sched_class_fops = {
 	.read   = sched_monitor_sched_class_stats_read,
 };
 
+#ifdef CONFIG_SCHED_MONITOR_TRACER
+
+static void *tracer_seq_start(struct seq_file *s, loff_t *pos)
+{
+	unsigned long cpu = (unsigned long) s->private;
+	struct sched_tracer_log *log = per_cpu_ptr(&sched_tracer_log, cpu);
+	unsigned long flags;
+	void *ret = NULL;
+
+	spin_lock_irqsave(&log->lock, flags);
+
+	if (*pos == 0 && log->dropped) {
+		seq_printf(s, "Dropped %llu events!!!!\n", log->dropped);
+		log->dropped = 0;
+	}
+
+	if (log->consumer == log->producer)
+		goto end;
+
+	ret = (void *) &log->events[log->consumer];
+
+end:
+	spin_unlock_irqrestore(&log->lock, flags);
+	return ret;
+}
+
+static void tracer_seq_stop(struct seq_file *s, void *v)
+{
+}
+
+static void *tracer_seq_next(struct seq_file *s, void *v, loff_t *pos)
+{
+	unsigned long cpu = (unsigned long) s->private;
+	struct sched_tracer_log *log = per_cpu_ptr(&sched_tracer_log, cpu);
+	unsigned long flags;
+	void *ret = NULL;
+
+	spin_lock_irqsave(&log->lock, flags);
+
+	++*pos;
+	log->consumer++;
+	if (unlikely(log->consumer >= log->size))
+		log->consumer = 0;
+
+	if (log->consumer == log->producer)
+		goto end;
+
+	ret = (void *) &log->events[log->consumer];
+
+end:
+	spin_unlock_irqrestore(&log->lock, flags);
+	return ret;
+}
+
+static char *sched_tracer_events_str[] = {
+	"FORK",
+	"EXEC",
+	"EXIT",
+	"MIGRATE",
+	"IDLE_BALANCE",
+	"PERIODIC_BALANCE",
+};
+
+static int tracer_seq_show(struct seq_file *s, void *v)
+{
+	struct sched_tracer_event *evt = v;
+
+	seq_printf(s, "%llu %s %d %d %d\n",
+		   evt->timestamp, sched_tracer_events_str[evt->event],
+		   evt->pid, evt->arg0, evt->arg1);
+
+	return 0;
+}
+
+static const struct seq_operations tracer_seq_ops = {
+	.start = tracer_seq_start,
+	.next  = tracer_seq_next,
+	.stop  = tracer_seq_stop,
+	.show  = tracer_seq_show
+};
+
+static int sched_monitor_tracer_open(struct inode *inode, struct file *file)
+{
+	int ret;
+	unsigned long cpu;
+	char *filename = file->f_path.dentry->d_iname;
+	struct seq_file *sf;
+
+	ret = seq_open(file, &tracer_seq_ops);
+	if (ret != 0)
+		return ret;
+
+	if (kstrtoul(filename, 10, &cpu) != 0)
+		return -EINVAL;
+
+	sf = (struct seq_file *) file->private_data;
+	sf->private = (void *) cpu;
+
+	return 0;
+}
+
+static const struct file_operations sched_monitor_tracer_fops = {
+	.open    = sched_monitor_tracer_open,
+	.llseek  = seq_lseek,
+	.read    = seq_read,
+	.release = seq_release,
+};
+
+static int sched_monitor_tracer_init(void)
+{
+	int cpu, ret;
+	char buf[10];
+	struct dentry *tracer_log_dir;
+	struct sched_tracer_log *log;
+	size_t buffer_size = CONFIG_SCHED_MONITOR_TRACER_BUFFER_SIZE << 20; /* convert MiB -> B */
+
+	/* Allocate per-cpu buffers */
+	buffer_size -= (buffer_size % sizeof(struct sched_tracer_event)); /* align buffer_size */
+	for_each_possible_cpu(cpu) {
+		log = per_cpu_ptr(&sched_tracer_log, cpu);
+		log->events = vmalloc(buffer_size);
+		if (!log->events) {
+			ret = -ENOMEM;
+			goto undo;
+		}
+		log->dropped = log->producer = log->consumer = 0;
+		log->size = buffer_size / sizeof(struct sched_tracer_event);
+		spin_lock_init(&log->lock);
+	}
+
+	/* Create files in /sys/kerel/debug/sched_monitor/tracer */
+	tracer_dir_debugfs = debugfs_create_dir("tracer", sched_monitor_dir);
+	tracer_log_dir = debugfs_create_dir("logs", tracer_dir_debugfs);
+	debugfs_create_bool("enable_tracer", 0666, tracer_dir_debugfs,
+			    &sched_monitor_tracer_enabled);
+
+	for_each_possible_cpu(cpu) {
+		snprintf(buf, 10, "%d", cpu);
+
+		debugfs_create_file(buf, 0444, tracer_log_dir, NULL,
+				    &sched_monitor_tracer_fops);
+	}
+
+	return 0;
+
+undo:
+	for (cpu = cpu - 1; cpu >= 0; cpu--) {
+		log = per_cpu_ptr(&sched_tracer_log, cpu);
+		free_pages_exact(log->events, buffer_size);
+	}
+
+	pr_err("sched_monitor: tracer initialization failed\n");
+
+	return ret;
+}
+
+#else  /* !CONFIG_SCHED_MONITOR_TRACER */
+
+static int sched_monitor_tracer_init(void)
+{
+	return 0;
+}
+
+#endif	/* CONFIG_SCHED_MONITOR_TRACER */
+
 static int __init monitor_debugfs_init(void)
 {
 	int cpu;
@@ -283,6 +455,8 @@ static int __init monitor_debugfs_init(void)
 				  &(wc_stats.time));
 #endif
 
+	sched_monitor_tracer_init();
+
 	for_each_possible_cpu(cpu) {
 		snprintf(buf, 10, "%d", cpu);
 #ifdef CONFIG_SCHED_MONITOR_CORE
@@ -313,6 +487,9 @@ static int __init monitor_debugfs_init(void)
 #ifdef CONFIG_SCHED_MONITOR_IDLE
 		debugfs_create_file(buf, 0444, idle_dir_debugfs, NULL,
 				    &sched_monitor_sched_class_fops);
+#endif
+
+#ifdef CONFIG_SCHED_TRACER
 #endif
 	}
 

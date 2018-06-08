@@ -63,3 +63,20 @@ config SCHED_MONITOR_IDLE_WC
 	  /sys/kernel/debug/sched_monitor/idle_stats
 
 	  Greatly hurts performance. Say N for peak scheduling performance.
+
+config SCHED_MONITOR_TRACER
+        def_bool n
+	prompt "Event tracer"
+	depends on SCHED_MONITOR
+	---help---
+	Scheduler tracer that provides a per-cpu log in /sys/kernel/debug/sched_monitor/tracer/
+	of all scheduling events that happened.
+
+config SCHED_MONITOR_TRACER_BUFFER_SIZE
+        int
+	default 512
+	prompt "Per-cpu buffer size (MiB)"
+	depends on SCHED_MONITOR_TRACER
+	---help---
+	Size of the per-cpu buffer used by the tracer in MiB.
+

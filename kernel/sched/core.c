@@ -1192,6 +1192,7 @@ void set_task_cpu(struct task_struct *p, unsigned int new_cpu)
 		p->se.nr_migrations++;
 		cpu_rq(new_cpu)->nr_migrations++;
 		perf_event_task_migrate(p);
+		sched_monitor_trace(MIGRATE_EVT, p, task_cpu(p), new_cpu);
 	}
 
 	__set_task_cpu(p, new_cpu);
@@ -2349,6 +2350,7 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 	int cpu = get_cpu();
 
 	sched_monitor_start(&sched_fork);
+	sched_monitor_trace(FORK_EVT, p, 0, 0);
 
 	__sched_fork(clone_flags, p);
 	/*
@@ -2928,6 +2930,7 @@ void sched_exec(void)
 	int dest_cpu;
 
 	sched_monitor_start(&sched_exec);
+	sched_monitor_trace(EXEC_EVT, p, 0, 0);
 
 	raw_spin_lock_irqsave(&p->pi_lock, flags);
 	dest_cpu = p->sched_class->select_task_rq(p, task_cpu(p), SD_BALANCE_EXEC, 0);
@@ -3410,6 +3413,8 @@ void __noreturn do_task_dead(void)
 
 	/* Tell freezer to ignore us: */
 	current->flags |= PF_NOFREEZE;
+
+	sched_monitor_trace(EXIT_EVT, current, 0, 0);
 
 	__schedule(false);
 	BUG();

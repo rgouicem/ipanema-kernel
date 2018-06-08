@@ -1,7 +1,7 @@
 #ifndef _SCHED_MONITOR_H_
 #define _SCHED_MONITOR_H_
 
-/* Events */
+/* Sched class events */
 #define ENQUEUE            0
 #define DEQUEUE            1
 #define YIELD              2
@@ -52,26 +52,26 @@ extern bool sched_monitor_enabled;
 DECLARE_PER_CPU(struct sched_stats, fair_stats);
 extern bool sched_monitor_fair_enabled;
 
-#endif	/* CONFIG_SCHED_MONITOR_FAIR */
+#endif /* CONFIG_SCHED_MONITOR_FAIR */
 
 #ifdef CONFIG_SCHED_MONITOR_FAIR_IDLE_BALANCING
 
 DECLARE_PER_CPU(struct idle_balance_stats, fair_idle_balance_stats);
 
-#endif	/* SCHED_MONITOR_FAIR_IDLE_BALANCING */
+#endif /* SCHED_MONITOR_FAIR_IDLE_BALANCING */
 
 #ifdef CONFIG_SCHED_MONITOR_IPANEMA
 
 DECLARE_PER_CPU(struct sched_stats, ipanema_stats);
 extern bool sched_monitor_ipanema_enabled;
 
-#endif	/* CONFIG_SCHED_MONITOR_IPANEMA */
+#endif /* CONFIG_SCHED_MONITOR_IPANEMA */
 
 #ifdef CONFIG_SCHED_MONITOR_IPANEMA_IDLE_BALANCING
 
 DECLARE_PER_CPU(struct idle_balance_stats, ipanema_idle_balance_stats);
 
-#endif	/* SCHED_MONITOR_IPANEMA_IDLE_BALANCING */
+#endif /* SCHED_MONITOR_IPANEMA_IDLE_BALANCING */
 
 
 #ifdef CONFIG_SCHED_MONITOR_IDLE
@@ -83,7 +83,7 @@ struct idle_stats {
 DECLARE_PER_CPU(struct idle_stats, idle_stats);
 extern bool sched_monitor_idle_enabled;
 
-#endif	/* CONFIG_SCHED_MONITOR_IDLE */
+#endif /* CONFIG_SCHED_MONITOR_IDLE */
 
 #ifdef CONFIG_SCHED_MONITOR_IDLE_WC
 
@@ -92,7 +92,37 @@ extern struct wc_stats {
 	atomic64_t time;
 } wc_stats;
 
-#endif	/* CONFIG_SCHED_MONITOR_IDLE_WC */
+#endif /* CONFIG_SCHED_MONITOR_IDLE_WC */
+
+#ifdef CONFIG_SCHED_MONITOR_TRACER
+
+struct sched_tracer_event {
+	u64 timestamp;
+	pid_t pid;
+	int event;
+	int arg0, arg1;
+};
+
+struct sched_tracer_log {
+	struct sched_tracer_event *events;
+	loff_t consumer, producer;
+	u64 dropped;
+	spinlock_t lock;
+	size_t size;
+};
+
+enum sched_tracer_events {
+	FORK_EVT,
+	EXEC_EVT,
+	EXIT_EVT,
+	MIGRATE_EVT,
+	IDLE_BALANCE_EVT,
+	PERIODIC_BALANCE_EVT,
+};
+DECLARE_PER_CPU(struct sched_tracer_log, sched_tracer_log);
+extern bool sched_monitor_tracer_enabled;
+
+#endif /* CONFIG_SCHED_MONITOR_TRACER */
 
 
 void reset_stats(void);
@@ -274,5 +304,55 @@ static inline bool is_wc(void)
 }
 
 #endif	/* CONFIG_SCHED_MONITOR_IDLE_WC */
+
+#ifdef CONFIG_SCHED_MONITOR_TRACER
+
+static inline void __sched_monitor_trace(enum sched_tracer_events evt,
+					 struct task_struct *p,
+					 int arg0, int arg1)
+{
+	int cpu = smp_processor_id();
+	struct sched_tracer_log *log = per_cpu_ptr(&sched_tracer_log, cpu);
+	struct sched_tracer_event *v;
+	unsigned long flags;
+
+	//pr_info("%s[%d, %d]\n", __FUNCTION__, cpu, evt);
+
+	spin_lock_irqsave(&log->lock, flags);
+
+	v = &log->events[log->producer];
+	v->timestamp = local_clock();
+	v->pid = p->pid;
+	v->event = evt;
+	v->arg0 = arg0;
+	v->arg1 = arg1;
+
+	log->producer++;
+	if (unlikely(log->producer >= log->size))
+		log->producer = 0;
+
+	if (unlikely(log->producer == log->consumer)) {
+		log->consumer++;
+		if (unlikely(log->consumer >= log->size))
+			log->consumer = 0;
+		log->dropped++;
+		pr_err("sched_monitor: tracer: dropping event on cpu%d\n",
+		       cpu);
+	}
+
+	spin_unlock_irqrestore(&log->lock, flags);
+}
+
+#define sched_monitor_trace(evt, task, arg0, arg1)			\
+	do {								\
+		if (unlikely(sched_monitor_tracer_enabled))		\
+			__sched_monitor_trace(evt, task, arg0, arg1);	\
+	} while (0)
+
+#else  /* !CONFIG_SCHED_MONITOR_TRACER */
+
+#define sched_monitor_trace(evt, task, arg0, arg1)
+
+#endif	/* CONFIG_SCHED_MONITOR_TRACER */
 
 #endif	/* _SCHED_MONITOR_H_ */
