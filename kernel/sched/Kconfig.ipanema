@@ -1,0 +1,4 @@
+
+config IPANEMA_DEBUG_TOPOLOGY
+        def_bool n
+	prompt "Print topology during boot"

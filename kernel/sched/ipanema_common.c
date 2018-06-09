@@ -1187,6 +1187,7 @@ static int create_topology(void)
 	return 0;
 }
 
+#ifdef CONFIG_IPANEMA_DEBUG_TOPOLOGY
 static void print_topology(void)
 {
 	int cpu;
@@ -1210,6 +1211,7 @@ static void print_topology(void)
 		}
 	}
 }
+#endif	/* #ifdef CONFIG_IPANEMA_DEBUG_TOPOLOGY */
 
 void __init init_sched_ipanema_class(void)
 {
@@ -1226,7 +1228,10 @@ int __init init_sched_ipanema_late(void)
 	ret = create_topology();
 	if (ret)
 		pr_err("ipanema: create_topology() failed\n");
+
+#ifdef CONFIG_IPANEMA_DEBUG_TOPOLOGY
 	print_topology();
+#endif
 
 	return 0;
 }

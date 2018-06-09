@@ -987,6 +987,12 @@ source "kernel/sched/Kconfig.sched_monitor"
 
 endmenu
 
+menu "Ipanema"
+
+source "kernel/sched/Kconfig.ipanema"
+
+endmenu
+
 config UP_LATE_INIT
        def_bool y
        depends on !SMP && X86_LOCAL_APIC
