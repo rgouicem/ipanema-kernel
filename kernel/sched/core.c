@@ -2350,7 +2350,6 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 	int cpu = get_cpu();
 
 	sched_monitor_start(&sched_fork);
-	sched_monitor_trace(FORK_EVT, p, 0, 0);
 
 	__sched_fork(clone_flags, p);
 	/*
