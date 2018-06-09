@@ -8493,6 +8493,8 @@ out:
 
 	rq_repin_lock(this_rq, rf);
 
+	/* sched_monitor_trace(IDLE_BALANCE_EVT, current, 0, 0); */
+
 	return pulled_task;
 }
 
