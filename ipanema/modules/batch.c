@@ -441,7 +441,7 @@ static unsigned int attach_tasks(struct core *c, struct list_head *list)
 	ipanema_lock_core(c->id);
 	while (!list_empty(list)) {
 		tgt = list_first_entry(list, struct process, list);
-		p = ipanema_get_task_of(tgt);
+		p = tgt->task;
 		tgt->rq = &c->ready;
 		change_state(p, IPANEMA_READY, c->id, tgt->rq);
 		list_del_init(&tgt->list);
@@ -473,7 +473,7 @@ static void balance_cpus(struct ipanema_policy *policy, struct core *thief,
 	 */
 	detach_tasks(victim, nr_stolen, &stolen_tasks, thief->id);
 
-	/* 
+	/*
 	 * Lock cpu and add tasks to READY runqueue
 	 */
 	attach_tasks(thief, &stolen_tasks);
