@@ -1608,8 +1608,9 @@ static inline void add_nr_running(struct rq *rq, unsigned count)
 #endif
 
 	rq->nr_running = prev_nr + count;
-	sched_monitor_nr_runnable_inc(count);
+
 #ifdef CONFIG_SCHED_MONITOR_IDLE_WC
+	sched_monitor_nr_runnable_inc(count);
 	/*
 	 * 4 cases: -  WC -> !WC: start timer
 	 *          -  WC ->  WC: nothing
@@ -1646,8 +1647,9 @@ static inline void sub_nr_running(struct rq *rq, unsigned count)
 #endif
 
 	rq->nr_running -= count;
-	sched_monitor_nr_runnable_dec(count);
+
 #ifdef CONFIG_SCHED_MONITOR_IDLE_WC
+	sched_monitor_nr_runnable_dec(count);
 	/*
 	 * 4 cases: -  WC -> !WC: start timer
 	 *          -  WC ->  WC: nothing
