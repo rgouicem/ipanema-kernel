@@ -112,15 +112,21 @@ struct sched_tracer_log {
 };
 
 enum sched_tracer_events {
-	FORK_EVT,
-	EXEC_EVT,
-	EXIT_EVT,
-	MIGRATE_EVT,
+	FORK_EVT,    /* timestamp FORK pid 0 0 */
+	EXEC_EVT,    /* timestamp EXEC pid 0 0 */
+	EXIT_EVT,    /* timestamp EXIT pid 0 0 */
+	MIGRATE_EVT, /* timestamp MIGRATE pid old_cpu new_cpu */
 	IDLE_BALANCE_EVT,
 	PERIODIC_BALANCE_EVT,
+	RQ_SIZE,     /* timestamp RQ_SIZE current size count */
+	WAKEUP,      /* timestamp WAKEUP pid 0 0 */
+	WAKEUP_NEW,  /* timestamp WAKEUP_NEW pid 0 0 */
+	BLOCK,       /* timestamp BLOCK pid 0 0 */
+	SCHED_MONITOR_TRACER_NR_EVENTS,	/* keep last */
 };
 DECLARE_PER_CPU(struct sched_tracer_log, sched_tracer_log);
 extern bool sched_monitor_tracer_enabled;
+extern bool sched_monitor_tracer_event_enabled[SCHED_MONITOR_TRACER_NR_EVENTS];
 
 #endif /* CONFIG_SCHED_MONITOR_TRACER */
 
@@ -307,16 +313,18 @@ static inline bool is_wc(void)
 
 #ifdef CONFIG_SCHED_MONITOR_TRACER
 
-static inline void __sched_monitor_trace(enum sched_tracer_events evt,
+static inline void __sched_monitor_trace(enum sched_tracer_events evt, int cpu,
 					 struct task_struct *p,
 					 int arg0, int arg1)
 {
-	int cpu = smp_processor_id();
 	struct sched_tracer_log *log = per_cpu_ptr(&sched_tracer_log, cpu);
 	struct sched_tracer_event *v;
 	unsigned long flags;
 
 	//pr_info("%s[%d, %d]\n", __FUNCTION__, cpu, evt);
+
+	if (!sched_monitor_tracer_event_enabled[evt])
+		return;
 
 	spin_lock_irqsave(&log->lock, flags);
 
@@ -343,15 +351,15 @@ static inline void __sched_monitor_trace(enum sched_tracer_events evt,
 	spin_unlock_irqrestore(&log->lock, flags);
 }
 
-#define sched_monitor_trace(evt, task, arg0, arg1)			\
+#define sched_monitor_trace(evt, cpu, task, arg0, arg1)			\
 	do {								\
 		if (unlikely(sched_monitor_tracer_enabled))		\
-			__sched_monitor_trace(evt, task, arg0, arg1);	\
+			__sched_monitor_trace(evt, cpu, task, arg0, arg1); \
 	} while (0)
 
 #else  /* !CONFIG_SCHED_MONITOR_TRACER */
 
-#define sched_monitor_trace(evt, task, arg0, arg1)
+#define sched_monitor_trace(evt, cpu, task, arg0, arg1)
 
 #endif	/* CONFIG_SCHED_MONITOR_TRACER */
 

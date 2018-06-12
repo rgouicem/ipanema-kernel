@@ -1192,7 +1192,8 @@ void set_task_cpu(struct task_struct *p, unsigned int new_cpu)
 		p->se.nr_migrations++;
 		cpu_rq(new_cpu)->nr_migrations++;
 		perf_event_task_migrate(p);
-		sched_monitor_trace(MIGRATE_EVT, p, task_cpu(p), new_cpu);
+		sched_monitor_trace(MIGRATE_EVT, task_cpu(p), p, task_cpu(p),
+				    new_cpu);
 	}
 
 	__set_task_cpu(p, new_cpu);
@@ -1673,6 +1674,7 @@ static void ttwu_do_wakeup(struct rq *rq, struct task_struct *p, int wake_flags,
 	check_preempt_curr(rq, p, wake_flags);
 	p->state = TASK_RUNNING;
 	trace_sched_wakeup(p);
+	sched_monitor_trace(WAKEUP, rq->cpu, p, 0, 0);
 
 #ifdef CONFIG_SMP
 	if (p->sched_class->task_woken) {
@@ -2485,6 +2487,7 @@ void wake_up_new_task(struct task_struct *p)
 	activate_task(rq, p, ENQUEUE_NOCLOCK);
 	p->on_rq = TASK_ON_RQ_QUEUED;
 	trace_sched_wakeup_new(p);
+	sched_monitor_trace(WAKEUP_NEW, rq->cpu, p, 0, 0);
 	check_preempt_curr(rq, p, WF_FORK);
 #ifdef CONFIG_SMP
 	if (p->sched_class->task_woken) {
@@ -2929,7 +2932,7 @@ void sched_exec(void)
 	int dest_cpu;
 
 	sched_monitor_start(&sched_exec);
-	sched_monitor_trace(EXEC_EVT, p, 0, 0);
+	sched_monitor_trace(EXEC_EVT, task_cpu(p), p, 0, 0);
 
 	raw_spin_lock_irqsave(&p->pi_lock, flags);
 	dest_cpu = p->sched_class->select_task_rq(p, task_cpu(p), SD_BALANCE_EXEC, 0);
@@ -3346,6 +3349,8 @@ static void __sched notrace __schedule(bool preempt)
 			deactivate_task(rq, prev, DEQUEUE_SLEEP | DEQUEUE_NOCLOCK);
 			prev->on_rq = 0;
 
+			sched_monitor_trace(BLOCK, cpu, prev, 0, 0);
+
 			if (prev->in_iowait) {
 				atomic_inc(&rq->nr_iowait);
 				delayacct_blkio_start();
@@ -3413,7 +3418,7 @@ void __noreturn do_task_dead(void)
 	/* Tell freezer to ignore us: */
 	current->flags |= PF_NOFREEZE;
 
-	sched_monitor_trace(EXIT_EVT, current, 0, 0);
+	sched_monitor_trace(EXIT_EVT, task_cpu(current), current, 0, 0);
 
 	__schedule(false);
 	BUG();

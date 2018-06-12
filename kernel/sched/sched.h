@@ -1638,6 +1638,10 @@ static inline void add_nr_running(struct rq *rq, unsigned count)
 	}
 
 	sched_update_tick_dependency(rq);
+
+	if (count)
+		sched_monitor_trace(RQ_SIZE, rq->cpu, current, rq->nr_running,
+				    count);
 }
 
 static inline void sub_nr_running(struct rq *rq, unsigned count)
@@ -1671,6 +1675,10 @@ static inline void sub_nr_running(struct rq *rq, unsigned count)
 
 	/* Check if we still need preemption */
 	sched_update_tick_dependency(rq);
+
+	if (count)
+		sched_monitor_trace(RQ_SIZE, rq->cpu, current, rq->nr_running,
+				    -count);
 }
 
 static inline void rq_last_tick_reset(struct rq *rq)

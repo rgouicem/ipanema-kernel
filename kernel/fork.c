@@ -1917,7 +1917,7 @@ static __latent_entropy struct task_struct *copy_process(
 	cgroup_post_fork(p);
 	cgroup_threadgroup_change_end(current);
 	perf_event_fork(p);
-	sched_monitor_trace(FORK_EVT, p, 0, 0);
+	sched_monitor_trace(FORK_EVT, task_cpu(p), p, 0, 0);
 
 	trace_task_newtask(p, clone_flags);
 	uprobe_copy_process(p, clone_flags);

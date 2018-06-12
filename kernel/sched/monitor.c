@@ -290,21 +290,36 @@ end:
 }
 
 static char *sched_tracer_events_str[] = {
-	"FORK",
-	"EXEC",
-	"EXIT",
-	"MIGRATE",
+	"FORK",		/* timestamp FORK pid 0 0 */
+	"EXEC",		/* timestamp EXEC pid 0 0 */
+	"EXIT",		/* timestamp EXIT pid 0 0 */
+	"MIGRATE",	/* timestamp MIGRATE pid old_cpu new_cpu */
 	"IDLE_BALANCE",
 	"PERIODIC_BALANCE",
+	"RQ_SIZE",	/* timestamp RQ_SIZE current size count */
+	"WAKEUP",	/* timestamp WAKEUP pid 0 0 */
+	"WAKEUP_NEW",   /* timestamp WAKEUP_NEW pid 0 0 */
+	"BLOCK",	/* timestamp BLOCK pid 0 0 */
 };
 
 static int tracer_seq_show(struct seq_file *s, void *v)
 {
 	struct sched_tracer_event *evt = v;
 
+	/* text output */
 	seq_printf(s, "%llu %s %d %d %d\n",
 		   evt->timestamp, sched_tracer_events_str[evt->event],
 		   evt->pid, evt->arg0, evt->arg1);
+
+	return 0;
+}
+
+static int tracer_seq_show_raw(struct seq_file *s, void *v)
+{
+	struct sched_tracer_event *evt = v;
+
+	/* binary output */
+	seq_write(s, evt, sizeof(struct sched_tracer_event));
 
 	return 0;
 }
@@ -343,11 +358,47 @@ static const struct file_operations sched_monitor_tracer_fops = {
 	.release = seq_release,
 };
 
+static const struct seq_operations tracer_seq_ops_raw = {
+	.start = tracer_seq_start,
+	.next  = tracer_seq_next,
+	.stop  = tracer_seq_stop,
+	.show  = tracer_seq_show_raw
+};
+
+static int sched_monitor_tracer_open_raw(struct inode *inode, struct file *file)
+{
+	int ret;
+	unsigned long cpu;
+	char *filename = file->f_path.dentry->d_iname;
+	struct seq_file *sf;
+
+	ret = seq_open(file, &tracer_seq_ops_raw);
+	if (ret != 0)
+		return ret;
+
+	if (kstrtoul(filename, 10, &cpu) != 0)
+		return -EINVAL;
+
+	sf = (struct seq_file *) file->private_data;
+	sf->private = (void *) cpu;
+
+	return 0;
+}
+
+static const struct file_operations sched_monitor_tracer_fops_raw = {
+	.open    = sched_monitor_tracer_open_raw,
+	.llseek  = seq_lseek,
+	.read    = seq_read,
+	.release = seq_release,
+};
+
+bool sched_monitor_tracer_event_enabled[SCHED_MONITOR_TRACER_NR_EVENTS];
+
 static int sched_monitor_tracer_init(void)
 {
-	int cpu, ret;
+	int cpu, ret, i;
 	char buf[10];
-	struct dentry *tracer_log_dir;
+	struct dentry *tracer_log_dir, *events_dir, *raw_dir;
 	struct sched_tracer_log *log;
 	size_t buffer_size = CONFIG_SCHED_MONITOR_TRACER_BUFFER_SIZE << 20; /* convert MiB -> B */
 
@@ -367,15 +418,26 @@ static int sched_monitor_tracer_init(void)
 
 	/* Create files in /sys/kerel/debug/sched_monitor/tracer */
 	tracer_dir_debugfs = debugfs_create_dir("tracer", sched_monitor_dir);
-	tracer_log_dir = debugfs_create_dir("logs", tracer_dir_debugfs);
 	debugfs_create_bool("enable_tracer", 0666, tracer_dir_debugfs,
 			    &sched_monitor_tracer_enabled);
 
+	events_dir = debugfs_create_dir("events", tracer_dir_debugfs);
+	for (i = 0; i < SCHED_MONITOR_TRACER_NR_EVENTS; i++) {
+		sched_monitor_tracer_event_enabled[i] = false;
+		debugfs_create_bool(sched_tracer_events_str[i], 0666,
+				    events_dir,
+				    sched_monitor_tracer_event_enabled + i);
+	}
+
+	tracer_log_dir = debugfs_create_dir("logs", tracer_dir_debugfs);
+	raw_dir = debugfs_create_dir("raw", tracer_dir_debugfs);
 	for_each_possible_cpu(cpu) {
 		snprintf(buf, 10, "%d", cpu);
 
 		debugfs_create_file(buf, 0444, tracer_log_dir, NULL,
 				    &sched_monitor_tracer_fops);
+		debugfs_create_file(buf, 0444, raw_dir, NULL,
+				    &sched_monitor_tracer_fops_raw);
 	}
 
 	return 0;
