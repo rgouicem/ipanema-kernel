@@ -946,7 +946,7 @@ fail:
 /* Scheduling domains must be up to date for all CPUs */
 static int create_scheduling_groups(void)
 {
-	struct ule_wwc_ipa_sched_domain *sd;
+	struct ule_wwc_ipa_sched_domain *sd = NULL;
 	int i, ret;
 
 	for (i = ule_wwc_ipa_nr_topology_levels - 1; i > 0; i--) {
@@ -956,6 +956,8 @@ static int create_scheduling_groups(void)
 				goto fail;
 		}
 	}
+	if (!sd)
+		return 0;
 
 	list_for_each_entry(sd, ule_wwc_ipa_topology, siblings) {
 		ret = build_lower_groups(sd);
