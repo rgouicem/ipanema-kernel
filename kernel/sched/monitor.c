@@ -300,6 +300,7 @@ static char *sched_tracer_events_str[] = {
 	"WAKEUP",	/* timestamp WAKEUP pid 0 0 */
 	"WAKEUP_NEW",   /* timestamp WAKEUP_NEW pid 0 0 */
 	"BLOCK",	/* timestamp BLOCK pid 0 0 */
+	"TICK",         /* timestamp TICK pid need_resched */
 };
 
 static int tracer_seq_show(struct seq_file *s, void *v)

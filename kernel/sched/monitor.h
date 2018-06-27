@@ -122,6 +122,7 @@ enum sched_tracer_events {
 	WAKEUP,      /* timestamp WAKEUP pid 0 0 */
 	WAKEUP_NEW,  /* timestamp WAKEUP_NEW pid 0 0 */
 	BLOCK,       /* timestamp BLOCK pid 0 0 */
+	TICK_EVT,    /* timestamp TICK pid need_resched 0 */
 	SCHED_MONITOR_TRACER_NR_EVENTS,	/* keep last */
 };
 DECLARE_PER_CPU(struct sched_tracer_log, sched_tracer_log);
