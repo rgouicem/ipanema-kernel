@@ -3033,6 +3033,7 @@ void scheduler_tick(void)
 	struct rq *rq = cpu_rq(cpu);
 	struct task_struct *curr = rq->curr;
 	struct rq_flags rf;
+	int need_resched;
 
 	sched_monitor_start(&scheduler_tick);
 
@@ -3041,7 +3042,12 @@ void scheduler_tick(void)
 	rq_lock(rq, &rf);
 
 	update_rq_clock(rq);
+
 	curr->sched_class->task_tick(rq, curr, 0);
+	need_resched = curr->thread_info.flags & _TIF_NEED_RESCHED;
+	need_resched = need_resched >> TIF_NEED_RESCHED;
+	sched_monitor_trace(TICK_EVT, cpu, curr, need_resched, 0);
+
 	cpu_load_update_active(rq);
 	calc_global_load_tick(rq);
 
