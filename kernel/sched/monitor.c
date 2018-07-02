@@ -290,26 +290,59 @@ end:
 }
 
 static char *sched_tracer_events_str[] = {
-	"FORK",		/* timestamp FORK pid 0 0 */
-	"EXEC",		/* timestamp EXEC pid 0 0 */
-	"EXIT",		/* timestamp EXIT pid 0 0 */
-	"MIGRATE",	/* timestamp MIGRATE pid old_cpu new_cpu */
+	"EXEC",	      /* timestamp EXEC pid */
+	"EXIT",	      /* timestamp EXIT pid */
+	"WAKEUP",     /* timestamp WAKEUP pid */
+	"WAKEUP_NEW", /* timestamp WAKEUP_NEW pid */
+	"IO_BLOCK",   /* timestamp IO_BLOCK pid */
+	"LOCK",       /* timestamp LOCK pid addr */
+	"UNLOCK",     /* timestamp UNLOCK pid addr */
+	"FORK",	      /* timestamp FORK pid ppid fork 0 */
+	"MIGRATE",    /* timestamp MIGRATE pid old_cpu new_cpu */
+	"RQ_SIZE",    /* timestamp RQ_SIZE current size count */
 	"IDLE_BALANCE",
 	"PERIODIC_BALANCE",
-	"RQ_SIZE",	/* timestamp RQ_SIZE current size count */
-	"WAKEUP",	/* timestamp WAKEUP pid 0 0 */
-	"WAKEUP_NEW",   /* timestamp WAKEUP_NEW pid 0 0 */
-	"BLOCK",	/* timestamp BLOCK pid 0 0 */
 };
 
 static int tracer_seq_show(struct seq_file *s, void *v)
 {
+	unsigned long cpu = (unsigned long) s->private;
+	struct sched_tracer_log *log = per_cpu_ptr(&sched_tracer_log, cpu);
 	struct sched_tracer_event *evt = v;
 
+	pr_info("%s: read at %d\n", __FUNCTION__, log->consumer);
+
 	/* text output */
-	seq_printf(s, "%llu %s %d %d %d\n",
-		   evt->timestamp, sched_tracer_events_str[evt->event],
-		   evt->pid, evt->arg0, evt->arg1);
+	switch (evt->event) {
+		/* no args */
+	case EXEC_EVT:
+	case EXIT_EVT:
+	case WAKEUP:
+	case WAKEUP_NEW:
+	case IO_BLOCK:
+		seq_printf(s, "%llu %s %d\n",
+			   evt->timestamp, sched_tracer_events_str[evt->event],
+			   evt->pid);
+		break;
+		/* one pointer arg */
+	case LOCK:
+	case UNLOCK:
+		seq_printf(s, "%llu %s %d 0x%p\n",
+			   evt->timestamp, sched_tracer_events_str[evt->event],
+			   evt->pid, (void *)evt->addr);
+		break;
+		/* two int args */
+	case FORK_EVT:
+	case MIGRATE_EVT:
+	case RQ_SIZE:
+		seq_printf(s, "%llu %s %d %d %d\n",
+			   evt->timestamp, sched_tracer_events_str[evt->event],
+			   evt->pid, evt->arg0, evt->arg1);
+		break;
+	default:
+		seq_printf(s, "%llu UNKNOWN %d\n",
+			   evt->timestamp, evt->pid);
+	}
 
 	return 0;
 }

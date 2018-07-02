@@ -451,6 +451,11 @@ void wake_q_add(struct wake_q_head *head, struct task_struct *task)
 	 */
 	*head->lastp = node;
 	head->lastp = &node->next;
+
+	/* we pass the 64 bits address in the two 32 bits parameters */
+	sched_monitor_trace(LOCK, task_cpu(task), task,
+			    (unsigned long)head >> 32,
+			    (unsigned long)head & 0x00000000ffffffff);
 }
 
 void wake_up_q(struct wake_q_head *head)
@@ -462,6 +467,12 @@ void wake_up_q(struct wake_q_head *head)
 
 		task = container_of(node, struct task_struct, wake_q);
 		BUG_ON(!task);
+
+		/* we pass the 64 bits address in the two 32 bits parameters */
+		sched_monitor_trace(UNLOCK, task_cpu(task), task,
+				    (unsigned long)head >> 32,
+				    (unsigned long)head & 0x00000000ffffffff);
+
 		/* Task can safely be re-inserted now: */
 		node = node->next;
 		task->wake_q.next = NULL;
@@ -1674,7 +1685,6 @@ static void ttwu_do_wakeup(struct rq *rq, struct task_struct *p, int wake_flags,
 	check_preempt_curr(rq, p, wake_flags);
 	p->state = TASK_RUNNING;
 	trace_sched_wakeup(p);
-	sched_monitor_trace(WAKEUP, rq->cpu, p, 0, 0);
 
 #ifdef CONFIG_SMP
 	if (p->sched_class->task_woken) {
@@ -3348,8 +3358,6 @@ static void __sched notrace __schedule(bool preempt)
 		} else {
 			deactivate_task(rq, prev, DEQUEUE_SLEEP | DEQUEUE_NOCLOCK);
 			prev->on_rq = 0;
-
-			sched_monitor_trace(BLOCK, cpu, prev, 0, 0);
 
 			if (prev->in_iowait) {
 				atomic_inc(&rq->nr_iowait);
@@ -5111,6 +5119,8 @@ long __sched io_schedule_timeout(long timeout)
 	int token;
 	long ret;
 
+	sched_monitor_trace(IO_BLOCK, task_cpu(current), current, 0, 0);
+
 	token = io_schedule_prepare();
 	ret = schedule_timeout(timeout);
 	io_schedule_finish(token);
@@ -5122,6 +5132,8 @@ EXPORT_SYMBOL(io_schedule_timeout);
 void io_schedule(void)
 {
 	int token;
+
+	sched_monitor_trace(IO_BLOCK, task_cpu(current), current, 0, 0);
 
 	token = io_schedule_prepare();
 	schedule();

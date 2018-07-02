@@ -100,7 +100,12 @@ struct sched_tracer_event {
 	u64 timestamp;
 	pid_t pid;
 	int event;
-	int arg0, arg1;
+	union {
+		struct {
+			s32 arg0, arg1;
+		};
+		u64 addr;
+	};
 };
 
 struct sched_tracer_log {
@@ -112,16 +117,18 @@ struct sched_tracer_log {
 };
 
 enum sched_tracer_events {
-	FORK_EVT,    /* timestamp FORK pid 0 0 */
-	EXEC_EVT,    /* timestamp EXEC pid 0 0 */
-	EXIT_EVT,    /* timestamp EXIT pid 0 0 */
+	EXEC_EVT,    /* timestamp EXEC pid */
+	EXIT_EVT,    /* timestamp EXIT pid */
+	WAKEUP,      /* timestamp WAKEUP pid */
+	WAKEUP_NEW,  /* timestamp WAKEUP_NEW pid */
+	IO_BLOCK,    /* timestamp IO_BLOCK pid */
+	LOCK,        /* timestamp LOCK pid addr */
+	UNLOCK,      /* timestamp UNLOCK pid addr */
+	FORK_EVT,    /* timestamp FORK pid ppid 0 */
 	MIGRATE_EVT, /* timestamp MIGRATE pid old_cpu new_cpu */
+	RQ_SIZE,     /* timestamp RQ_SIZE current size count */
 	IDLE_BALANCE_EVT,
 	PERIODIC_BALANCE_EVT,
-	RQ_SIZE,     /* timestamp RQ_SIZE current size count */
-	WAKEUP,      /* timestamp WAKEUP pid 0 0 */
-	WAKEUP_NEW,  /* timestamp WAKEUP_NEW pid 0 0 */
-	BLOCK,       /* timestamp BLOCK pid 0 0 */
 	SCHED_MONITOR_TRACER_NR_EVENTS,	/* keep last */
 };
 DECLARE_PER_CPU(struct sched_tracer_log, sched_tracer_log);
@@ -334,6 +341,8 @@ static inline void __sched_monitor_trace(enum sched_tracer_events evt, int cpu,
 	v->event = evt;
 	v->arg0 = arg0;
 	v->arg1 = arg1;
+
+	pr_info("%s: write at %d\n", __FUNCTION__, log->producer);
 
 	log->producer++;
 	if (unlikely(log->producer >= log->size))
