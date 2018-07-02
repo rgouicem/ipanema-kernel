@@ -125,6 +125,7 @@ enum sched_tracer_events {
 	LOCK,        /* timestamp LOCK pid addr */
 	UNLOCK,      /* timestamp UNLOCK pid addr */
 	FORK_EVT,    /* timestamp FORK pid ppid 0 */
+	TICK_EVT,    /* timestamp TICK pid need_resched 0 */
 	MIGRATE_EVT, /* timestamp MIGRATE pid old_cpu new_cpu */
 	RQ_SIZE,     /* timestamp RQ_SIZE current size count */
 	IDLE_BALANCE_EVT,

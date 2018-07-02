@@ -298,6 +298,7 @@ static char *sched_tracer_events_str[] = {
 	"LOCK",       /* timestamp LOCK pid addr */
 	"UNLOCK",     /* timestamp UNLOCK pid addr */
 	"FORK",	      /* timestamp FORK pid ppid fork 0 */
+	"TICK",       /* timestamp TICK pid need_resched 0 */
 	"MIGRATE",    /* timestamp MIGRATE pid old_cpu new_cpu */
 	"RQ_SIZE",    /* timestamp RQ_SIZE current size count */
 	"IDLE_BALANCE",
