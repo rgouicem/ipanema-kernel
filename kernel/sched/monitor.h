@@ -343,8 +343,6 @@ static inline void __sched_monitor_trace(enum sched_tracer_events evt, int cpu,
 	v->arg0 = arg0;
 	v->arg1 = arg1;
 
-	pr_info("%s: write at %d\n", __FUNCTION__, log->producer);
-
 	log->producer++;
 	if (unlikely(log->producer >= log->size))
 		log->producer = 0;

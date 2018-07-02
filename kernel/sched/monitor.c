@@ -307,11 +307,7 @@ static char *sched_tracer_events_str[] = {
 
 static int tracer_seq_show(struct seq_file *s, void *v)
 {
-	unsigned long cpu = (unsigned long) s->private;
-	struct sched_tracer_log *log = per_cpu_ptr(&sched_tracer_log, cpu);
 	struct sched_tracer_event *evt = v;
-
-	pr_info("%s: read at %d\n", __FUNCTION__, log->consumer);
 
 	/* text output */
 	switch (evt->event) {
