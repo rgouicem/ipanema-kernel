@@ -538,6 +538,10 @@ static struct task_struct *pick_next_task_ipanema(struct rq *rq,
 			pr_info("%s: ipanema_current was not NULL and task is not TASK_RUNNING. Should not happen\n",
 				__FUNCTION__);
 	} else {
+#ifdef CONFIG_SCHED_MONITOR_IPANEMA
+		u64 start_lb = 0;
+#endif
+
 		list_for_each_entry(policy, &ipanema_policies, list) {
 			ipanema_schedule(policy, rq->cpu);
 			result = per_cpu(ipanema_current, rq->cpu);
@@ -553,9 +557,12 @@ static struct task_struct *pick_next_task_ipanema(struct rq *rq,
 							rq->cpu);
 			if (cstate == IPANEMA_IDLE_CORE)
 				continue;
-			sched_monitor_ipanema_idle_balance();
+
 			sched_monitor_trace(IDLE_BALANCE_EVT, rq->cpu, rq->curr, 0, 0);
+			sched_monitor_ipanema_start(start_lb);
+
 			ipanema_newly_idle(policy, rq->cpu, rf);
+			sched_monitor_ipanema_stop(LB_IDLE, start_lb);
 			ipanema_schedule(policy, rq->cpu);
 			result = per_cpu(ipanema_current, rq->cpu);
 			/* if a task is found, schedule it */

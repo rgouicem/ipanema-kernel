@@ -21,14 +21,6 @@ config SCHED_MONITOR_FAIR
 	  Monitor the fair scheduling class, and expose the results through the
 	  debugfs interface /sys/kernel/debug/sched_monitor/fair_stats
 
-config SCHED_MONITOR_FAIR_IDLE_BALANCING
-        def_bool n
-	prompt "Fair scheduling class monitoring: idle balancing"
-	depends on SCHED_MONITOR_FAIR
-	---help---
-	  Monitor the idle balancing triggered by the fair scheduling class, and
-	  expose the results through the debugfs interface /sys/kernel/debug/sched_monitor/fair_stats/idle_balancing
-
 config SCHED_MONITOR_IPANEMA
         def_bool n
 	prompt "Ipanema scheduling class monitoring"
@@ -37,14 +29,6 @@ config SCHED_MONITOR_IPANEMA
 	  Monitor the ipanema scheduling class, and expose the results through the
 	  debugfs interface /sys/kernel/debug/sched_monitor/ipanema_stats
 
-config SCHED_MONITOR_IPANEMA_IDLE_BALANCING
-        def_bool n
-	prompt "Ipanema scheduling class monitoring: idle balancing"
-	depends on SCHED_MONITOR_IPANEMA
-	---help---
-	  Monitor the idle balancing triggered by the Ipanema scheduling class, and
-	  expose the results through the debugfs interface /sys/kernel/debug/sched_monitor/ipanema_stats/idle_balancing
-
 config SCHED_MONITOR_IDLE
         def_bool n
 	prompt "Idle scheduling class monitoring"
@@ -52,17 +36,6 @@ config SCHED_MONITOR_IDLE
 	---help---
 	  Monitor the idle scheduling class, and expose the results through the
 	  debugfs interface /sys/kernel/debug/sched_monitor/idle_stats
-
-config SCHED_MONITOR_IDLE_WC
-        def_bool n
-	prompt "Work-conservation monitoring"
-	depends on SCHED_MONITOR_IDLE
-	---help---
-	  Monitor the time spent being work conserving, and expose the results
-	  through the debugfs interface located in
-	  /sys/kernel/debug/sched_monitor/idle_stats
-
-	  Greatly hurts performance. Say N for peak scheduling performance.
 
 config SCHED_MONITOR_TRACER
         def_bool n
@@ -74,7 +47,7 @@ config SCHED_MONITOR_TRACER
 
 config SCHED_MONITOR_TRACER_BUFFER_SIZE
         int
-	default 512
+	default 64
 	prompt "Per-cpu buffer size (MiB)"
 	depends on SCHED_MONITOR_TRACER
 	---help---
