@@ -365,6 +365,8 @@ static int tracer_seq_show(struct seq_file *s, void *v)
 	case WAKEUP:
 	case WAKEUP_NEW:
 	case IO_BLOCK:
+	case IDLE_BALANCE_EVT:
+	case PERIODIC_BALANCE_EVT:
 		seq_printf(s, "%llu %s %d\n",
 			   evt->timestamp, sched_tracer_events_str[evt->event],
 			   evt->pid);
@@ -381,6 +383,7 @@ static int tracer_seq_show(struct seq_file *s, void *v)
 	case TICK_EVT:
 	case MIGRATE_EVT:
 	case RQ_SIZE:
+	case TICK_EVT:
 		seq_printf(s, "%llu %s %d %d %d\n",
 			   evt->timestamp, sched_tracer_events_str[evt->event],
 			   evt->pid, evt->arg0, evt->arg1);

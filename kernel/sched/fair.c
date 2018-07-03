@@ -8118,6 +8118,14 @@ static int load_balance(int this_cpu, struct rq *this_rq,
 		.tasks		= LIST_HEAD_INIT(env.tasks),
 	};
 
+	if(idle == CPU_NOT_IDLE){
+		sched_monitor_trace(PERIODIC_BALANCE_EVT, this_cpu,
+				    this_rq->curr, 0, 0);
+	}else{
+		sched_monitor_trace(IDLE_BALANCE_EVT, this_cpu,
+				    this_rq->curr, 0, 0);
+	}
+
 	cpumask_and(cpus, sched_domain_span(sd), cpu_active_mask);
 
 	schedstat_inc(sd->lb_count[idle]);
