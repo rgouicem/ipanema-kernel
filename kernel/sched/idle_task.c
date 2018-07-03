@@ -35,7 +35,6 @@ pick_next_task_idle(struct rq *rq, struct task_struct *prev, struct rq_flags *rf
 	update_idle_core(rq);
 	schedstat_inc(rq->sched_goidle);
 
-	sched_monitor_nr_busy_dec(1);
 	sched_monitor_idle_start();
 
 	return rq->idle;
@@ -58,7 +57,6 @@ static void put_prev_task_idle(struct rq *rq, struct task_struct *prev)
 {
 	rq_last_tick_reset(rq);
 
-	sched_monitor_nr_busy_inc(1);
 	sched_monitor_idle_stop();
 }
 

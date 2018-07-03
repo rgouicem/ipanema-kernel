@@ -8397,8 +8397,9 @@ static int idle_balance(struct rq *this_rq, struct rq_flags *rf)
 	struct sched_domain *sd;
 	int pulled_task = 0;
 	u64 curr_cost = 0;
+	u64 start = 0;
 
-	sched_monitor_fair_idle_balance();
+	sched_monitor_fair_start(start);
 
 	/*
 	 * We must set idle_stamp _before_ calling idle_balance(), such that we
@@ -8493,7 +8494,7 @@ out:
 
 	rq_repin_lock(this_rq, rf);
 
-	/* sched_monitor_trace(IDLE_BALANCE_EVT, current, 0, 0); */
+	sched_monitor_fair_stop(LB_IDLE, start);
 
 	return pulled_task;
 }
