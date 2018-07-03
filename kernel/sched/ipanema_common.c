@@ -554,6 +554,7 @@ static struct task_struct *pick_next_task_ipanema(struct rq *rq,
 			if (cstate == IPANEMA_IDLE_CORE)
 				continue;
 			sched_monitor_ipanema_idle_balance();
+			sched_monitor_trace(IDLE_BALANCE_EVT, rq->cpu, rq->curr, 0, 0);
 			ipanema_newly_idle(policy, rq->cpu, rf);
 			ipanema_schedule(policy, rq->cpu);
 			result = per_cpu(ipanema_current, rq->cpu);
