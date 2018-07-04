@@ -1,0 +1,124 @@
+#! /bin/bash
+
+function usage {
+    echo "Usage: $0 command args"
+    echo ""
+    echo "COMMANDS:"
+    echo "start <subsystems>          starts profiling for the given subsystems"
+    echo "stop <subsystems>           stop profiling for the given subsystems"
+    echo "reset <subsystems>          reset logs for the given subsystems"
+    echo "dump <path> <subsystems>    dump results at path for the given subsystems"
+    echo "status <subsystems>         get the status of the given subsystems"
+    echo ""
+    echo "SUBSYSTEMS:"
+    echo "   idle        measure the time spent being idle"
+    echo "  sched        measure the time spent in the scheduler"
+    echo "   fair        measure the time spent in the fair scheduling class"
+    echo "ipanema        measure the time spent in the ipanema scheduling class"
+    echo " tracer        trace scheduling events"
+
+    exit 0
+}
+
+P=/sys/kernel/debug/sched_monitor
+
+function check_subsys {
+    for v in "$@"
+    do
+	if [ ! -e $P/$1 ] ; then
+	    echo "[ERROR] '$1' subsystem is not supported on this system. Exiting"
+	    exit 2
+	fi
+    done
+}
+
+function reset {
+    echo 1 > $P/$1/reset
+}
+
+function start {
+    if [ "$1" == "tracer" ] ; then
+	echo y | tee $P/tracer/events/* > /dev/null
+    fi
+    echo y > $P/$1/enable
+}
+
+function stop {
+    echo n > $P/$1/enable
+}
+
+function check_path {
+    if [ -e $1 ] ; then
+	echo "[ERROR] Path already exists. ($1). Exiting"
+	exit 4
+    fi
+}
+
+function dump {
+    mkdir -p $1/$2
+    cp -r $P/$2/logs/* $1/$2/
+}
+
+function status {
+    echo "$1: $(cat $P/$1/enable)"
+}
+
+################################################################################
+#  SCRIPT
+################################################################################
+
+# Check permissions on debugfs interface
+if [ ! -d $P ] ; then
+    echo "[ERROR] sched_monitor is not supported on this system"
+    exit 5
+fi
+if [ ! -r $P -o ! -x $P ] ; then
+    echo "[ERROR] You do not have rx permissions on sched_monitor directory. Ask your sysadmin for help!"
+    exit 5
+fi
+
+case $1 in
+    "start")
+	shift
+	check_subsys "$@"
+	for s in "$@" ; do
+	    start $s
+	done
+	;;
+    "stop")
+	shift
+	check_subsys "$@"
+	for s in "$@" ; do
+	    stop $s
+	done
+	;;
+    "reset")
+	shift
+	check_subsys "$@"
+	for s in "$@" ; do
+	    reset $s
+	done
+	;;
+    "dump")
+	shift
+	check_path $1
+	path=$1
+	shift
+	check_subsys "$@"
+	mkdir -p $path
+	for s in "$@" ; do
+	    dump $path $s
+	done
+	;;
+    "status")
+	shift
+	check_subsys "$@"
+	for s in "$@" ; do
+	    status $s
+	done
+	;;
+    *)
+	usage
+	exit 1
+esac
+
