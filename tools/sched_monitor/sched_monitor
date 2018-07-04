@@ -23,8 +23,7 @@ function usage {
 P=/sys/kernel/debug/sched_monitor
 
 function check_subsys {
-    for v in "$@"
-    do
+    for v in "$@" ;  do
 	if [ ! -e $P/$1 ] ; then
 	    echo "[ERROR] '$1' subsystem is not supported on this system. Exiting"
 	    exit 2
@@ -49,14 +48,18 @@ function stop {
 
 function check_path {
     if [ -e $1 ] ; then
-	echo "[ERROR] Path already exists. ($1). Exiting"
+	echo "[ERROR] Path already exists ($1). Exiting"
 	exit 4
     fi
 }
 
 function dump {
     mkdir -p $1/$2
-    cp -r $P/$2/logs/* $1/$2/
+    if [ "$2" == "tracer-raw" ] ; then
+	cp -r $P/tracer/raw/* $1/$2
+    else
+	cp -r $P/$2/logs/* $1/$2/
+    fi
 }
 
 function status {
@@ -121,4 +124,3 @@ case $1 in
 	usage
 	exit 1
 esac
-
