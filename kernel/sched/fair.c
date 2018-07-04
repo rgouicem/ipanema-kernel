@@ -8102,7 +8102,7 @@ static int load_balance(int this_cpu, struct rq *this_rq,
 	int ld_moved, cur_ld_moved, active_balance = 0;
 	struct sched_domain *sd_parent = sd->parent;
 	struct sched_group *group;
-	struct rq *busiest;
+	struct rq *busiest = NULL;
 	struct rq_flags rf;
 	struct cpumask *cpus = this_cpu_cpumask_var_ptr(load_balance_mask);
 
@@ -8117,14 +8117,6 @@ static int load_balance(int this_cpu, struct rq *this_rq,
 		.fbq_type	= all,
 		.tasks		= LIST_HEAD_INIT(env.tasks),
 	};
-
-	if(idle == CPU_NOT_IDLE){
-		sched_monitor_trace(PERIODIC_BALANCE_EVT, this_cpu,
-				    this_rq->curr, 0, 0);
-	}else{
-		sched_monitor_trace(IDLE_BALANCE_EVT, this_cpu,
-				    this_rq->curr, 0, 0);
-	}
 
 	cpumask_and(cpus, sched_domain_span(sd), cpu_active_mask);
 
@@ -8363,6 +8355,16 @@ out_one_pinned:
 
 	ld_moved = 0;
 out:
+
+	if (idle == CPU_NOT_IDLE)
+		sched_monitor_trace(PERIODIC_BALANCE_EVT, this_cpu,
+				    this_rq->curr, busiest ? busiest->cpu : -1,
+				    ld_moved);
+	else
+		sched_monitor_trace(IDLE_BALANCE_EVT, this_cpu,
+				    this_rq->curr, busiest ? busiest->cpu : -1,
+				    ld_moved);
+
 	return ld_moved;
 }
 

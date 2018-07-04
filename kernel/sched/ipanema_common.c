@@ -558,11 +558,14 @@ static struct task_struct *pick_next_task_ipanema(struct rq *rq,
 			if (cstate == IPANEMA_IDLE_CORE)
 				continue;
 
-			sched_monitor_trace(IDLE_BALANCE_EVT, rq->cpu, rq->curr, 0, 0);
 			sched_monitor_ipanema_start(start_lb);
 
 			ipanema_newly_idle(policy, rq->cpu, rf);
 			sched_monitor_ipanema_stop(LB_IDLE, start_lb);
+
+			sched_monitor_trace(IDLE_BALANCE_EVT, rq->cpu, rq->curr,
+					    0, 0);
+
 			ipanema_schedule(policy, rq->cpu);
 			result = per_cpu(ipanema_current, rq->cpu);
 			/* if a task is found, schedule it */
@@ -1101,6 +1104,8 @@ void run_rebalance_domains(struct softirq_action *h)
 	ipanema_balancing_select();
 
 	sched_monitor_ipanema_stop(LB_PERIOD, start);
+	sched_monitor_trace(PERIODIC_BALANCE_EVT, smp_processor_id(),
+			    current, 0, 0);
 	sched_monitor_stop(&run_rebalance_domains);
 }
 

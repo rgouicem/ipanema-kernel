@@ -84,8 +84,8 @@ enum sched_tracer_events {
 	TICK_EVT,    /* timestamp TICK pid need_resched 0 */
 	MIGRATE_EVT, /* timestamp MIGRATE pid old_cpu new_cpu */
 	RQ_SIZE,     /* timestamp RQ_SIZE current size count */
-	IDLE_BALANCE_EVT,
-	PERIODIC_BALANCE_EVT,
+	IDLE_BALANCE_EVT,/* timestamp IDLE_BLNCE pid target_cpu nr_moved */
+	PERIODIC_BALANCE_EVT,/* timestamp PER_BLNCE pid target_cpu nr_moved */
 	SCHED_MONITOR_TRACER_NR_EVENTS,	/* keep last */
 };
 DECLARE_PER_CPU(struct sched_tracer_log, sched_tracer_log);
