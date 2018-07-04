@@ -141,6 +141,24 @@ static void reset_idle(void)
 }
 #endif/* CONFIG_SCHED_MONITOR_IDLE */
 
+#ifdef CONFIG_SCHED_MONITOR_TRACER
+static void reset_tracer(void)
+{
+	int cpu;
+	unsigned long flags;
+	struct sched_tracer_log *log;
+
+	for_each_possible_cpu(cpu) {
+		log = per_cpu_ptr(&sched_tracer_log, cpu);
+
+		spin_lock_irqsave(&log->lock, flags);
+		log->consumer = log->producer;
+		log->dropped = 0;
+		spin_unlock_irqrestore(&log->lock, flags);
+	}
+}
+#endif	/* CONFIG_SCHED_MONITOR_TRACER */
+
 ssize_t sched_monitor_reset_write(struct file *file,
 				  const char __user *user_buf,
 				  size_t count, loff_t *ppos)
@@ -171,6 +189,12 @@ ssize_t sched_monitor_reset_write(struct file *file,
 #ifdef CONFIG_SCHED_MONITOR_IDLE
 	if (!strncmp(parent->d_iname, "idle", 5)) {
 		reset_idle();
+		return count;
+	}
+#endif
+#ifdef CONFIG_SCHED_MONITOR_TRACER
+	if (!strncmp(parent->d_iname, "tracer", 7)) {
+		reset_tracer();
 		return count;
 	}
 #endif
@@ -287,22 +311,21 @@ static const struct file_operations sched_monitor_sched_class_fops = {
 
 static void *tracer_seq_start(struct seq_file *s, loff_t *pos)
 {
-	unsigned long cpu = (unsigned long) s->private;
+	unsigned long cpu = (unsigned long) s->private, flags;
 	struct sched_tracer_log *log = per_cpu_ptr(&sched_tracer_log, cpu);
-	unsigned long flags;
+	int i;
 	void *ret = NULL;
 
 	spin_lock_irqsave(&log->lock, flags);
 
-	if (*pos == 0 && log->dropped) {
+	if (*pos == 0 && log->dropped)
 		seq_printf(s, "Dropped %llu events!!!!\n", log->dropped);
-		log->dropped = 0;
-	}
 
-	if (log->consumer == log->producer)
+	i = (log->consumer + *pos) % log->size;
+	if (i == log->producer)
 		goto end;
 
-	ret = (void *) &log->events[log->consumer];
+	ret = (void *) &log->events[i];
 
 end:
 	spin_unlock_irqrestore(&log->lock, flags);
@@ -315,22 +338,19 @@ static void tracer_seq_stop(struct seq_file *s, void *v)
 
 static void *tracer_seq_next(struct seq_file *s, void *v, loff_t *pos)
 {
-	unsigned long cpu = (unsigned long) s->private;
+	unsigned long cpu = (unsigned long) s->private, flags;
 	struct sched_tracer_log *log = per_cpu_ptr(&sched_tracer_log, cpu);
-	unsigned long flags;
+	int i;
 	void *ret = NULL;
 
 	spin_lock_irqsave(&log->lock, flags);
 
 	++*pos;
-	log->consumer++;
-	if (unlikely(log->consumer >= log->size))
-		log->consumer = 0;
-
-	if (log->consumer == log->producer)
+	i = (log->consumer + *pos) % log->size;
+	if (i == log->producer)
 		goto end;
 
-	ret = (void *) &log->events[log->consumer];
+	ret = (void *) &log->events[i];
 
 end:
 	spin_unlock_irqrestore(&log->lock, flags);
@@ -501,6 +521,8 @@ static int sched_monitor_tracer_init(void)
 	tracer_dir = debugfs_create_dir("tracer", sched_monitor_dir);
 	debugfs_create_bool("enable", 0666, tracer_dir,
 			    &sched_monitor_tracer_enabled);
+	debugfs_create_file("reset", 0666, tracer_dir, NULL,
+			    &sched_monitor_reset_fops);
 
 	events_dir = debugfs_create_dir("events", tracer_dir);
 	for (i = 0; i < SCHED_MONITOR_TRACER_NR_EVENTS; i++) {
