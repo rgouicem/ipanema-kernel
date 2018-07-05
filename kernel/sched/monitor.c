@@ -369,8 +369,9 @@ static char *sched_tracer_events_str[] = {
 	"IO_BLOCK",   /* timestamp IO_BLOCK pid */
 	"LOCK",       /* timestamp LOCK pid addr */
 	"UNLOCK",     /* timestamp UNLOCK pid addr */
-	"FORK",	      /* timestamp FORK pid ppid fork 0 */
-	"TICK",       /* timestamp TICK pid need_resched 0 */
+	"FORK",	      /* timestamp FORK pid ppid fork */
+	"TICK",       /* timestamp TICK pid need_resched */
+	"CTX_SWITCH", /* timestamp CTX_SWITCH pid next */
 	"MIGRATE",    /* timestamp MIGRATE pid old_cpu new_cpu */
 	"RQ_SIZE",    /* timestamp RQ_SIZE current size count */
 	"IDLE_BLNCE", /* timestamp IDLE_BLNCE pid target_cpu nr_moved */
@@ -400,9 +401,15 @@ static int tracer_seq_show(struct seq_file *s, void *v)
 			   evt->timestamp, sched_tracer_events_str[evt->event],
 			   evt->pid, (void *)evt->addr);
 		break;
-		/* two int args */
+		/* one int arg */
 	case FORK_EVT:
 	case TICK_EVT:
+	case CTX_SWITCH:
+		seq_printf(s, "%llu %s %d %d\n",
+			   evt->timestamp, sched_tracer_events_str[evt->event],
+			   evt->pid, evt->arg0);
+		break;
+		/* two int args */
 	case MIGRATE_EVT:
 	case RQ_SIZE:
 	case IDLE_BALANCE_EVT:

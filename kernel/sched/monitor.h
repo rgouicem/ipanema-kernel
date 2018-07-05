@@ -82,8 +82,9 @@ enum sched_tracer_events {
 	IO_BLOCK,    /* timestamp IO_BLOCK pid */
 	LOCK,        /* timestamp LOCK pid addr */
 	UNLOCK,      /* timestamp UNLOCK pid addr */
-	FORK_EVT,    /* timestamp FORK pid ppid 0 */
-	TICK_EVT,    /* timestamp TICK pid need_resched 0 */
+	FORK_EVT,    /* timestamp FORK pid ppid */
+	TICK_EVT,    /* timestamp TICK pid need_resched */
+	CTX_SWITCH,  /* timestamp CTX_SWITCH pid next */
 	MIGRATE_EVT, /* timestamp MIGRATE pid old_cpu new_cpu */
 	RQ_SIZE,     /* timestamp RQ_SIZE current size count */
 	IDLE_BALANCE_EVT,/* timestamp IDLE_BLNCE pid target_cpu nr_moved */
