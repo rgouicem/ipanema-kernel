@@ -716,8 +716,6 @@ static void ipanema_ule_wwc_balancing(struct ipanema_policy *policy,
 	if (!spin_trylock_irqsave(&lb_lock, flags))
 		return;
 
-	sched_monitor_trace(PERIODIC_BALANCE_EVT, e->target,
-			    current, 0, 0);
 
 	for_each_cpu_and(cpu, cstate_info.active_cores,
 			 &policy->allowed_cores) {
@@ -733,6 +731,9 @@ static void ipanema_ule_wwc_balancing(struct ipanema_policy *policy,
 
 	/* Generated if synchronized keyword is used */
 	spin_unlock_irqrestore(&lb_lock, flags);
+
+	sched_monitor_trace(PERIODIC_BALANCE_EVT, e->target,
+			    current, 0, 0);
 }
 
 static int ipanema_ule_wwc_init(struct ipanema_policy * policy)
