@@ -1,6 +1,8 @@
 #ifndef _SCHED_MONITOR_H_
 #define _SCHED_MONITOR_H_
 
+#include <linux/sched/clock.h>
+
 /* Sched class events */
 enum sched_class_event {
 	ENQUEUE, DEQUEUE, YIELD, YIELD_TO, CHECK_PREEMPT_CURR, PICK_NEXT,

@@ -29,29 +29,33 @@ DEFINE_PER_CPU(u64, sched_time_start);
 DEFINE_PER_CPU(bool, sched_monitoring);
 DEFINE_PER_CPU(void *, sched_monitoring_fn);
 bool sched_monitor_sched_enabled;
+EXPORT_SYMBOL(sched_monitor_sched_enabled);
 #endif	/* CONFIG_SCHED_MONITOR_CORE */
 
 #ifdef CONFIG_SCHED_MONITOR_FAIR
 DEFINE_PER_CPU(struct sched_stats, fair_stats);
 bool sched_monitor_fair_enabled;
-
+EXPORT_SYMBOL(sched_monitor_fair_enabled);
 #endif	/* CONFIG_SCHED_MONITOR_FAIR */
 
 #ifdef CONFIG_SCHED_MONITOR_IPANEMA
 DEFINE_PER_CPU(struct sched_stats, ipanema_stats);
 bool sched_monitor_ipanema_enabled;
-
+EXPORT_SYMBOL(sched_monitor_ipanema_enabled);
 #endif	/* CONFIG_SCHED_MONITOR_IPANEMA */
 
 #ifdef CONFIG_SCHED_MONITOR_IDLE
 DEFINE_PER_CPU(struct idle_stats, idle_stats);
-bool sched_monitor_idle_enabled;
 DECLARE_PER_CPU(u64, last_sched);
+bool sched_monitor_idle_enabled;
+EXPORT_SYMBOL(sched_monitor_idle_enabled);
 #endif	/* CONFIG_SCHED_MONITOR_IDLE */
 
 #ifdef CONFIG_SCHED_MONITOR_TRACER
-bool sched_monitor_tracer_enabled;
 DEFINE_PER_CPU(struct sched_tracer_log, sched_tracer_log);
+bool sched_monitor_tracer_enabled;
+EXPORT_SYMBOL(sched_tracer_log);
+EXPORT_SYMBOL(sched_monitor_tracer_enabled);
 #endif	/* CONFIG_SCHED_MONITOR_TRACER */
 
 
@@ -494,6 +498,7 @@ static const struct file_operations sched_monitor_tracer_fops_raw = {
 };
 
 bool sched_monitor_tracer_event_enabled[SCHED_MONITOR_TRACER_NR_EVENTS];
+EXPORT_SYMBOL(sched_monitor_tracer_event_enabled);
 
 static int sched_monitor_tracer_init(void)
 {

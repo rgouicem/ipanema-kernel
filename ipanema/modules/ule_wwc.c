@@ -21,6 +21,8 @@
 #include <linux/sort.h>
 #include <linux/threads.h>
 
+#include "../kernel/sched/monitor.h"
+
 
 #define ipanema_assert(x) do{if(!(x)) panic("Error in " #x "\n");} while(0)
 #define time_to_ticks(x) (ktime_to_ms(x) * HZ / 1000000)
@@ -713,6 +715,9 @@ static void ipanema_ule_wwc_balancing(struct ipanema_policy *policy,
 	/* Generated if synchronized keyword is used */
 	if (!spin_trylock_irqsave(&lb_lock, flags))
 		return;
+
+	sched_monitor_trace(PERIODIC_BALANCE_EVT, e->target,
+			    current, 0, 0);
 
 	for_each_cpu_and(cpu, cstate_info.active_cores,
 			 &policy->allowed_cores) {

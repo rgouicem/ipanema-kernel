@@ -1104,8 +1104,6 @@ void run_rebalance_domains(struct softirq_action *h)
 	ipanema_balancing_select();
 
 	sched_monitor_ipanema_stop(LB_PERIOD, start);
-	sched_monitor_trace(PERIODIC_BALANCE_EVT, smp_processor_id(),
-			    current, 0, 0);
 	sched_monitor_stop(&run_rebalance_domains);
 }
 
