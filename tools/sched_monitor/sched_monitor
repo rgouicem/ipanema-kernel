@@ -54,12 +54,15 @@ function check_path {
 }
 
 function dump {
+    n=$(nproc)
     mkdir -p $1/$2
-    if [ "$2" == "tracer-raw" ] ; then
-	cp -r $P/tracer/raw/* $1/$2
-    else
-	cp -r $P/$2/logs/* $1/$2/
-    fi
+    for ((i=0; i<n; i++)) ; do
+	if [ "$2" == "tracer-raw" ] ; then
+	    cp -r $P/tracer/raw/$i $1/$2
+	else
+	    cp -r $P/$2/logs/$i $1/$2/
+	fi
+    done
 }
 
 function status {
