@@ -831,12 +831,14 @@ static void ipanema_cfs_balancing(struct ipanema_policy *policy,
 	sd = c->sd;
 	while (sd) {
 		if (ktime_before(sd->next_balance, now)) {
+			sched_monitor_trace(PERIODIC_BALANCE_BEG, c->id,
+					    current, 0, 0);
 			for (i = 0; i < sd->___sched_group_idx; i++) {
 				sg = sd->groups + i;
 				thief = &ipanema_core(cpumask_first(sg->cores));
 				steal_for_dom(policy, thief, sd);
 			}
-			sched_monitor_trace(PERIODIC_BALANCE_EVT, c->id,
+			sched_monitor_trace(PERIODIC_BALANCE_END, c->id,
 					    current, 0, 0);
 		}
 

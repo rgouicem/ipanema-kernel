@@ -8099,6 +8099,14 @@ static int load_balance(int this_cpu, struct rq *this_rq,
 			struct sched_domain *sd, enum cpu_idle_type idle,
 			int *continue_balancing)
 {
+	if (idle == CPU_NOT_IDLE)
+		sched_monitor_trace(PERIODIC_BALANCE_BEG, this_cpu,
+				    this_rq->curr, 0, 0);
+	else
+		sched_monitor_trace(IDLE_BALANCE_BEG, this_cpu,
+				    this_rq->curr, 0, 0);
+
+
 	int ld_moved, cur_ld_moved, active_balance = 0;
 	struct sched_domain *sd_parent = sd->parent;
 	struct sched_group *group;
@@ -8357,11 +8365,11 @@ out_one_pinned:
 out:
 
 	if (idle == CPU_NOT_IDLE)
-		sched_monitor_trace(PERIODIC_BALANCE_EVT, this_cpu,
+		sched_monitor_trace(PERIODIC_BALANCE_END, this_cpu,
 				    this_rq->curr, busiest ? busiest->cpu : -1,
 				    ld_moved);
 	else
-		sched_monitor_trace(IDLE_BALANCE_EVT, this_cpu,
+		sched_monitor_trace(IDLE_BALANCE_END, this_cpu,
 				    this_rq->curr, busiest ? busiest->cpu : -1,
 				    ld_moved);
 

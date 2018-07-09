@@ -374,8 +374,10 @@ static char *sched_tracer_events_str[] = {
 	"CTX_SWITCH", /* timestamp CTX_SWITCH pid next */
 	"MIGRATE",    /* timestamp MIGRATE pid old_cpu new_cpu */
 	"RQ_SIZE",    /* timestamp RQ_SIZE current size count */
-	"IDLE_BLNCE", /* timestamp IDLE_BLNCE pid target_cpu nr_moved */
-	"PER_BLNCE",  /* timestamp PER_BLNCE pid target_cpu nr_moved */
+	"IDL_BLN_BEG", /* timestamp IDL_BLN_BEG pid target_cpu nr_moved */
+	"IDL_BLN_END", /* timestamp IDL_BLN_END pid target_cpu nr_moved */
+	"PER_BLN_BEG", /* timestamp PER_BLN_BEG pid target_cpu nr_moved */
+	"PER_BLN_END", /* timestamp PER_BLN_END pid target_cpu nr_moved */
 };
 
 static int tracer_seq_show(struct seq_file *s, void *v)
@@ -390,6 +392,8 @@ static int tracer_seq_show(struct seq_file *s, void *v)
 	case WAKEUP:
 	case WAKEUP_NEW:
 	case IO_BLOCK:
+	case IDLE_BALANCE_BEG:
+	case PERIODIC_BALANCE_BEG:
 		seq_printf(s, "%llu %s %d\n",
 			   evt->timestamp, sched_tracer_events_str[evt->event],
 			   evt->pid);
@@ -412,8 +416,8 @@ static int tracer_seq_show(struct seq_file *s, void *v)
 		/* two int args */
 	case MIGRATE_EVT:
 	case RQ_SIZE:
-	case IDLE_BALANCE_EVT:
-	case PERIODIC_BALANCE_EVT:
+	case IDLE_BALANCE_END:
+	case PERIODIC_BALANCE_END:
 		seq_printf(s, "%llu %s %d %d %d\n",
 			   evt->timestamp, sched_tracer_events_str[evt->event],
 			   evt->pid, evt->arg0, evt->arg1);
