@@ -87,10 +87,10 @@ enum sched_tracer_events {
 	CTX_SWITCH,  /* timestamp CTX_SWITCH pid next */
 	MIGRATE_EVT, /* timestamp MIGRATE pid old_cpu new_cpu */
 	RQ_SIZE,     /* timestamp RQ_SIZE current size count */
-	IDLE_BALANCE_BEG,     /* timestamp IDL_BLN_BEG pid target_cpu nr_moved */
-	IDLE_BALANCE_END,     /* timestamp IDL_BLN_END pid target_cpu nr_moved */
-	PERIODIC_BALANCE_BEG, /* timestamp PER_BLN_BEG pid target_cpu nr_moved */
-	PERIODIC_BALANCE_END, /* timestamp PER_BLN_END pid target_cpu nr_moved */
+	IDLE_BALANCE_BEG,     /* timestamp IDL_BLN_BEG pid sched_domain_addr */
+	IDLE_BALANCE_END,     /* timestamp IDL_BLN_END pid sched_group_addr */
+	PERIODIC_BALANCE_BEG, /* timestamp PER_BLN_BEG pid sched_domain_addr */
+	PERIODIC_BALANCE_END, /* timestamp PER_BLN_END pid sched_group_addr */
 	SCHED_MONITOR_TRACER_NR_EVENTS,	/* keep last */
 };
 DECLARE_PER_CPU(struct sched_tracer_log, sched_tracer_log);
