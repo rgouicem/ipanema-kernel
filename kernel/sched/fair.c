@@ -8100,11 +8100,11 @@ static int load_balance(int this_cpu, struct rq *this_rq,
 			int *continue_balancing)
 {
 	if (idle == CPU_NOT_IDLE)
-		sched_monitor_trace(PERIODIC_BALANCE_BEG, this_cpu,
-				    this_rq->curr, 0, 0);
+		sched_monitor_trace(PERIODIC_BALANCE_BEG, this_cpu, this_rq->curr,
+				    (long) sd, ((long) sd) >> 32);
 	else
-		sched_monitor_trace(IDLE_BALANCE_BEG, this_cpu,
-				    this_rq->curr, 0, 0);
+		sched_monitor_trace(IDLE_BALANCE_BEG, this_cpu, this_rq->curr,
+				    (long) sd, ((long) sd) >> 32);
 
 
 	int ld_moved, cur_ld_moved, active_balance = 0;
@@ -8365,13 +8365,11 @@ out_one_pinned:
 out:
 
 	if (idle == CPU_NOT_IDLE)
-		sched_monitor_trace(PERIODIC_BALANCE_END, this_cpu,
-				    this_rq->curr, busiest ? busiest->cpu : -1,
-				    ld_moved);
+		sched_monitor_trace(PERIODIC_BALANCE_END, this_cpu, this_rq->curr,
+				    (long) group, ((long) group) >> 32);
 	else
-		sched_monitor_trace(IDLE_BALANCE_END, this_cpu,
-				    this_rq->curr, busiest ? busiest->cpu : -1,
-				    ld_moved);
+		sched_monitor_trace(IDLE_BALANCE_END, this_cpu, this_rq->curr,
+				    (long) group, ((long) group) >> 32);
 
 	return ld_moved;
 }
