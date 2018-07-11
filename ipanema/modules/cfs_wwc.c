@@ -1151,9 +1151,6 @@ static int create_scheduling_groups(void)
 		}
 	}
 
-	if (!sd)
-		return 0;
-
 	list_for_each_entry(sd, cfs_ipa_topology, siblings) {
 		ret = build_lower_groups(sd);
 		if (ret)
@@ -1172,6 +1169,10 @@ static void build_hierarchy(void)
 	int cpu;
 
 	init_topology();
+
+	/* if unicore, don't build hierarchy */
+	if (!cfs_ipa_nr_topology_levels)
+		return;
 
 	/* create hierarchy for all cpus */
 	for_each_possible_cpu(cpu) {

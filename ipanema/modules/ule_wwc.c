@@ -964,8 +964,6 @@ static int create_scheduling_groups(void)
 				goto fail;
 		}
 	}
-	if (!sd)
-		return 0;
 
 	list_for_each_entry(sd, ule_wwc_ipa_topology, siblings) {
 		ret = build_lower_groups(sd);
@@ -986,6 +984,10 @@ static void build_hierarchy(void)
 
 	init_topology();
 
+	/* if unicore, don't build hierarchy */
+	if (!ule_wwc_ipa_nr_topology_levels)
+		return;
+
 	/* create hierarchy for all cpus */
 	for_each_possible_cpu(cpu) {
 		create_scheduling_domains(cpu);
@@ -998,7 +1000,8 @@ static int proc_show(struct seq_file *s, void *p)
 	long cpu = (long) s->private;
         struct task_struct *pos, *n;
         struct ule_wwc_ipa_process *pr, *curr_proc;
-        int load_sum = 0;
+	struct ule_wwc_ipa_sched_domain *sd = ipanema_core(cpu).sd;
+        int load_sum = 0, i;
         
         ipanema_lock_core(cpu);
         pr = ipanema_state(cpu).current_0;
@@ -1040,6 +1043,16 @@ static int proc_show(struct seq_file *s, void *p)
 	seq_printf(s, "-------------------------------\n");
         seq_printf(s, "cload = %d\n", ipanema_core(cpu).cload);
         seq_printf(s, "cload_sum = %d\n", load_sum);
+
+	seq_printf(s, "\nTopology:\n");
+	while (sd) {
+		seq_printf(s, "[%*pbl]: ", cpumask_pr_args(sd->cores));
+		for (i = 0; i < sd->___sched_group_idx; i++)
+			seq_printf(s, "{%*pbl}",
+				   cpumask_pr_args(sd->groups[i].cores));
+		seq_printf(s, "\n");
+		sd = sd->parent;
+	}
         
         ipanema_unlock_core(cpu);
         
