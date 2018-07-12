@@ -462,6 +462,10 @@ void wake_up_q(struct wake_q_head *head)
 {
 	struct wake_q_node *node = head->first;
 
+	sched_monitor_trace(UNLOCK_WAKER, task_cpu(current), current,
+			    (unsigned long)head >> 32,
+			    (unsigned long)head & 0x00000000ffffffff);
+
 	while (node != WAKE_Q_TAIL) {
 		struct task_struct *task;
 

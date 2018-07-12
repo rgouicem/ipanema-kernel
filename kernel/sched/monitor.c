@@ -369,6 +369,7 @@ static char *sched_tracer_events_str[] = {
 	"IO_BLOCK",   /* timestamp IO_BLOCK pid */
 	"LOCK",       /* timestamp LOCK pid addr */
 	"UNLOCK",     /* timestamp UNLOCK pid addr */
+	"UNLOCK_WAKER",/* timestamp UNLOCK_WAKER pid addr */
 	"FORK",	      /* timestamp FORK pid ppid fork */
 	"TICK",       /* timestamp TICK pid need_resched */
 	"CTX_SWITCH", /* timestamp CTX_SWITCH pid next */
@@ -399,6 +400,7 @@ static int tracer_seq_show(struct seq_file *s, void *v)
 		/* one pointer arg */
 	case LOCK:
 	case UNLOCK:
+	case UNLOCK_WAKER:
 	case IDLE_BALANCE_BEG:
 	case IDLE_BALANCE_END:
 	case PERIODIC_BALANCE_BEG:
