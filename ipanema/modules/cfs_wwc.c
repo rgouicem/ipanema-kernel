@@ -515,6 +515,8 @@ static void steal_for_dom(struct ipanema_policy *policy,
 		for_each_cpu_and(i, target_group->cores,
 				 &policy->allowed_cores) {
 			c = &ipanema_core(i);
+			if (c == core_31)
+				continue;
 			if (can_steal_core(c, core_31))
 				cpumask_set_cpu(i, &stealable_cores);
 		}
