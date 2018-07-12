@@ -5839,6 +5839,46 @@ static void sched_init_smt(void)
 static inline void sched_init_smt(void) { }
 #endif
 
+#ifdef CONFIG_SCHED_MONITOR_DOMAINS
+static void sched_monitor_print_domains(void)
+{
+	int it, cpu;
+	struct sched_domain *sd;
+	struct sched_group *gr, *gr0;
+	struct cpumask *mask;
+
+	pr_info("SCHED GROUPS\n");
+	for_each_possible_cpu(it){
+		for_each_domain(it, sd){
+			gr0 = sd->groups;
+			gr = gr0;
+			do{
+				pr_cont("%p:", gr);
+				mask = sched_group_span(gr);
+				for_each_cpu(cpu, mask)
+					pr_cont(" %d", cpu);
+				pr_cont("\n");
+				gr = gr->next;
+			}while (gr != gr0);
+		}
+	}
+
+	pr_cont("SCHED DOMAINS\n");
+	for_each_possible_cpu(it){
+		for_each_domain(it, sd){
+			pr_cont("%p:", sd);
+			gr0 = sd->groups;
+			gr = gr0;
+			do{
+				pr_cont(" %p", gr);
+				gr = gr->next;
+			}while (gr != gr0);
+			pr_cont("\n");
+		}
+	}
+}
+#endif
+
 void __init sched_init_smp(void)
 {
 	cpumask_var_t non_isolated_cpus;
@@ -5871,6 +5911,10 @@ void __init sched_init_smp(void)
 	sched_init_smt();
 
 	sched_smp_initialized = true;
+
+#ifdef CONFIG_SCHED_MONITOR_DOMAINS
+	sched_monitor_print_domains();
+#endif
 }
 
 static int __init migration_init(void)
