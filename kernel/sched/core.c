@@ -5835,6 +5835,7 @@ static void sched_init_smt(void)
 static inline void sched_init_smt(void) { }
 #endif
 
+#ifdef CONFIG_SCHED_MONITOR_DOMAINS
 static void sched_monitor_print_domains(void)
 {
 	int it, cpu;
@@ -5872,6 +5873,7 @@ static void sched_monitor_print_domains(void)
 		}
 	}
 }
+#endif
 
 void __init sched_init_smp(void)
 {
@@ -5906,7 +5908,9 @@ void __init sched_init_smp(void)
 
 	sched_smp_initialized = true;
 
+#ifdef CONFIG_SCHED_MONITOR_DOMAINS
 	sched_monitor_print_domains();
+#endif
 }
 
 static int __init migration_init(void)
