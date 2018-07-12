@@ -53,3 +53,7 @@ config SCHED_MONITOR_TRACER_BUFFER_SIZE
 	---help---
 	Size of the per-cpu buffer used by the tracer in MiB.
 
+config SCHED_MONITOR_DOMAINS
+        def_bool n
+	depends on SCHED_MONITOR
+	prompt "Print sched domains and groups at scheduler init"
