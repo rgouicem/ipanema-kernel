@@ -14,6 +14,7 @@
 import gdb
 
 from linux import utils
+from linux import rbtree
 
 
 task_type = utils.CachedType("struct task_struct")
@@ -66,6 +67,19 @@ return that task_struct variable which PID matches."""
 LxTaskByPidFunc()
 
 
+def task_state_to_str(state):
+    if state == 0:
+        return "R"
+    if state == 1:
+        return "I"
+    if state == 2:
+        return "U"
+    if state == 16 or state == 64:
+        return "D"
+    if state == 32:
+        return "Z"
+    return "?"
+
 class LxPs(gdb.Command):
     """Dump Linux tasks."""
 
@@ -74,8 +88,9 @@ class LxPs(gdb.Command):
 
     def invoke(self, arg, from_tty):
         for task in task_lists():
-            gdb.write("{address} {pid} {comm}\n".format(
+            gdb.write("{address} {state} {pid} {comm}\n".format(
                 address=task,
+                state=task_state_to_str(task["state"]),
                 pid=task["pid"],
                 comm=task["comm"].string()))
 
