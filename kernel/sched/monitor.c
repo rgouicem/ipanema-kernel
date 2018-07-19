@@ -366,10 +366,10 @@ static char *sched_tracer_events_str[] = {
 	"EXIT",	      /* timestamp EXIT pid */
 	"WAKEUP",     /* timestamp WAKEUP pid */
 	"WAKEUP_NEW", /* timestamp WAKEUP_NEW pid */
-	"IO_BLOCK",   /* timestamp IO_BLOCK pid */
-	"LOCK",       /* timestamp LOCK pid addr */
-	"UNLOCK",     /* timestamp UNLOCK pid addr */
-	"UNLOCK_WAKER",/* timestamp UNLOCK_WAKER pid addr */
+	"BLOCK_IO",   /* timestamp BLOCK_IO pid */
+	"BLOCK_LOCK", /* timestamp BLOCK_LOCK pid addr */
+	"WAKEUP_LOCK",/* timestamp WAKEUP_LOCK pid addr */
+	"WAKER_LOCK", /* timestamp WAKER_LOCK pid addr */
 	"FORK",	      /* timestamp FORK pid ppid fork */
 	"TICK",       /* timestamp TICK pid need_resched */
 	"CTX_SWITCH", /* timestamp CTX_SWITCH pid next */
@@ -392,15 +392,15 @@ static int tracer_seq_show(struct seq_file *s, void *v)
 	case EXIT_EVT:
 	case WAKEUP:
 	case WAKEUP_NEW:
-	case IO_BLOCK:
+	case BLOCK_IO:
 		seq_printf(s, "%llu %s %d\n",
 			   evt->timestamp, sched_tracer_events_str[evt->event],
 			   evt->pid);
 		break;
 		/* one pointer arg */
-	case LOCK:
-	case UNLOCK:
-	case UNLOCK_WAKER:
+	case BLOCK_LOCK:
+	case WAKEUP_LOCK:
+	case WAKER_LOCK:
 	case IDLE_BALANCE_BEG:
 	case IDLE_BALANCE_END:
 	case PERIODIC_BALANCE_BEG:

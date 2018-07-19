@@ -453,7 +453,7 @@ void wake_q_add(struct wake_q_head *head, struct task_struct *task)
 	head->lastp = &node->next;
 
 	/* we pass the 64 bits address in the two 32 bits parameters */
-	sched_monitor_trace(LOCK, task_cpu(task), task,
+	sched_monitor_trace(BLOCK_LOCK, task_cpu(task), task,
 			    (unsigned long)head >> 32,
 			    (unsigned long)head & 0x00000000ffffffff);
 }
@@ -462,7 +462,7 @@ void wake_up_q(struct wake_q_head *head)
 {
 	struct wake_q_node *node = head->first;
 
-	sched_monitor_trace(UNLOCK_WAKER, task_cpu(current), current,
+	sched_monitor_trace(WAKER_LOCK, task_cpu(current), current,
 			    (unsigned long)head >> 32,
 			    (unsigned long)head & 0x00000000ffffffff);
 
@@ -473,7 +473,7 @@ void wake_up_q(struct wake_q_head *head)
 		BUG_ON(!task);
 
 		/* we pass the 64 bits address in the two 32 bits parameters */
-		sched_monitor_trace(UNLOCK, task_cpu(task), task,
+		sched_monitor_trace(WAKEUP_LOCK, task_cpu(task), task,
 				    (unsigned long)head >> 32,
 				    (unsigned long)head & 0x00000000ffffffff);
 
@@ -3367,6 +3367,7 @@ static void __sched notrace __schedule(bool preempt)
 			prev->state = TASK_RUNNING;
 		} else {
 			deactivate_task(rq, prev, DEQUEUE_SLEEP | DEQUEUE_NOCLOCK);
+			sched_monitor_trace(WAKEUP, cpu, prev, 0, 0);
 			prev->on_rq = 0;
 
 			if (prev->in_iowait) {
@@ -5130,7 +5131,7 @@ long __sched io_schedule_timeout(long timeout)
 	int token;
 	long ret;
 
-	sched_monitor_trace(IO_BLOCK, task_cpu(current), current, 0, 0);
+	sched_monitor_trace(BLOCK_IO, task_cpu(current), current, 0, 0);
 
 	token = io_schedule_prepare();
 	ret = schedule_timeout(timeout);
@@ -5144,7 +5145,7 @@ void io_schedule(void)
 {
 	int token;
 
-	sched_monitor_trace(IO_BLOCK, task_cpu(current), current, 0, 0);
+	sched_monitor_trace(BLOCK_IO, task_cpu(current), current, 0, 0);
 
 	token = io_schedule_prepare();
 	schedule();
