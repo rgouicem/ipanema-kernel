@@ -9,7 +9,7 @@ enum sched_class_event {
 	PUT_PREV, SELECT_RQ, MIGRATE, WOKEN, RQ_ONLINE, RQ_OFFLINE, SET_CURR,
 	TICK, FORK, DEAD, SWITCHED_FROM, SWITCHED_TO, PRIO_CHANGED, LB_PERIOD,
 	LB_IDLE,
-	NR_EVENTS 		/* keep last in enum */
+	NR_EVENTS    /* keep last in enum */
 };
 
 struct sched_stats {
@@ -137,7 +137,7 @@ void reset_stats(void);
 			break;						\
 		if (!this_cpu_read(sched_monitoring)) {			\
 			pr_err("%s(): sched_monitor didn't catch me!\n", \
-			       __FUNCTION__);				\
+			       __func__);				\
 			dump_stack();					\
 		}							\
 	} while (0)

@@ -8,11 +8,11 @@
 #include <linux/kref.h>
 
 struct ipanema_module *ipanema_modules[MAX_IPANEMA_MODULES] = { 0 };
-unsigned int num_ipanema_modules = 0;
+unsigned int num_ipanema_modules;
 
 LIST_HEAD(ipanema_policies);
-unsigned int num_ipanema_policies = 0;
-unsigned int ipanema_policies_id = 0;
+unsigned int num_ipanema_policies;
+unsigned int ipanema_policies_id;
 
 rwlock_t ipanema_rwlock;
 
@@ -103,9 +103,8 @@ int ipanema_remove_module(struct ipanema_module *module)
 		}
 	}
 
-	for (; i < num_ipanema_modules; i++) {
+	for (; i < num_ipanema_modules; i++)
 		ipanema_modules[i] = ipanema_modules[i + 1];
-	}
 
 	num_ipanema_modules--;
 
@@ -169,10 +168,10 @@ int ipanema_set_policy(char *str)
 
 	if (remove)
 		pr_info("%s: module_name='%s', cpulist='remove'\n",
-			__FUNCTION__, module_name);
+			__func__, module_name);
 	else
 		pr_info("%s: module_name='%s', cpulist='%*pbl'\n",
-			__FUNCTION__, module_name,
+			__func__, module_name,
 			cpumask_pr_args(&cores_allowed));
 
 	/*
@@ -198,7 +197,7 @@ int ipanema_set_policy(char *str)
 	list_for_each_entry(policy_cur, &ipanema_policies, list) {
 		if (!strcmp(policy_cur->name, module_name)) {
 			exists = 1;
-		        break;
+			break;
 		}
 	}
 
@@ -341,7 +340,7 @@ int ipanema_order_process(struct task_struct *a, struct task_struct *b)
 
 	if (a->ipanema_metadata.policy != b->ipanema_metadata.policy) {
 		IPA_EMERG_SAFE("%s: tasks %d and %d have different ipanema policies [%p, %p]\n",
-			       __FUNCTION__, a->pid, b->pid,
+			       __func__, a->pid, b->pid,
 			       a->ipanema_metadata.policy,
 			       b->ipanema_metadata.policy);
 		BUG();
@@ -352,7 +351,7 @@ int ipanema_order_process(struct task_struct *a, struct task_struct *b)
 
 	if (!handler)
 		IPA_EMERG_SAFE("%s: WARNING: invalid function pointer!\n",
-			       __FUNCTION__);
+			       __func__);
 	else
 		res = (*handler)(policy, a, b);
 
@@ -373,7 +372,7 @@ enum ipanema_core_state ipanema_get_core_state(struct ipanema_policy *policy,
 		res = (*handler)(policy, &e);
 	else
 		IPA_EMERG_SAFE("%s: WARNING: invalid function pointer!\n",
-			       __FUNCTION__);
+			       __func__);
 
 	return res;
 }
@@ -396,7 +395,7 @@ int ipanema_new_prepare(struct process_event *e)
 	read_lock_irqsave(&ipanema_rwlock, flags);
 	policy = p->ipanema_metadata.policy;
 	if (!policy)
-	        return -1;
+		return -1;
 
 	kref_get(&policy->refcount);
 
@@ -404,7 +403,7 @@ int ipanema_new_prepare(struct process_event *e)
 
 	if (!handler)
 		IPA_EMERG_SAFE("%s: WARNING: invalid function pointer!\n",
-			       __FUNCTION__);
+			       __func__);
 	else
 		core = (*handler)(policy, e);
 	read_unlock_irqrestore(&ipanema_rwlock, flags);
@@ -428,7 +427,7 @@ void ipanema_new_place(struct process_event *e)
 		(*handler)(policy, e);
 	else
 		IPA_EMERG_SAFE("%s: WARNING: invalid function pointer!\n",
-			       __FUNCTION__);
+			       __func__);
 }
 
 void ipanema_new_end(struct process_event *e)
@@ -445,7 +444,7 @@ void ipanema_new_end(struct process_event *e)
 		(*handler)(policy, e);
 	else
 		IPA_EMERG_SAFE("%s: WARNING: Invalid function pointer!\n",
-			       __FUNCTION__);
+			       __func__);
 }
 
 void ipanema_tick(struct process_event *e)
@@ -469,7 +468,7 @@ void ipanema_tick(struct process_event *e)
 		(*handler)(policy, e);
 	else
 		IPA_EMERG_SAFE("%s: WARNING: Invalid function pointer!\n",
-			       __FUNCTION__);
+			       __func__);
 }
 
 void ipanema_yield(struct process_event *e)
@@ -493,7 +492,7 @@ void ipanema_yield(struct process_event *e)
 		(*handler)(policy, e);
 	else
 		IPA_DBG_SAFE("%s: WARNING: Invalid function pointer\n",
-			     __FUNCTION__);
+			     __func__);
 }
 
 void ipanema_block(struct process_event *e)
@@ -517,7 +516,7 @@ void ipanema_block(struct process_event *e)
 		(*handler)(policy, e);
 	else
 		IPA_EMERG_SAFE("%s: WARNING: invalid function pointer!\n",
-			       __FUNCTION__);
+			       __func__);
 }
 
 int ipanema_unblock_prepare(struct process_event *e)
@@ -544,7 +543,7 @@ int ipanema_unblock_prepare(struct process_event *e)
 		core = (*handler)(policy, e);
 	else
 		IPA_EMERG_SAFE("%s: WARNING: invalid function pointer!\n",
-			       __FUNCTION__);
+			       __func__);
 
 	read_unlock_irqrestore(&ipanema_rwlock, flags);
 
@@ -567,7 +566,7 @@ void ipanema_unblock_place(struct process_event *e)
 		(*handler)(policy, e);
 	else
 		IPA_EMERG_SAFE("%s: WARNING: invalid function pointer!\n",
-			       __FUNCTION__);
+			       __func__);
 }
 
 void ipanema_unblock_end(struct process_event *e)
@@ -586,7 +585,7 @@ void ipanema_unblock_end(struct process_event *e)
 		(*handler)(policy, e);
 	else
 		IPA_EMERG_SAFE("%s: WARNING: invalid function pointer!\n",
-			       __FUNCTION__);
+			       __func__);
 }
 
 void ipanema_terminate(struct process_event *e)
@@ -606,7 +605,7 @@ void ipanema_terminate(struct process_event *e)
 		(*handler)(policy, e);
 	else
 		IPA_EMERG_SAFE("%s: WARNING: invalid function pointer!\n",
-			       __FUNCTION__);
+			       __func__);
 
 	p->ipanema_metadata.policy = NULL;
 	kref_put(&policy->refcount, ipanema_policy_free);
@@ -631,7 +630,7 @@ void ipanema_schedule(struct ipanema_policy *policy, unsigned int core)
 		(*handler)(policy, core);
 	else
 		IPA_EMERG_SAFE("%s: WARNING: invalid function pointer!\n",
-			       __FUNCTION__);
+			       __func__);
 }
 
 void ipanema_core_entry(struct ipanema_policy *policy, unsigned int core)
@@ -645,7 +644,7 @@ void ipanema_core_entry(struct ipanema_policy *policy, unsigned int core)
 		(*handler)(policy, &e);
 	else
 		IPA_EMERG_SAFE("%s: WARNING: invalid function pointer!\n",
-			       __FUNCTION__);
+			       __func__);
 }
 
 void ipanema_core_exit(struct ipanema_policy *policy, unsigned int core)
@@ -659,7 +658,7 @@ void ipanema_core_exit(struct ipanema_policy *policy, unsigned int core)
 		(*handler)(policy, &e);
 	else
 		IPA_EMERG_SAFE("%s: WARNING: invalid function pointer!\n",
-			       __FUNCTION__);
+			       __func__);
 }
 
 void ipanema_newly_idle(struct ipanema_policy *policy, unsigned int core,
@@ -688,7 +687,7 @@ void ipanema_newly_idle(struct ipanema_policy *policy, unsigned int core,
 		rq_repin_lock(rq, rf);
 	} else
 		IPA_EMERG_SAFE("%s: WARNING: invalid function pointer!\n",
-			       __FUNCTION__);
+			       __func__);
 }
 
 void ipanema_enter_idle(struct ipanema_policy *policy, unsigned int core)
@@ -702,7 +701,7 @@ void ipanema_enter_idle(struct ipanema_policy *policy, unsigned int core)
 		(*handler)(policy, &e);
 	else
 		IPA_EMERG_SAFE("%s: WARNING: invalid function pointer!\n",
-			       __FUNCTION__);
+			       __func__);
 }
 
 void ipanema_exit_idle(struct ipanema_policy *policy, unsigned int core)
@@ -716,7 +715,7 @@ void ipanema_exit_idle(struct ipanema_policy *policy, unsigned int core)
 		(*handler)(policy, &e);
 	else
 		IPA_EMERG_SAFE("%s: WARNING: invalid function pointer!\n",
-			       __FUNCTION__);
+			       __func__);
 }
 
 void ipanema_balancing_select(void)

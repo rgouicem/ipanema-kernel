@@ -53,8 +53,8 @@ EXPORT_SYMBOL(sched_monitor_idle_enabled);
 
 #ifdef CONFIG_SCHED_MONITOR_TRACER
 DEFINE_PER_CPU(struct sched_tracer_log, sched_tracer_log);
-bool sched_monitor_tracer_enabled;
 EXPORT_SYMBOL(sched_tracer_log);
+bool sched_monitor_tracer_enabled;
 EXPORT_SYMBOL(sched_monitor_tracer_enabled);
 #endif	/* CONFIG_SCHED_MONITOR_TRACER */
 
@@ -521,10 +521,10 @@ static int sched_monitor_tracer_init(void)
 	char buf[10];
 	struct dentry *tracer_dir, *tracer_log_dir, *events_dir, *raw_dir;
 	struct sched_tracer_log *log;
-	size_t buffer_size = CONFIG_SCHED_MONITOR_TRACER_BUFFER_SIZE << 20; /* convert MiB -> B */
+	size_t buffer_size = CONFIG_SCHED_MONITOR_TRACER_BUFFER_SIZE << 20;
 
 	/* Allocate per-cpu buffers */
-	buffer_size -= (buffer_size % sizeof(struct sched_tracer_event)); /* align buffer_size */
+	buffer_size -= (buffer_size % sizeof(struct sched_tracer_event));
 	for_each_possible_cpu(cpu) {
 		log = per_cpu_ptr(&sched_tracer_log, cpu);
 		log->events = vmalloc(buffer_size);

@@ -68,7 +68,7 @@ no_cpu_check:
 
 wrong_transition:
 	pr_err("%s:%d: WARNING! [pid=%d] Incorrect transition %s[%d] -> %s[%d]\n",
-	       __FUNCTION__, __LINE__, p->pid,
+	       __func__, __LINE__, p->pid,
 	       ipanema_state_to_str(prev_state), prev_cpu,
 	       ipanema_state_to_str(next_state), next_cpu);
 }
@@ -232,7 +232,7 @@ static void enqueue_task_ipanema(struct rq *rq,
 				 struct task_struct *p,
 				 int flags)
 {
-	struct process_event e = { .target = p , .cpu = smp_processor_id() };
+	struct process_event e = { .target = p, .cpu = smp_processor_id() };
 	enum ipanema_core_state cstate;
 #ifdef CONFIG_SCHED_MONITOR_IPANEMA
 	u64 start = 0;
@@ -345,7 +345,7 @@ static void dequeue_task_ipanema(struct rq *rq,
 				 struct task_struct *p,
 				 int flags)
 {
-	struct process_event e = { .target = p , .cpu = smp_processor_id() };
+	struct process_event e = { .target = p, .cpu = smp_processor_id() };
 #ifdef CONFIG_SCHED_MONITOR_IPANEMA
 	u64 start = 0;
 #endif
@@ -447,7 +447,8 @@ end:
 
 static void yield_task_ipanema(struct rq *rq)
 {
-	struct process_event e = { .target = rq->curr , .cpu = smp_processor_id() };
+	struct process_event e = { .target = rq->curr,
+				   .cpu = smp_processor_id() };
 	struct task_struct *p = rq->curr;
 #ifdef CONFIG_SCHED_MONITOR_IPANEMA
 	u64 start = 0;
@@ -536,7 +537,7 @@ static struct task_struct *pick_next_task_ipanema(struct rq *rq,
 		result = per_cpu(ipanema_current, rq->cpu);
 		if (prev->state != TASK_RUNNING)
 			pr_info("%s: ipanema_current was not NULL and task is not TASK_RUNNING. Should not happen\n",
-				__FUNCTION__);
+				__func__);
 	} else {
 #ifdef CONFIG_SCHED_MONITOR_IPANEMA
 		u64 start_lb = 0;
@@ -600,7 +601,8 @@ static struct task_struct *pick_next_task_ipanema(struct rq *rq,
 	}
 
 	if (ipanema_task_state(result) != IPANEMA_RUNNING) {
-		IPA_EMERG_SAFE("The result of pick_next_task_ipanema() is not in the IPANEMA_RUNNING state ! It's in state %s instead. Switching to IPANEMA_RUNNING to prevent issues, but we shouldn't be in this situation!\n",
+		IPA_EMERG_SAFE("The result of %s is not in the IPANEMA_RUNNING state ! It's in state %s instead. Switching to IPANEMA_RUNNING to prevent issues, but we shouldn't be in this situation!\n",
+			       __fuc__,
 			       ipanema_state_to_str(ipanema_task_state(current)));
 		ipanema_task_state(result) = IPANEMA_RUNNING;
 	}
@@ -615,7 +617,7 @@ static void put_prev_task_ipanema(struct rq *rq,
 				  struct task_struct *prev)
 {
 	enum ipanema_state state;
-	struct process_event e = { .target = prev , .cpu = smp_processor_id() };
+	struct process_event e = { .target = prev, .cpu = smp_processor_id() };
 #ifdef CONFIG_SCHED_MONITOR_IPANEMA
 	u64 start = 0;
 #endif
@@ -695,9 +697,9 @@ static void put_prev_task_ipanema(struct rq *rq,
 			     __func__, prev, rq->cpu);
 		ipanema_task_state(prev) = IPANEMA_READY;
 		/*
-		 * Case 3: if we're already in the READY state, either a yield() event
-		 * from a call to sched_yield() set us in this state, or we switched to
-		 * ipanema sched_class.
+		 * Case 3: if we're already in the READY state, either a yield()
+		 * event from a call to sched_yield() set us in this state, or
+		 * we switched to ipanema sched_class.
 		 */
 	} else if (state == IPANEMA_READY) {
 		/* Safety check. */
@@ -720,8 +722,8 @@ static void put_prev_task_ipanema(struct rq *rq,
 		IPA_DBG_SAFE("Blocked in %s, should follow a block() event.\n",
 			     __func__);
 		/*
-		 * Case 5: the thread was terminated during its last dequeue. Don't
-		 * do anything.
+		 * Case 5: the thread was terminated during its last dequeue.
+		 * Don't do anything.
 		 */
 	} else if (state == IPANEMA_TERMINATED) {
 		IPA_DBG_SAFE("Terminated in %s, should follow a terminate() event.\n",
@@ -747,7 +749,7 @@ static int select_task_rq_ipanema(struct task_struct *p,
 				  int sd_flag,
 				  int wake_flags)
 {
-	struct process_event e = { .target = p , .cpu = smp_processor_id() };
+	struct process_event e = { .target = p, .cpu = smp_processor_id() };
 	int ret = p->cpu;
 #ifdef CONFIG_SCHED_MONITOR_IPANEMA
 	u64 start = 0;
@@ -928,7 +930,7 @@ static void task_tick_ipanema(struct rq *rq,
 			      struct task_struct *curr,
 			      int queued)
 {
-	struct process_event e = { .target = curr , .cpu = smp_processor_id() };
+	struct process_event e = { .target = curr, .cpu = smp_processor_id() };
 #ifdef CONFIG_SCHED_MONITOR_IPANEMA
 	u64 start = 0;
 #endif
@@ -1080,8 +1082,8 @@ static void update_curr_ipanema(struct rq *rq)
 static void task_change_group_ipanema(struct task_struct *p, int type)
 {
 	if (unlikely(ipanema_sched_class_log))
-		pr_info("In task_change_group_ipanema() [pid=%d]\n",
-			p->pid);
+		pr_info("In %s [pid=%d]\n",
+			__func__, p->pid);
 
 	switch (type) {
 	case TASK_SET_GROUP:
@@ -1175,13 +1177,10 @@ static int create_topology(void)
 		cur = NULL;
 		for_each_domain(cpu, sd) {
 			l = kzalloc(sizeof(struct topology_level), GFP_KERNEL);
-			if (!l) {
-				pr_err("ipanema: failed to allocate memory for topology_levels (cpu%d)\n",
-				       cpu);
+			if (!l)
 				return -ENOMEM;
-			}
 			if (sd->flags & SD_SHARE_CPUCAPACITY)
-			        l->flags |= DOMAIN_SMT;
+				l->flags |= DOMAIN_SMT;
 			if (sd->flags & SD_SHARE_PKG_RESOURCES)
 				l->flags |= DOMAIN_CACHE;
 			if (sd->flags & SD_NUMA)
@@ -1210,13 +1209,13 @@ static void print_topology(void)
 	pr_info("+-----------------------+*\n");
 	pr_info("|    ipanema topology   |\n");
 	pr_info("+-----------------------+\n");
-	pr_info("  cpu  | SMT | CACHE | NUMA |   cpulist    \n");
+	pr_info("  cpu  | SMT | CACHE | NUMA |   cpulist\n");
 	for_each_possible_cpu(cpu) {
 		pr_info("-------+-----+-------+------+--------------\n");
 		pr_info(" %5d |\n", cpu);
 		l = per_cpu(topology_levels, cpu);
 		while (l) {
-			pr_info("       |  %d  |   %d   |   %d  | %*pbl \n",
+			pr_info("       |  %d  |   %d   |   %d  | %*pbl\n",
 				l->flags & DOMAIN_SMT ? 1 : 0,
 				l->flags & DOMAIN_CACHE ? 1 : 0,
 				l->flags & DOMAIN_NUMA ? 1 : 0,
