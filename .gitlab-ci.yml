@@ -1,11 +1,15 @@
 build:
   stage: build
-  only:
-    refs:
-      - linux-4.13-ipanema
   tags:
     - ipanema
   script: 
     - curl http://bossa.gforge.inria.fr/linux-config > .config
     - make oldconfig
     - make -j48
+
+checkpatch-ipanema:
+  stage: build
+  tags:
+    - ipanema
+  script:
+    - ./scripts/checkpatch.pl -f kernel/sched/*.c kernel/sched/*.h include/linux/ipanema*.h
