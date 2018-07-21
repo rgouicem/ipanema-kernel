@@ -1,6 +1,7 @@
 obj-m += Simple.o
 obj-m += cfs.o
 obj-m += cfs_wwc.o
+obj-m += cfs_wwc_blocked.o
 obj-m += cfs_no_wwc.o
 obj-m += ule_wwc.o
 obj-m += ipanema_template.o
