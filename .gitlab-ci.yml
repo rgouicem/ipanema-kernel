@@ -1,0 +1,10 @@
+build:
+  stage: build
+  only:
+    refs:
+      - linux-4.13-ipanema
+  tags:
+    - ipanema
+  script: 
+    - curl http://bossa.gforge.inria.fr/linux-config > .config
+    - make -j48
