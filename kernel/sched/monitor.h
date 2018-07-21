@@ -79,6 +79,7 @@ enum sched_tracer_events {
 	EXIT_EVT,    /* timestamp EXIT pid */
 	WAKEUP,      /* timestamp WAKEUP pid */
 	WAKEUP_NEW,  /* timestamp WAKEUP_NEW pid */
+	BLOCK,       /* timestamp BLOCK pid */
 	BLOCK_IO,    /* timestamp BLOCK_IO pid */
 	BLOCK_LOCK,  /* timestamp BLOCK_LOCK pid addr */
 	WAKEUP_LOCK, /* timestamp WAKEUP_LOCK pid addr */

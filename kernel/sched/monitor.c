@@ -366,6 +366,7 @@ static char *sched_tracer_events_str[] = {
 	"EXIT",	      /* timestamp EXIT pid */
 	"WAKEUP",     /* timestamp WAKEUP pid */
 	"WAKEUP_NEW", /* timestamp WAKEUP_NEW pid */
+	"BLOCK",      /* timestamp BLOCK pid */
 	"BLOCK_IO",   /* timestamp BLOCK_IO pid */
 	"BLOCK_LOCK", /* timestamp BLOCK_LOCK pid addr */
 	"WAKEUP_LOCK",/* timestamp WAKEUP_LOCK pid addr */
@@ -392,6 +393,7 @@ static int tracer_seq_show(struct seq_file *s, void *v)
 	case EXIT_EVT:
 	case WAKEUP:
 	case WAKEUP_NEW:
+	case BLOCK:
 	case BLOCK_IO:
 		seq_printf(s, "%llu %s %d\n",
 			   evt->timestamp, sched_tracer_events_str[evt->event],

@@ -2104,6 +2104,8 @@ out:
 
 	sched_monitor_stop(&try_to_wake_up);
 
+	sched_monitor_trace(WAKEUP, task_cpu(p), p, 0, 0);
+
 	return success;
 }
 
@@ -3367,7 +3369,7 @@ static void __sched notrace __schedule(bool preempt)
 			prev->state = TASK_RUNNING;
 		} else {
 			deactivate_task(rq, prev, DEQUEUE_SLEEP | DEQUEUE_NOCLOCK);
-			sched_monitor_trace(WAKEUP, cpu, prev, 0, 0);
+			sched_monitor_trace(BLOCK, cpu, prev, 0, 0);
 			prev->on_rq = 0;
 
 			if (prev->in_iowait) {
