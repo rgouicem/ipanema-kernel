@@ -7,4 +7,5 @@ build:
     - ipanema
   script: 
     - curl http://bossa.gforge.inria.fr/linux-config > .config
+    - make oldconfig
     - make -j48
