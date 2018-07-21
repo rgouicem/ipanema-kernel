@@ -602,7 +602,7 @@ static struct task_struct *pick_next_task_ipanema(struct rq *rq,
 
 	if (ipanema_task_state(result) != IPANEMA_RUNNING) {
 		IPA_EMERG_SAFE("The result of %s is not in the IPANEMA_RUNNING state ! It's in state %s instead. Switching to IPANEMA_RUNNING to prevent issues, but we shouldn't be in this situation!\n",
-			       __fuc__,
+			       __func__,
 			       ipanema_state_to_str(ipanema_task_state(current)));
 		ipanema_task_state(result) = IPANEMA_RUNNING;
 	}
