@@ -1,4 +1,4 @@
-build:
+build-kernel:
   stage: build
   tags:
     - ipanema
@@ -6,6 +6,7 @@ build:
     - curl http://bossa.gforge.inria.fr/linux-config > .config
     - make oldconfig
     - make -j48
+    - cd ipanema/modules && make -j10
 
 checkpatch-ipanema:
   stage: build
@@ -22,4 +23,5 @@ checkpatch-ipanema:
     - ./scripts/checkpatch.pl -f kernel/sched/monitor.h
     - ./scripts/checkpatch.pl -f include/linux/ipanema.h
     - ./scripts/checkpatch.pl -f include/linux/ipanema_rbtree.h
+    - ./scripts/checkpatch.pl -f ipanema/modules/*.c
   allow_failure: true
