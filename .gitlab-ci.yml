@@ -13,3 +13,4 @@ checkpatch-ipanema:
     - ipanema
   script:
     - ./scripts/checkpatch.pl -f kernel/sched/*.c kernel/sched/*.h include/linux/ipanema*.h
+  allow_failure: true
