@@ -788,6 +788,13 @@ static int select_task_rq_ipanema(struct task_struct *p,
 		}
 	} else if (p->state == TASK_WAKING) {
 		ret = ipanema_unblock_prepare(&e);
+		/* if migrating on wakeup, remove from previous cpu */
+		if (ret >= 0 && ret != task_cpu(p)) {
+			struct rq_flags rf;
+			rq_lock(task_rq(p), &rf);
+			change_rq(p, IPANEMA_BLOCKED, NULL);
+			rq_unlock(task_rq(p), &rf);
+		}
 	}
 
 	sched_monitor_ipanema_stop(SELECT_RQ, start);
