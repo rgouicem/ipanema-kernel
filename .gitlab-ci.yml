@@ -12,5 +12,14 @@ checkpatch-ipanema:
   tags:
     - ipanema
   script:
-    - ./scripts/checkpatch.pl -f kernel/sched/*.c kernel/sched/*.h include/linux/ipanema*.h
+    - ./scripts/checkpatch.pl -f kernel/sched/ipanema.c
+    - ./scripts/checkpatch.pl -f kernel/sched/ipanema_common.c
+    - ./scripts/checkpatch.pl -f kernel/sched/ipanema_common.h
+    - ./scripts/checkpatch.pl -f kernel/sched/ipanema_proc.c
+    - ./scripts/checkpatch.pl -f kernel/sched/ipanema_rbtree.c
+    - ./scripts/checkpatch.pl -f kernel/sched/ipanema_sysfs.c
+    - ./scripts/checkpatch.pl -f kernel/sched/monitor.c
+    - ./scripts/checkpatch.pl -f kernel/sched/monitor.h
+    - ./scripts/checkpatch.pl -f include/linux/ipanema.h
+    - ./scripts/checkpatch.pl -f include/linux/ipanema_rbtree.h
   allow_failure: true
