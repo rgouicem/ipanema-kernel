@@ -206,6 +206,10 @@ int ipanema_set_policy(char *str)
 	 * tasks, fail. Else, remove from ipanema_policies and decrement kref
 	 * to free the policy.
 	 */
+	if (!exists && remove) {
+		ret = -EINVAL;
+		goto end;
+	}
 	if (exists && remove) {
 		nr_users = kref_read(&policy_cur->refcount);
 		if (nr_users == 1) {
