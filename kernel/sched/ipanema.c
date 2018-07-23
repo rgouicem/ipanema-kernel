@@ -166,14 +166,6 @@ int ipanema_set_policy(char *str)
 		}
 	}
 
-	if (remove)
-		pr_info("%s: module_name='%s', cpulist='remove'\n",
-			__func__, module_name);
-	else
-		pr_info("%s: module_name='%s', cpulist='%*pbl'\n",
-			__func__, module_name,
-			cpumask_pr_args(&cores_allowed));
-
 	/*
 	 * From now on, we read or write to ipanema_modules and ipanema_policies
 	 * We need to take a lock for writing
@@ -220,9 +212,7 @@ int ipanema_set_policy(char *str)
 			module_put(policy_cur->module->kmodule);
 			ret = 0;
 			goto end;
-		} else
-			pr_info("ipanema: removal of policy %s failed: in use by %u tasks\n",
-				policy_cur->name, nr_users - 1);
+		}
 		ret = -EMODULEINUSE;
 		goto end;
 	}
@@ -234,10 +224,6 @@ int ipanema_set_policy(char *str)
 	 * after that, directly goto end
 	 */
 	if (exists) {
-		pr_info("ipanema: modifying policy '%s': %*pbl -> %*pbl\n",
-			policy_cur->name,
-			cpumask_pr_args(&policy_cur->allowed_cores),
-			cpumask_pr_args(&cores_allowed));
 		routines = policy_cur->module->routines;
 		cpumask_andnot(&removed_cores, &policy_cur->allowed_cores,
 			       &cores_allowed);
@@ -313,10 +299,6 @@ int ipanema_set_policy(char *str)
 	/* Insert policy into active policies */
 	list_add_tail(&policy->list, &ipanema_policies);
 	num_ipanema_policies++;
-
-	pr_info("ipanema: inserted policy '%s' (id=%d, cpus=%*pbl)\n",
-		policy->name, policy->id,
-		cpumask_pr_args(&policy->allowed_cores));
 
 end:
 	write_unlock_irqrestore(&ipanema_rwlock, flags);
