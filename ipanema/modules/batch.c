@@ -62,43 +62,23 @@ static cpumask_var_t active_cores;
 static u64 max_runtime;
 
 /**
- * get_metric() - Return the metric used for process ordering
- * @policy: ipanema policy calling this function
- * @p: the process from which the metric is needed
- *
- * This function may become deprecated if we want to allow multiple runqueues
- * ordered with different metrics...
- *
- * Return: the metric of @p as an integer.
- */
-static u64 get_metric(struct ipanema_policy *policy, struct task_struct *p)
-{
-	struct process *tgt = policy_metadata(p);
-
-	return tgt->runtime;
-}
-
-/**
  * order_process() - Compare 2 processes
  * @policy: ipanema policy calling this function
  * @a: the first process to compare
  * @b: the second process to compare
  *
- * Compare two processes. May move from struct ipanema_module_routines to
- * struct ipanema_rq in order to allow runqueues with different ordering
- * criteria.
+ * Compare two processes.
  *
  * Return: a positive value if a > b, a negative value if a < b, 0 if a == b.
  */
-static int order_process(struct ipanema_policy *policy, struct task_struct *a,
-			 struct task_struct *b)
+int order_process(struct task_struct *a, struct task_struct *b)
 {
-	u64 m_a = get_metric(policy, a);
-	u64 m_b = get_metric(policy, b);
+	struct process *pa = policy_metadata(a);
+	struct process *pb = policy_metadata(b);
 
-	if (m_a < m_b)
+	if (pa->runtime < pb->runtime)
 		return -1;
-	if (m_a > m_b)
+	if (pa->runtime > pb->runtime)
 		return 1;
 	return 0;
 }
@@ -610,7 +590,6 @@ int can_be_default(struct ipanema_policy *policy)
 
 struct ipanema_module_routines routines =
 {
-	.order_process    = order_process,
 	.get_core_state   = get_core_state,
         .new_prepare      = new_prepare,
         .new_place        = new_place,
@@ -645,10 +624,8 @@ int init_module(void)
         	get_policy_core(cpu).id = cpu;
 
 		/* READY rq */
-		get_policy_rq(cpu, ready).cpu = cpu;
-                get_policy_rq(cpu, ready).nr_tasks = 0;
-		get_policy_rq(cpu, ready).root.rb_node = NULL;
-		get_policy_rq(cpu, ready).state = IPANEMA_READY;
+		init_ipanema_rq(&get_policy_rq(cpu, ready), cpu, IPANEMA_READY,
+				order_process);
 
 		/* RUNNING task */
 		get_policy_core(cpu).curr = NULL;

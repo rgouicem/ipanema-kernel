@@ -316,34 +316,6 @@ void debug_ipanema(void)
 	ipanema_debug = 1;
 }
 
-int ipanema_order_process(struct task_struct *a, struct task_struct *b)
-{
-	int res = 0;
-	struct ipanema_policy *policy;
-	int (*handler)(struct ipanema_policy *policy_p,
-		       struct task_struct *a,
-		       struct task_struct *b);
-
-	if (a->ipanema_metadata.policy != b->ipanema_metadata.policy) {
-		IPA_EMERG_SAFE("%s: tasks %d and %d have different ipanema policies [%p, %p]\n",
-			       __func__, a->pid, b->pid,
-			       a->ipanema_metadata.policy,
-			       b->ipanema_metadata.policy);
-		BUG();
-	}
-
-	policy = a->ipanema_metadata.policy;
-	handler = policy->module->routines->order_process;
-
-	if (!handler)
-		IPA_EMERG_SAFE("%s: WARNING: invalid function pointer!\n",
-			       __func__);
-	else
-		res = (*handler)(policy, a, b);
-
-	return res;
-}
-
 enum ipanema_core_state ipanema_get_core_state(struct ipanema_policy *policy,
 					       unsigned int core)
 {
@@ -736,3 +708,16 @@ struct task_struct *ipanema_get_task_of(void *proc)
 	return container_of(ipanema, struct task_struct, ipanema_metadata);
 }
 EXPORT_SYMBOL(ipanema_get_task_of);
+
+void init_ipanema_rq(struct ipanema_rq *rq, unsigned int cpu,
+		     enum ipanema_state state,
+		     int (*order_fn) (struct task_struct *a,
+				      struct task_struct *b))
+{
+	rq->cpu = cpu;
+	rq->root.rb_node = NULL;
+	rq->state = state;
+	rq->nr_tasks = 0;
+	rq->order_fn = order_fn;
+}
+EXPORT_SYMBOL(init_ipanema_rq);

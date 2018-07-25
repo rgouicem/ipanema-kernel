@@ -7,9 +7,9 @@
 typedef int (*order_f)(struct task_struct *a, struct task_struct *b);
 
 struct task_struct *
-ipanema_add_task(struct ipanema_rq *rq, struct task_struct *data, order_f order);
+ipanema_add_task(struct ipanema_rq *rq, struct task_struct *data);
 struct task_struct *
-ipanema_remove_task(struct ipanema_rq *rq, struct task_struct *data, order_f order);
+ipanema_remove_task(struct ipanema_rq *rq, struct task_struct *data);
 struct task_struct *
 ipanema_search_task(struct ipanema_rq *rq, struct task_struct *data, order_f order);
 struct task_struct *ipanema_first_task(struct ipanema_rq *rq);

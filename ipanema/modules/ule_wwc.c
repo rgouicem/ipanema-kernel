@@ -148,9 +148,8 @@ static unsigned int ule_wwc_ipa_nr_topology_levels;
 
 DEFINE_PER_CPU(struct ule_wwc_ipa_core, core);
 
-static int ipanema_ule_wwc_order_process(struct ipanema_policy *policy,
-					 struct task_struct *a,
-					 struct task_struct *b)
+int ipanema_ule_wwc_order_process(struct task_struct *a,
+				  struct task_struct *b)
 {
 	struct ule_wwc_ipa_process *pa = policy_metadata(a);
 	struct ule_wwc_ipa_process *pb = policy_metadata(b);
@@ -764,7 +763,6 @@ int ipanema_ule_wwc_can_be_default(struct ipanema_policy *policy)
 
 struct ipanema_module_routines ipanema_ule_wwc_routines =
 {
-	.order_process  = ipanema_ule_wwc_order_process,
 	.get_core_state = ipanema_ule_wwc_get_core_state,
         .new_prepare = ipanema_ule_wwc_new_prepare,
         .new_place = ipanema_ule_wwc_new_place,
@@ -1118,14 +1116,10 @@ int init_module(void)
                 /* FIXME init of core variables of the user */
 		ipanema_core(cpu).cload = 0;
                 /* allocation of ipanema rqs */
-                ipanema_state(cpu).realtime.cpu = cpu;
-                ipanema_state(cpu).realtime.nr_tasks = 0;
-                ipanema_state(cpu).realtime.root.rb_node = NULL;
-                ipanema_state(cpu).realtime.state = IPANEMA_READY;
-                ipanema_state(cpu).timeshare.cpu = cpu;
-                ipanema_state(cpu).timeshare.nr_tasks = 0;
-                ipanema_state(cpu).timeshare.root.rb_node = NULL;
-                ipanema_state(cpu).timeshare.state = IPANEMA_READY;
+		init_ipanema_rq(&ipanema_state(cpu).realtime, cpu,
+				IPANEMA_READY, ipanema_ule_wwc_order_process);
+		init_ipanema_rq(&ipanema_state(cpu).timeshare, cpu,
+				IPANEMA_READY, ipanema_ule_wwc_order_process);
         }
         
         /* allocation of every cpumask_var_t of struct core_state_info */
