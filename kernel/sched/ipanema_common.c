@@ -90,8 +90,7 @@ static void change_rq(struct task_struct *p, enum ipanema_state next_state,
 
 	if (prev_rq) {
 		lockdep_assert_held(&task_rq(p)->lock);
-		p = ipanema_remove_task(prev_rq, p,
-					ipanema_order_process);
+		p = ipanema_remove_task(prev_rq, p);
 		prev_rq->nr_tasks--;
 	}
 
@@ -102,8 +101,7 @@ static void change_rq(struct task_struct *p, enum ipanema_state next_state,
 		next_cpu = next_rq->cpu;
 		next_state = next_rq->state;
 		lockdep_assert_held(&cpu_rq(next_cpu)->lock);
-		ipanema_add_task(next_rq, p,
-				 ipanema_order_process);
+		ipanema_add_task(next_rq, p);
 		next_rq->nr_tasks++;
 	}
 }

@@ -58,7 +58,13 @@ struct ipanema_rq {
 	struct rb_root root;
 	enum ipanema_state state;
 	unsigned int nr_tasks;
+	int (*order_fn) (struct task_struct *a, struct task_struct *b);
 };
+
+void init_ipanema_rq(struct ipanema_rq *rq, unsigned int cpu,
+		     enum ipanema_state state,
+		     int (*order_fn) (struct task_struct *a,
+				      struct task_struct *b));
 
 extern int ipanema_debug;
 extern DEFINE_PER_CPU(struct task_struct *, ipanema_current);
@@ -90,8 +96,6 @@ struct ipanema_policy {
 };
 
 struct ipanema_module_routines {
-	int (*order_process)(struct ipanema_policy *policy,
-			     struct task_struct *a, struct task_struct *b);
 	enum ipanema_core_state (*get_core_state)(struct ipanema_policy *policy,
 						  struct core_event *e);
 

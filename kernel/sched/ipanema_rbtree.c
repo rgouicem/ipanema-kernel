@@ -81,22 +81,22 @@ ipanema_insert_remove_search_process_in_rbtree_unsafe(struct ipanema_rq *rq,
 EXPORT_SYMBOL(ipanema_insert_remove_search_process_in_rbtree_unsafe);
 
 struct task_struct *ipanema_add_task(struct ipanema_rq *rq,
-				     struct task_struct *data,
-				     order_f order)
+				     struct task_struct *data)
 {
 	struct rb_root *root = &(rq->root);
 
-	return _insert_remove_search_process_in_rbtree(root, data, order, 1);
+	return _insert_remove_search_process_in_rbtree(root, data, rq->order_fn,
+						       1);
 }
 EXPORT_SYMBOL(ipanema_add_task);
 
 struct task_struct *ipanema_remove_task(struct ipanema_rq *rq,
-					struct task_struct *data,
-					order_f order)
+					struct task_struct *data)
 {
 	struct rb_root *root = &(rq->root);
 
-	return _insert_remove_search_process_in_rbtree(root, data, order, -1);
+	return _insert_remove_search_process_in_rbtree(root, data, rq->order_fn,
+						       -1);
 }
 EXPORT_SYMBOL(ipanema_remove_task);
 

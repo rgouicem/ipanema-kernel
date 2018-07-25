@@ -180,9 +180,8 @@ inline static void update_load(struct cfs_ipa_process *p)
 		p->load = 1;
 }
 
-static int ipanema_cfs_order_process(struct ipanema_policy *policy,
-                                      struct task_struct *a,
-                                      struct task_struct *b)
+int ipanema_cfs_order_process(struct task_struct *a,
+			      struct task_struct *b)
 {
 	struct cfs_ipa_process *pa = policy_metadata(a);
 	struct cfs_ipa_process *pb = policy_metadata(b);
@@ -961,7 +960,6 @@ int ipanema_cfs_can_be_default(struct ipanema_policy *policy)
 
 struct ipanema_module_routines ipanema_cfs_routines =
 {
-	.order_process  = ipanema_cfs_order_process,
 	.get_core_state = ipanema_cfs_get_core_state,
         .new_prepare
                  = ipanema_cfs_new_prepare,
@@ -1302,14 +1300,10 @@ int init_module(void)
                 /* FIXME init of core variables of the user */
 		ipanema_core(cpu).cload = 0;
                 /* allocation of ipanema rqs */
-                ipanema_state(cpu).ready.cpu = cpu;
-                ipanema_state(cpu).ready.nr_tasks = 0;
-                ipanema_state(cpu).ready.root.rb_node = NULL;
-                ipanema_state(cpu).ready.state = IPANEMA_READY;
-                ipanema_state(cpu).blocked.cpu = cpu;
-                ipanema_state(cpu).blocked.nr_tasks = 0;
-                ipanema_state(cpu).blocked.root.rb_node = NULL;
-                ipanema_state(cpu).blocked.state = IPANEMA_BLOCKED;
+		init_ipanema_rq(&ipanema_state(cpu).ready, cpu, IPANEMA_READY,
+				ipanema_cfs_order_process);
+		init_ipanema_rq(&ipanema_state(cpu).blocked, cpu,
+				IPANEMA_BLOCKED, ipanema_cfs_order_process);
         }
         
         /* allocation of every cpumask_var_t of struct core_state_info */

@@ -60,19 +60,15 @@ static cpumask_var_t idle_cores;
 
 /**
  * ipanema_template_order_process() - Compare 2 processes
- * @policy: ipanema policy calling this function
  * @a: the first process to compare
  * @b: the second process to compare
  *
- * Compare two processes. May move from struct ipanema_module_routines to
- * struct ipanema_rq in order to allow runqueues with different ordering
- * criteria.
+ * Compare two processes.
  *
  * Return: a positive value if a > b, a negative value if a < b, 0 if a == b.
  */
-static int ipanema_template_order_process(struct ipanema_policy *policy,
-					  struct task_struct *a,
-					  struct task_struct *b)
+int ipanema_template_order_process(struct task_struct *a,
+				   struct task_struct *b)
 {
 	struct process *pa = policy_metadata(a);
 	struct process *pb = policy_metadata(b);
@@ -501,7 +497,6 @@ int ipanema_template_can_be_default(struct ipanema_policy *policy)
 
 struct ipanema_module_routines ipanema_template_routines =
 {
-	.order_process    = ipanema_template_order_process,
 	.get_core_state   = ipanema_template_get_core_state,
         .new_prepare      = ipanema_template_new_prepare,
         .new_place        = ipanema_template_new_place,
@@ -536,10 +531,8 @@ int init_module(void)
         	get_policy_core(cpu).id = cpu;
 
 		/* READY rq */
-		get_policy_rq(cpu, ready).cpu = cpu;
-                get_policy_rq(cpu, ready).nr_tasks = 0;
-		get_policy_rq(cpu, ready).root.rb_node = NULL;
-		get_policy_rq(cpu, ready).state = IPANEMA_READY;
+		init_ipanema_rq(&get_policy_rq(cpu, ready), cpu, IPANEMA_READY,
+				ipanema_template_order_process);
 
 		/* RUNNING task */
 		get_policy_core(cpu).curr = NULL;

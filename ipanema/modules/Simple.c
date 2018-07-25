@@ -115,9 +115,8 @@ struct Simple_ipa_sched_domain {
 
 DEFINE_PER_CPU(struct Simple_ipa_core, core);
 
-static int ipanema_Simple_order_process(struct ipanema_policy *policy,
-					struct task_struct *a,
-					struct task_struct *b)
+int ipanema_Simple_order_process(struct task_struct *a,
+				 struct task_struct *b)
 {
 	struct Simple_ipa_process *pa = policy_metadata(a);
 	struct Simple_ipa_process *pb = policy_metadata(b);
@@ -504,7 +503,6 @@ int ipanema_Simple_can_be_default(struct ipanema_policy *policy)
 
 struct ipanema_module_routines ipanema_Simple_routines =
 {
-	.order_process	  = ipanema_Simple_order_process,
 	.get_core_state   = ipanema_Simple_get_core_state,
 	.new_prepare	  = ipanema_Simple_new_prepare,
 	.new_place	  = ipanema_Simple_new_place,
@@ -803,10 +801,8 @@ int init_module(void)
 	for_each_possible_cpu(cpu) {
 		ipanema_core(cpu).id = cpu;
 		/* READY rq */
-		ipanema_state(cpu).ready.cpu = cpu;
-		ipanema_state(cpu).ready.nr_tasks = 0;
-		ipanema_state(cpu).ready.root.rb_node = NULL;
-		ipanema_state(cpu).ready.state = get_class(READY_STATE);
+		init_ipanema_rq(&ipanema_state(cpu).ready, cpu, IPANEMA_READY,
+				ipanema_Simple_order_process);
 	}
 
 	/* allocation of every cpumask_var_t of struct core_state_info */
