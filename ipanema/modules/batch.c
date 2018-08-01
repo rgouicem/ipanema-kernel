@@ -443,7 +443,15 @@ static void balance_cpus(struct ipanema_policy *policy, struct core *thief,
 	/* Compute number of processes to steal */
 	nr_tasks_victim = victim->ready.nr_tasks;
 	nr_tasks_thief = thief->ready.nr_tasks;
+	if (nr_tasks_victim <= nr_tasks_thief + 1)
+		return;
 	nr_stolen = (nr_tasks_victim - nr_tasks_thief) / 2;
+
+	/* pr_info("%s:%d(thief=%d[%d tasks], victim=%d[%d tasks]): to_steal=%d\n", */
+	/* 	__func__, __LINE__, */
+	/* 	thief->id, nr_tasks_thief, */
+	/* 	victim->id, nr_tasks_victim, */
+	/* 	nr_stolen); */
 
 	local_irq_save(flags);
 
@@ -459,6 +467,11 @@ static void balance_cpus(struct ipanema_policy *policy, struct core *thief,
 	attach_tasks(thief, &stolen_tasks);
 	
 	local_irq_restore(flags);
+
+/* 	pr_info("%s:%d(thief=%d[%d tasks], victim=%d[%d tasks])\n", */
+/* 		__func__, __LINE__, */
+/* 		thief->id, thief->ready.nr_tasks, */
+/* 		victim->id, victim->ready.nr_tasks); */
 }
 
 /**
