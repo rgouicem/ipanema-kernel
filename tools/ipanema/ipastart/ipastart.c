@@ -28,6 +28,8 @@ struct sched_attr {
 
 	/* SCHED_IPANEMA */
 	uint32_t sched_ipa_policy;
+	uint32_t sched_ipa_attr_size;
+	void *sched_ipa_attr;
 };
 
 static int sched_setattr(pid_t pid, const struct sched_attr *attr,
@@ -58,6 +60,8 @@ int main(int argc, char **argv)
 		.sched_nice = 0,
 		.sched_priority = 0,
 		.sched_ipa_policy = 0,
+		.sched_ipa_attr_size = 0,
+		.sched_ipa_attr = NULL,
 	};
 
 	if (argc < 3)

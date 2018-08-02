@@ -1,16 +1,18 @@
-all: ipastart
+BIN=ipastart
 
-ipastart: ipastart.c
+all: ${BIN}
+
+${BIN}: ${BIN}.c
 	gcc -Wall -o $@ $<
 
-install: ipastart
-	cp ipastart /usr/bin/
+install: ${BIN}
+	cp ${BIN} /usr/bin/
 
 clean:
 	rm -rf *~ *.o
 
 mrproper: clean
-	rm -rf ipastart
+	rm -rf ${BIN}
 
 .PHONY: all clean mrproper install
 
