@@ -1,4 +1,4 @@
-BIN=ipastart
+BIN=ipasetpolicy
 
 all: ${BIN}
 

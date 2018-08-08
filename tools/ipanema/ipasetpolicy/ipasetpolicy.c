@@ -42,15 +42,15 @@ static inline void usage()
 {
 	fprintf(stderr,
 		"Usage:\n"
-		"\t ipastart policy program [args]\n"
+		"\t ipasetpolicy policy pid\n"
 		"\n"
 		"\t policy   ipanema policy id (see /proc/ipanema_info)\n"
-		"\t program  the program to launch\n"
-		"\t args     arguments for program\n");
+		"\t pid      the pid to move to ipanema policy\n");
 }
 
 int main(int argc, char **argv)
 {
+	pid_t pid;
 	int ret, ipa_policy = -1;
 	char *tmp;
 	struct sched_attr attr = {
@@ -64,22 +64,25 @@ int main(int argc, char **argv)
 		.sched_ipa_attr = NULL,
 	};
 
-	if (argc < 3)
+	if (argc < 2)
 		goto bad_usage;
 
 	ipa_policy = strtol(argv[1], &tmp, 10);
 	if (argv[1] == tmp)
 		goto bad_usage;
+	pid = strtol(argv[2], &tmp, 10);
+	if (argv[2] == tmp)
+		goto bad_usage;
+
 	attr.sched_ipa_policy = ipa_policy;
 
-	ret = sched_setattr(0, &attr, 0);
+	ret = sched_setattr(pid, &attr, 0);
 	if (ret < 0) {
 		perror("sched_setattr() failed");
 		goto end;
 	}
 
-	ret = execvp(argv[2], argv+2);
-	perror("execvp() failed");
+	return EXIT_SUCCESS;
 
 end:
 	return EXIT_FAILURE;
