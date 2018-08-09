@@ -21,14 +21,8 @@
 
 #define ipanema_assert(x) do{if(!(x)) panic("Error in " #x "\n");} while(0)
 
-static char *name = "oltp";
+static char *name = "oltp_runtime";
 static struct ipanema_module *module;
-
-
-static const int qos_ms = 50;
-static const int qos_limit_ms = 200;
-static ktime_t qos;
-static ktime_t qos_limit;
 
 struct oltp_ipa_process;
 struct oltp_ipa_core;
@@ -39,7 +33,6 @@ struct oltp_ipa_sched_group;
 struct state_info {
 	struct oltp_ipa_process *curr; /* private / unshared */
 	struct ipanema_rq normal; /* public / shared */
-	struct ipanema_rq straggler; /* public / shared */
 };
 
 
@@ -48,9 +41,6 @@ struct state_info {
 // See include/linux/percpu-defs.h for more information.
 DEFINE_PER_CPU_SHARED_ALIGNED(struct state_info, state_info);
 
-enum oltp_rq_id {
-	NORMAL, STRAGGLER
-};
 
 struct oltp_ipa_process {
         enum ipanema_state state; // Internal
@@ -58,7 +48,7 @@ struct oltp_ipa_process {
         struct rb_node node; // Internal
         struct task_struct *task; // Internal
         ktime_t start;
-	enum oltp_rq_id rq_id;
+	ktime_t runtime;
 	/* list_head for balancing */
 	struct list_head list;
 };
@@ -108,12 +98,12 @@ static unsigned int oltp_ipa_nr_topology_levels;
 DEFINE_PER_CPU(struct oltp_ipa_core, core);
 
 static int ipanema_oltp_order_process(struct task_struct *a,
-			       struct task_struct *b)
+				      struct task_struct *b)
 {
 	struct oltp_ipa_process *pa = policy_metadata(a);
 	struct oltp_ipa_process *pb = policy_metadata(b);
 
-        return pb->start - pa->start;
+        return ktime_compare(pa->runtime, pb->runtime);
 }
 
 static void ipa_change_proc(struct oltp_ipa_process *proc,
@@ -309,7 +299,7 @@ static int ipanema_oltp_new_prepare(struct ipanema_policy *policy,
 	if (!idlest)
 		idlest = c;
 	tgt->start = ktime_get();
-	tgt->rq_id = NORMAL;
+	tgt->runtime = ms_to_ktime(0);
 
 	return idlest->id;
 }
@@ -342,26 +332,15 @@ static void ipanema_oltp_detach(struct ipanema_policy *policy,
         kfree(tgt);
 }
 
+static inline void update_runtime(struct oltp_ipa_process *p)
+{
+	ktime_t delta = ktime_sub(ktime_get(), p->start);
+	p->runtime = ktime_add(p->runtime, delta);
+}
+
 static void ipanema_oltp_tick(struct ipanema_policy *policy,
 			      struct process_event *e)
 {
-	struct oltp_ipa_process *tgt = policy_metadata(e->target);
-	struct oltp_ipa_core *c = &ipanema_core(task_cpu(e->target));
-	ktime_t now, latency;
-
-	if (ipanema_state(c->id).normal.nr_tasks == 0)
-		return;
-
-	now = ktime_get();
-	latency = ktime_sub(now, tgt->start);
-	if (ktime_after(latency, qos)) {
-		/* pr_info("%s(pid=%d, cpu=%d): qos=%lld, latency=%lld\n", */
-		/* 	__func__, e->target->pid, c->id, qos, latency); */
-		tgt->rq_id = STRAGGLER;
-                ipa_change_queue(tgt,
-                                 &ipanema_state(c->id).straggler,
-                                 IPANEMA_READY_TICK);
-	}
 }
 
 static void ipanema_oltp_yield(struct ipanema_policy *policy,
@@ -369,15 +348,9 @@ static void ipanema_oltp_yield(struct ipanema_policy *policy,
 {
 	struct oltp_ipa_process *tgt = policy_metadata(e->target);
 	struct oltp_ipa_core *c = &ipanema_core(task_cpu(e->target));
-	struct ipanema_rq *rq;
+	struct ipanema_rq *rq = &ipanema_state(c->id).normal;
 
-	if (tgt->rq_id == STRAGGLER)
-		rq = &ipanema_state(c->id).straggler;
-	else
-		rq = &ipanema_state(c->id).normal;
-
-	/* pr_info("%s(pid=%d, cpu=%d)\n", */
-	/* 	__func__, e->target->pid, c->id); */
+	update_runtime(tgt);
         ipa_change_queue(tgt, rq, IPANEMA_READY);
 }
 
@@ -386,6 +359,7 @@ static void ipanema_oltp_block(struct ipanema_policy *policy,
 {
 	struct oltp_ipa_process *tgt = policy_metadata(e->target);
 
+	update_runtime(tgt);
         ipa_change_queue(tgt, NULL, IPANEMA_BLOCKED);
 }
 
@@ -393,10 +367,8 @@ static int ipanema_oltp_unblock_prepare(struct ipanema_policy *policy,
 					struct process_event *e)
 {
 	struct task_struct *task_15 = e->target;
-	struct oltp_ipa_process *p = policy_metadata(task_15);
 	struct oltp_ipa_sched_domain *sd;
         struct oltp_ipa_core *c, *idlest = NULL;
-	ktime_t now, latency;
 
 	/* remove min_vruntime from previous cpu */
 	c = &ipanema_core(task_cpu(task_15));
@@ -420,15 +392,6 @@ static int ipanema_oltp_unblock_prepare(struct ipanema_policy *policy,
 		idlest = c;
 
 end:
-	/* change NORMAL <-> STRAGGLER if necessary */
-	now = ktime_get();
-	latency = ktime_sub(now, p->start);
-	if (ktime_after(latency, qos_limit)) {
-		p->rq_id = NORMAL;
-		p->start = now;
-	} else if (ktime_after(latency, qos))
-		p->rq_id = STRAGGLER;
-
         return idlest->id;
 }
 
@@ -438,12 +401,7 @@ static void ipanema_oltp_unblock_place(struct ipanema_policy *policy,
 	struct task_struct *p = e->target;
 	struct oltp_ipa_process *tgt = policy_metadata(p);
 	struct oltp_ipa_core *c = &ipanema_core(task_cpu(p));
-	struct ipanema_rq *rq;
-	
-	if (tgt->rq_id == STRAGGLER)
-		rq = &ipanema_state(c->id).straggler;
-	else
-		rq = &ipanema_state(c->id).normal;
+	struct ipanema_rq *rq = &ipanema_state(c->id).normal;
 
         ipa_change_queue_and_core(tgt, rq, IPANEMA_READY, c);
 }
@@ -462,16 +420,11 @@ static void ipanema_oltp_schedule(struct ipanema_policy *policy,
         struct oltp_ipa_process *p;
 
 	task_20 = ipanema_first_task(&ipanema_state(cpu).normal);
-        if (!task_20) {
-		task_20 = ipanema_first_task(&ipanema_state(cpu).straggler);
-		if (!task_20)
-			return;
-	}
+        if (!task_20)
+		return;
 
         p = policy_metadata(task_20);
-	if (p->rq_id == STRAGGLER)
-		p->start = ktime_get();
-	p->rq_id = NORMAL;
+	p->start = ktime_get();
 
         ipa_change_proc(p, &ipanema_state(cpu).curr, IPANEMA_RUNNING);
 }
@@ -549,34 +502,13 @@ static void ipanema_oltp_exit_idle(struct ipanema_policy *policy,
 static void ipanema_oltp_balancing(struct ipanema_policy *policy,
 				   struct core_event *e)
 {
-	struct task_struct *p, *n;
-	struct oltp_ipa_process *pm;
 	struct oltp_ipa_core *c = &ipanema_core(e->target), *victim;
 	struct oltp_ipa_sched_domain *sd;
-	ktime_t now = ktime_get(), latency;
-	struct ipanema_rq *rq_n = &ipanema_state(c->id).normal;
-	struct ipanema_rq *rq_s = &ipanema_state(c->id).straggler;
+	ktime_t now = ktime_get();
 	unsigned long flags;
 	u64 delta;
 
-	/* Put expired stragglers in NORMAL */
 	local_irq_save(flags);
-	ipanema_lock_core(c->id);
-
-	rbtree_postorder_for_each_entry_safe(p, n, &rq_s->root,
-					     ipanema.node_runqueue) {
-		if (p->on_cpu)
-			continue;
-		pm = policy_metadata(p);
-		latency = ktime_sub(now, pm->start);
-		if (ktime_after(latency, qos_limit)) {
-			pm->rq_id = NORMAL;
-			pm->start = now;
-			ipa_change_queue(pm, rq_n, IPANEMA_READY);
-		}
-	}
-
-	ipanema_unlock_core(c->id);
 
 	sd = c->sd;
 	while (sd) {
@@ -617,78 +549,6 @@ static int ipanema_oltp_can_be_default(struct ipanema_policy *policy)
 	return 1;
 }
 
-struct oltp_ipa_attr {
-	int new_req;
-};
-
-static bool ipanema_oltp_checkparam_attr(const struct sched_attr *attr)
-{
-	struct oltp_ipa_attr *oltp_attr = attr->sched_ipa_attr;
-
-	if (!attr->sched_ipa_attr_size)
-		return true;
-
-	if (attr->sched_ipa_attr_size != sizeof(*oltp_attr))
-		return false;
-
-	if (oltp_attr->new_req < 0 ||
-	    oltp_attr->new_req > 1)
-		return false;
-
-	return true;
-}
-
-static bool ipanema_oltp_attr_changed(struct task_struct *p,
-				      const struct sched_attr *attr)
-{
-	struct oltp_ipa_attr *oltp_attr = attr->sched_ipa_attr;
-
-	if (!attr->sched_ipa_attr_size)
-		return false;
-
-	if (oltp_attr->new_req == 1)
-		return true;
-
-	return false;
-}
-
-static void ipanema_oltp_setparam_attr(struct task_struct *p,
-				       const struct sched_attr *attr)
-{
-	struct oltp_ipa_process *tgt = policy_metadata(p);
-	int cpu = task_cpu(p);
-
-	if (!tgt)
-		return;
-
-	tgt->rq_id = NORMAL;
-	tgt->start = ktime_get();
-
-	/* pr_info("%s[pid=%d]\n", __func__, p->pid); */
-
-	switch (tgt->state) {
-	case IPANEMA_RUNNING:
-	case IPANEMA_BLOCKED:
-	case IPANEMA_MIGRATING:
-		break;
-	case IPANEMA_READY:
-		ipa_change_queue(tgt, &ipanema_state(cpu).normal,
-				 IPANEMA_READY);
-		break;
-	case IPANEMA_READY_TICK:
-	case IPANEMA_TERMINATED:
-	case IPANEMA_NOT_QUEUED:
-		pr_warn("%s[pid=%d]: state=%s\n",
-			__func__, p->pid, ipanema_state_to_str(tgt->state));
-		break;
-	}
-}
-
-static void ipanema_oltp_getparam_attr(struct task_struct *p,
-				       struct sched_attr *attr)
-{
-}
-
 struct ipanema_module_routines ipanema_oltp_routines =
 {
 	.get_core_state   = ipanema_oltp_get_core_state,
@@ -713,10 +573,6 @@ struct ipanema_module_routines ipanema_oltp_routines =
         .free_metadata    = ipanema_oltp_free_metadata,
         .can_be_default   = ipanema_oltp_can_be_default,
         .attach           = ipanema_oltp_attach,
-	.checkparam_attr  = ipanema_oltp_checkparam_attr,
-	.setparam_attr    = ipanema_oltp_setparam_attr,
-	.getparam_attr    = ipanema_oltp_getparam_attr,
-	.attr_changed     = ipanema_oltp_attr_changed,
 };
 
 static int init_topology(void)
@@ -947,19 +803,6 @@ static int proc_show(struct seq_file *s, void *p)
 			   pr->start);
         }
 
-	rq = &(ipanema_state(cpu).straggler);
-        seq_printf(s, "\nSTRAGGLER: nr_tasks = %d, state = %s\n",
-		   rq->nr_tasks, ipanema_state_to_str(rq->state));
-	seq_printf(s, " pid  |         state         |    start    \n");
-	seq_printf(s, "------+-----------------------+---------------\n");
-        rbtree_postorder_for_each_entry_safe(pos, n, &rq->root,
-					     ipanema.node_runqueue) {
-		pr = policy_metadata(pos);
-        	seq_printf(s, " %4d | %21s | %lld\n",
-			   pos->pid, ipanema_state_to_str(pr->state),
-			   pr->start);
-        }
-
 	seq_printf(s, "\nTopology:\n");
 	while (sd) {
 		seq_printf(s, "[%*pbl]: ", cpumask_pr_args(sd->cores));
@@ -1026,17 +869,12 @@ int init_module(void)
         struct proc_dir_entry *procdir = NULL;
         char procbuf[10];
 
-	qos = ms_to_ktime(qos_ms);
-	qos_limit = ms_to_ktime(qos_limit_ms);
-        
         /* Initialize scheduler variables with non-const value (function call) */
         for_each_possible_cpu(cpu) {
         	ipanema_core(cpu).id = cpu;
                 /* allocation of ipanema rqs */
 		init_ipanema_rq(&ipanema_state(cpu).normal, cpu, IPANEMA_READY,
 				ipanema_oltp_order_process);
-		init_ipanema_rq(&ipanema_state(cpu).straggler, cpu,
-				IPANEMA_READY, ipanema_oltp_order_process);
         }
 
 	/* build hierarchy with topology */
