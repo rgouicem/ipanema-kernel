@@ -351,7 +351,7 @@ int ipanema_new_prepare(struct process_event *e)
 	 * this event
 	 */
 	read_lock_irqsave(&ipanema_rwlock, flags);
-	policy = p->ipanema_metadata.policy;
+	policy = ipanema_task_policy(p);
 	if (!policy)
 		return -1;
 
@@ -378,7 +378,7 @@ void ipanema_new_place(struct process_event *e)
 
 	lockdep_assert_held(&task_rq(p)->lock);
 
-	policy = p->ipanema_metadata.policy;
+	policy = ipanema_task_policy(p);
 	handler = policy->module->routines->new_place;
 
 	if (handler)
@@ -395,7 +395,7 @@ void ipanema_new_end(struct process_event *e)
 	void (*handler)(struct ipanema_policy *policy_p,
 			struct process_event *e);
 
-	policy = p->ipanema_metadata.policy;
+	policy = ipanema_task_policy(p);
 	handler = policy->module->routines->new_end;
 
 	if (handler)
@@ -419,7 +419,7 @@ void ipanema_tick(struct process_event *e)
 	 */
 	lockdep_assert_held(&rq->lock);
 
-	policy = p->ipanema_metadata.policy;
+	policy = ipanema_task_policy(p);
 	handler = policy->module->routines->tick;
 
 	if (handler)
@@ -443,7 +443,7 @@ void ipanema_yield(struct process_event *e)
 	 */
 	lockdep_assert_held(&rq->lock);
 
-	policy = p->ipanema_metadata.policy;
+	policy = ipanema_task_policy(p);
 	handler = policy->module->routines->yield;
 
 	if (handler)
@@ -467,7 +467,7 @@ void ipanema_block(struct process_event *e)
 	 */
 	lockdep_assert_held(&rq->lock);
 
-	policy = p->ipanema_metadata.policy;
+	policy = ipanema_task_policy(p);
 	handler = policy->module->routines->block;
 
 	if (handler)
@@ -488,7 +488,7 @@ int ipanema_unblock_prepare(struct process_event *e)
 
 	lockdep_assert_held(&p->pi_lock);
 
-	policy = p->ipanema_metadata.policy;
+	policy = ipanema_task_policy(p);
 	handler = policy->module->routines->unblock_prepare;
 
 	/*
@@ -517,7 +517,7 @@ void ipanema_unblock_place(struct process_event *e)
 
 	lockdep_assert_held(&task_rq(p)->lock);
 
-	policy = p->ipanema_metadata.policy;
+	policy = ipanema_task_policy(p);
 	handler = policy->module->routines->unblock_place;
 
 	if (handler)
@@ -536,7 +536,7 @@ void ipanema_unblock_end(struct process_event *e)
 
 	lockdep_assert_held(&p->pi_lock);
 
-	policy = p->ipanema_metadata.policy;
+	policy = ipanema_task_policy(p);
 	handler = policy->module->routines->unblock_end;
 
 	if (handler)
@@ -556,7 +556,7 @@ void ipanema_terminate(struct process_event *e)
 
 	lockdep_assert_held(&rq->lock);
 
-	policy = p->ipanema_metadata.policy;
+	policy = ipanema_task_policy(p);
 	handler = policy->module->routines->terminate;
 
 	if (handler)
@@ -565,7 +565,7 @@ void ipanema_terminate(struct process_event *e)
 		IPA_EMERG_SAFE("%s: WARNING: invalid function pointer!\n",
 			       __func__);
 
-	p->ipanema_metadata.policy = NULL;
+	ipanema_task_policy(p) = NULL;
 	kref_put(&policy->refcount, ipanema_policy_free);
 }
 
@@ -702,10 +702,11 @@ void ipanema_init(void)
 
 struct task_struct *ipanema_get_task_of(void *proc)
 {
-	struct ipanema_metadata *ipanema;
+	struct sched_ipanema_entity *ipanema;
 
-	ipanema = container_of(proc, struct ipanema_metadata, policy_metadata);
-	return container_of(ipanema, struct task_struct, ipanema_metadata);
+	ipanema = container_of(proc, struct sched_ipanema_entity,
+			       policy_metadata);
+	return container_of(ipanema, struct task_struct, ipanema);
 }
 EXPORT_SYMBOL(ipanema_get_task_of);
 
@@ -721,3 +722,45 @@ void init_ipanema_rq(struct ipanema_rq *rq, unsigned int cpu,
 	rq->order_fn = order_fn;
 }
 EXPORT_SYMBOL(init_ipanema_rq);
+
+bool __checkparam_ipanema(const struct sched_attr *attr,
+			  struct ipanema_policy *policy)
+{
+	bool (*handler)(const struct sched_attr *attr);
+
+	handler = policy->module->routines->checkparam_attr;
+	if (handler)
+		return handler(attr);
+	return true;
+}
+
+void __setparam_ipanema(struct task_struct *p, const struct sched_attr *attr)
+{
+	void (*handler)(struct task_struct *p, const struct sched_attr *attr);
+	struct ipanema_policy *policy = ipanema_task_policy(p);
+
+	handler =  policy->module->routines->setparam_attr;
+	if (handler)
+		handler(p, attr);
+}
+
+void __getparam_ipanema(struct task_struct *p, struct sched_attr *attr)
+{
+	void (*handler)(struct task_struct *p, struct sched_attr *attr);
+	struct ipanema_policy *policy = ipanema_task_policy(p);
+
+	handler =  policy->module->routines->getparam_attr;
+	if (handler)
+		handler(p, attr);
+}
+
+bool ipanema_attr_changed(struct task_struct *p, const struct sched_attr *attr)
+{
+	bool (*handler)(struct task_struct *p, const struct sched_attr *attr);
+	struct ipanema_policy *policy = ipanema_task_policy(p);
+
+	handler =  policy->module->routines->attr_changed;
+	if (handler)
+		return handler(p, attr);
+	return false;
+}

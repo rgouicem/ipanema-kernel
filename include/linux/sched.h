@@ -555,11 +555,13 @@ ipanema_state_to_str(const enum ipanema_state s)
 
 struct ipanema_rq;
 
-struct ipanema_metadata {
+struct sched_ipanema_entity {
 	struct rb_node node_runqueue;
 	struct list_head ipa_tasks;
 
 	int just_yielded;
+	int nopreempt;
+
 	enum ipanema_state state;
 	struct ipanema_rq *rq;
 
@@ -619,6 +621,7 @@ struct task_struct {
 	struct task_group		*sched_task_group;
 #endif
 	struct sched_dl_entity		dl;
+	struct sched_ipanema_entity     ipanema;
 
 #ifdef CONFIG_PREEMPT_NOTIFIERS
 	/* List of struct preempt_notifier: */
@@ -1125,11 +1128,6 @@ struct task_struct {
 #ifdef CONFIG_MMU
 	struct task_struct		*oom_reaper_list;
 #endif
-
-	/* Used by SCHED_IPANEMA */
-	struct ipanema_metadata ipanema_metadata;
-	int nopreempt;
-	int switching_classes;
 
 #ifdef CONFIG_VMAP_STACK
 	struct vm_struct		*stack_vm_area;

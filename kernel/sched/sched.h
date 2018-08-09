@@ -269,12 +269,22 @@ extern void __setparam_dl(struct task_struct *p, const struct sched_attr *attr);
 extern void __getparam_dl(struct task_struct *p, struct sched_attr *attr);
 extern bool __checkparam_dl(const struct sched_attr *attr);
 extern void __dl_clear_params(struct task_struct *p);
-extern bool dl_param_changed(struct task_struct *p, const struct sched_attr *attr);
+extern bool dl_param_changed(struct task_struct *p,
+			     const struct sched_attr *attr);
 extern int dl_task_can_attach(struct task_struct *p,
 			      const struct cpumask *cs_cpus_allowed);
 extern int dl_cpuset_cpumask_can_shrink(const struct cpumask *cur,
 					const struct cpumask *trial);
 extern bool dl_cpu_busy(unsigned int cpu);
+
+extern bool __checkparam_ipanema(const struct sched_attr *attr,
+				 struct ipanema_policy *policy);
+extern void __setparam_ipanema(struct task_struct *p,
+			       const struct sched_attr *attr);
+extern void __getparam_ipanema(struct task_struct *p,
+			       struct sched_attr *attr);
+extern bool ipanema_attr_changed(struct task_struct *p,
+				 const struct sched_attr *attr);
 
 #ifdef CONFIG_CGROUP_SCHED
 
@@ -1389,6 +1399,10 @@ extern const u32 sched_prio_to_wmult[40];
  * ENQUEUE_REPLENISH - CBS (replenish runtime and postpone deadline)
  * ENQUEUE_MIGRATED  - the task was migrated during wakeup
  *
+ * The next 2 flags are only used by the ipanema schedclass for now:
+ * SWITCHING_CLASS   - the task is switching scheduling class
+ * ATTR_CHANGE       - the task is changing its attributes (sched_setattr)
+ *
  */
 
 #define DEQUEUE_SLEEP		0x01
@@ -1408,6 +1422,9 @@ extern const u32 sched_prio_to_wmult[40];
 #else
 #define ENQUEUE_MIGRATED	0x00
 #endif
+
+#define SWITCHING_CLASS         0x100
+#define ATTR_CHANGE             0x200
 
 #define RETRY_TASK		((void *)-1UL)
 

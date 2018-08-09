@@ -19,8 +19,6 @@
 
 #ifdef __KERNEL__
 
-#define policy_metadata(t) (t)->ipanema_metadata.policy_metadata
-
 #ifndef IPA_DBG
 /* Prone to deadlocks if rq lock is held. */
 #define IPA_DBG(msg, args...)						       \
@@ -132,6 +130,14 @@ struct ipanema_module_routines {
 	void (*core_exit)(struct ipanema_policy *policy,
 			  struct core_event *e);
 
+	bool (*checkparam_attr)(const struct sched_attr *attr);
+	void (*setparam_attr)(struct task_struct *p,
+			      const struct sched_attr *attr);
+	void (*getparam_attr)(struct task_struct *p,
+			      struct sched_attr *attr);
+	bool (*attr_changed)(struct task_struct *p,
+			     const struct sched_attr *attr);
+
 	int (*init)(struct ipanema_policy *policy);
 	int (*free_metadata)(struct ipanema_policy *policy);
 
@@ -144,7 +150,6 @@ struct ipanema_module {
 	char *name;
 	struct ipanema_module_routines *routines;
 	struct module *kmodule;
-	/* refcount ? */
 };
 
 /* topology level types, used as flags in struct topology_level */
@@ -171,9 +176,10 @@ int ipanema_remove_module(struct ipanema_module *module);
 int count(enum ipanema_state state, unsigned int cpu);
 
 #define ipanema_rq_lock(p)         (&task_rq(p)->lock)
-#define ipanema_task_state(p)      ((p)->ipanema_metadata.state)
-#define ipanema_task_rq(p)         ((p)->ipanema_metadata.rq)
-#define ipanema_task_policy(p)     ((p)->ipanema_metadata.policy)
+#define policy_metadata(t)         ((t)->ipanema.policy_metadata)
+#define ipanema_task_state(p)      ((p)->ipanema.state)
+#define ipanema_task_rq(p)         ((p)->ipanema.rq)
+#define ipanema_task_policy(p)     ((p)->ipanema.policy)
 
 /*
  * Accessors used in policy modules

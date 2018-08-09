@@ -13,16 +13,16 @@ _insert_remove_search_process_in_rbtree(struct rb_root *root,
 
 	if (add == -1) {
 		/* Remove */
-		rb_erase(&data->ipanema_metadata.node_runqueue, root);
-		memset(&data->ipanema_metadata.node_runqueue, 0,
-		       sizeof(data->ipanema_metadata.node_runqueue));
+		rb_erase(&data->ipanema.node_runqueue, root);
+		memset(&data->ipanema.node_runqueue, 0,
+		       sizeof(data->ipanema.node_runqueue));
 		return data;
 	}
 
 	/* Figure out where to put new node */
 	while (*new) {
 		this = container_of(*new, struct task_struct,
-				    ipanema_metadata.node_runqueue);
+				    ipanema.node_runqueue);
 
 		parent = *new;
 		cmp = order(data, this);
@@ -43,9 +43,9 @@ _insert_remove_search_process_in_rbtree(struct rb_root *root,
 	if (add == 1) {
 		if (data != this) {
 			/* Insert */
-			rb_link_node(&data->ipanema_metadata.node_runqueue,
+			rb_link_node(&data->ipanema.node_runqueue,
 				     parent, new);
-			rb_insert_color(&data->ipanema_metadata.node_runqueue,
+			rb_insert_color(&data->ipanema.node_runqueue,
 					root);
 		}
 
@@ -122,7 +122,7 @@ struct task_struct *ipanema_first_task(struct ipanema_rq *rq)
 
 	while (new) {
 		result = container_of(new, struct task_struct,
-				      ipanema_metadata.node_runqueue);
+				      ipanema.node_runqueue);
 		new = new->rb_right;
 	}
 
