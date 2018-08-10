@@ -6,6 +6,7 @@ obj-m += cfs_no_wwc.o
 obj-m += ule_wwc.o
 obj-m += ipanema_template.o
 obj-m += batch.o
+obj-m += batch_blocked.o
 obj-m += oltp.o
 
 KERNEL=../../
