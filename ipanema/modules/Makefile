@@ -7,7 +7,6 @@ obj-m += ule_wwc.o
 obj-m += ipanema_template.o
 obj-m += batch.o
 obj-m += oltp.o
-obj-m += oltp_runtime.o
 
 KERNEL=../../
 
