@@ -308,7 +308,7 @@ static int migrate_from_to(struct cfs_ipa_core *busiest,
 {
 	struct task_struct *pos, *n;
         LIST_HEAD(tasks);
-        struct ipanema_metadata * imd;
+        struct sched_ipanema_entity * imd;
         struct cfs_ipa_process *t;
         int dbg_cpt = 0, ret, self_cload;
 	unsigned long flags;
@@ -320,7 +320,7 @@ static int migrate_from_to(struct cfs_ipa_core *busiest,
 	self_cload = self_38->cload;
         rbtree_postorder_for_each_entry_safe(pos, n,
 					     &ipanema_state(busiest->id).ready.root,
-					     ipanema_metadata.node_runqueue) {
+					     ipanema.node_runqueue) {
         	t = policy_metadata(pos);
                 if (pos->on_cpu)
                 	continue;
@@ -328,7 +328,7 @@ static int migrate_from_to(struct cfs_ipa_core *busiest,
                 if (env->busiest_grp_runnable > cpumask_weight(busiest_grp->cores) &&
 		    (env->thief_grp_runnable < cpumask_weight(thief_grp->cores) ||
 		     env->busiest_grp_cload - env->thief_grp_cload >= t->load)) {
-                	list_add(&pos->ipanema_metadata.ipa_tasks, &tasks);
+                	list_add(&pos->ipanema.ipa_tasks, &tasks);
 			t->vruntime -= busiest->min_vruntime;
                         ipa_change_queue_and_core(t, NULL, IPANEMA_MIGRATING,
                                                   self_38);
@@ -351,9 +351,9 @@ static int migrate_from_to(struct cfs_ipa_core *busiest,
         /* Add them to my queue */
         ipanema_lock_core(self_38->id);
         while (!list_empty(&tasks)) {
-        	imd = list_first_entry(&tasks, struct ipanema_metadata,
+        	imd = list_first_entry(&tasks, struct sched_ipanema_entity,
 				       ipa_tasks);
-                pos = container_of(imd, struct task_struct, ipanema_metadata);
+                pos = container_of(imd, struct task_struct, ipanema);
 		t = policy_metadata(pos);
 		t->vruntime += self_38->min_vruntime;
                 ipa_change_queue(t, &ipanema_state(self_38->id).ready,
@@ -1215,7 +1215,7 @@ static int proc_show(struct seq_file *s, void *p)
         seq_printf(s, "READY: ");
         rbtree_postorder_for_each_entry_safe(pos, n,
 					     &(ipanema_state(cpu).ready).root,
-					     ipanema_metadata.node_runqueue) {
+					     ipanema.node_runqueue) {
         	curr_proc = (struct cfs_ipa_process *)policy_metadata(pos);
         	load_sum += curr_proc->load;
         	seq_printf(s, "%d (%d) -> ", pos->pid, curr_proc->load);

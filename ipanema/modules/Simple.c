@@ -717,7 +717,7 @@ static int proc_show(struct seq_file *s, void *p)
 	seq_printf(s, "READY: ");
 	rbtree_postorder_for_each_entry_safe(pos, n,
 					     &(ipanema_state(cpu).ready).root,
-					     ipanema_metadata.node_runqueue) {
+					     ipanema.node_runqueue) {
 		curr_proc = (struct Simple_ipa_process *)policy_metadata(pos);
 		load_sum += curr_proc->load;
 		seq_printf(s, "%d (%d) -> ", pos->pid, curr_proc->load);

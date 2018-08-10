@@ -75,6 +75,8 @@ struct sched_attr {
 
 	/* SCHED_IPANEMA */
 	__u32 sched_ipa_policy;
+	__u32 sched_ipa_attr_size;
+	void *sched_ipa_attr;
 };
 
 #endif /* _UAPI_LINUX_SCHED_TYPES_H */

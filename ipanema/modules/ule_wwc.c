@@ -244,7 +244,7 @@ static int migrate_from_to(struct ule_wwc_ipa_core *busiest,
 {
 	struct task_struct *pos, *n;
         LIST_HEAD(tasks);
-        struct ipanema_metadata *imd;
+        struct sched_ipanema_entity *imd;
         struct ule_wwc_ipa_process *t;
         int dbg_cpt = 0, ret, thief_cload;
 	unsigned long flags;
@@ -257,7 +257,7 @@ static int migrate_from_to(struct ule_wwc_ipa_core *busiest,
 	// go through realtime rq
         rbtree_postorder_for_each_entry_safe(pos, n,
 					     &ipanema_state(busiest->id).realtime.root,
-					     ipanema_metadata.node_runqueue) {
+					     ipanema.node_runqueue) {
         	t = policy_metadata(pos);
                 if (pos->on_cpu)
                 	continue;
@@ -265,7 +265,7 @@ static int migrate_from_to(struct ule_wwc_ipa_core *busiest,
 		thief->balanced = true;
 		busiest->balanced = true;
                 if (busiest->cload - thief_cload >= 2) {
-                	list_add(&pos->ipanema_metadata.ipa_tasks, &tasks);
+                	list_add(&pos->ipanema.ipa_tasks, &tasks);
                         ipa_change_queue_and_core(t, NULL, MIGRATING_STATE,
                                                   thief);
                         dbg_cpt = dbg_cpt + 1;
@@ -279,7 +279,7 @@ static int migrate_from_to(struct ule_wwc_ipa_core *busiest,
 	// go through timeshare rq
 	rbtree_postorder_for_each_entry_safe(pos, n,
 					     &ipanema_state(busiest->id).timeshare.root,
-					     ipanema_metadata.node_runqueue) {
+					     ipanema.node_runqueue) {
         	t = policy_metadata(pos);
                 if (pos->on_cpu)
                 	continue;
@@ -287,7 +287,7 @@ static int migrate_from_to(struct ule_wwc_ipa_core *busiest,
 		thief->balanced = true;
 		busiest->balanced = true;
                 if (busiest->cload - thief_cload >= 2) {
-                	list_add(&pos->ipanema_metadata.ipa_tasks, &tasks);
+                	list_add(&pos->ipanema.ipa_tasks, &tasks);
                         ipa_change_queue_and_core(t, NULL, MIGRATING_STATE,
                                                   thief);
                         dbg_cpt = dbg_cpt + 1;
@@ -305,9 +305,9 @@ unlock_busiest:
         /* Add them to my queue */
         ipanema_lock_core(thief->id);
         while (!list_empty(&tasks)) {
-        	imd = list_first_entry(&tasks, struct ipanema_metadata,
+        	imd = list_first_entry(&tasks, struct sched_ipanema_entity,
 				       ipa_tasks);
-                pos = container_of(imd, struct task_struct, ipanema_metadata);
+                pos = container_of(imd, struct task_struct, ipanema);
 		t = policy_metadata(pos);
 		if (t->prio == REGULAR)
 			ipa_change_queue(t, &ipanema_state(thief->id).timeshare,
@@ -1017,7 +1017,7 @@ static int proc_show(struct seq_file *s, void *p)
         seq_printf(s, "rq: ");
         rbtree_postorder_for_each_entry_safe(pos, n,
 					     &(ipanema_state(cpu).realtime).root,
-					     ipanema_metadata.node_runqueue) {
+					     ipanema.node_runqueue) {
 		curr_proc = (struct ule_wwc_ipa_process *)policy_metadata(pos);
 		load_sum += curr_proc->load;
 		seq_printf(s, "%d (%d) -> ", pos->pid, curr_proc->load);
@@ -1031,7 +1031,7 @@ static int proc_show(struct seq_file *s, void *p)
         seq_printf(s, "rq: ");
         rbtree_postorder_for_each_entry_safe(pos, n,
 					     &(ipanema_state(cpu).timeshare).root,
-					     ipanema_metadata.node_runqueue) {
+					     ipanema.node_runqueue) {
 		curr_proc = (struct ule_wwc_ipa_process *)policy_metadata(pos);
 		load_sum += curr_proc->load;
 		seq_printf(s, "%d (%d) -> ", pos->pid, curr_proc->load);
