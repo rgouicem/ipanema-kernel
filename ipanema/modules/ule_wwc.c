@@ -6,6 +6,7 @@
 
 /* checksum = 13410 */
 #define LINUX
+#define pr_fmt(fmt) "ipanema[" KBUILD_MODNAME "]: " fmt
 
 #include <linux/delay.h>
 #include <linux/ipanema.h>
@@ -332,8 +333,9 @@ unlock_busiest:
 static bool can_steal_core(struct ule_wwc_ipa_core *tgt,
 			   struct ule_wwc_ipa_core *thief)
 {
-	return tgt->balanced ? false :
-		thief->balanced ? false : tgt->cload - thief->cload >= 2;
+	return !tgt->balanced &&
+		!thief->balanced &&
+		tgt->cload - thief->cload >= 2;
 }
 
 static struct ule_wwc_ipa_core *select_core(struct ipanema_policy *policy,
@@ -451,9 +453,6 @@ static int ipanema_ule_wwc_new_prepare(struct ipanema_policy *policy,
 	}
 	tgt->last_core = idlest->id;
 
-	/* pr_info("%s(%d): -> cpu%d\n", */
-	/* 	__FUNCTION__, task_15->pid, idlest->id); */
-
 	return idlest->id;
 }
 
@@ -469,9 +468,6 @@ static void ipanema_ule_wwc_new_place(struct ipanema_policy *policy,
         ipa_change_queue_and_core(tgt,
                                   &ipanema_state(c->id).timeshare,
                                   READY_STATE, c);
-
-	/* pr_info("%s(%d): -> cpu%d\n", */
-	/* 	__FUNCTION__, tgt->task->pid, c->id); */
 }
 
 static void ipanema_ule_wwc_new_end(struct ipanema_policy *policy,
@@ -540,9 +536,6 @@ static void ipanema_ule_wwc_block(struct ipanema_policy *policy,
         ipa_change_queue(tgt, NULL, BLOCKED_STATE);
 	smp_wmb();
 	c->cload -= old_load;
-
-	/* pr_info("%s(%d): -> cpu%d\n", */
-	/* 	__FUNCTION__, tgt->task->pid, c->id); */
 }
 
 static struct ule_wwc_ipa_core *pickup_core(struct ipanema_policy *policy,
@@ -720,14 +713,12 @@ static void ipanema_ule_wwc_balancing(struct ipanema_policy *policy,
 	sched_monitor_trace(PERIODIC_BALANCE_BEG, e->target,
 			    current, 0, 0);
 
-	for_each_cpu_and(cpu, cstate_info.active_cores,
-			 &policy->allowed_cores) {
+	for_each_cpu(cpu, &policy->allowed_cores) {
 		c = &ipanema_core(cpu);
 		c->balanced = false;
 	}
 
-	for_each_cpu_and(cpu, cstate_info.active_cores,
-			 &policy->allowed_cores) {
+	for_each_cpu(cpu, &policy->allowed_cores) {
 		c = &ipanema_core(cpu);
 		steal_for_dom(policy, c, NULL);
 	}
