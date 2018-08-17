@@ -1399,9 +1399,11 @@ extern const u32 sched_prio_to_wmult[40];
  * ENQUEUE_REPLENISH - CBS (replenish runtime and postpone deadline)
  * ENQUEUE_MIGRATED  - the task was migrated during wakeup
  *
- * The next 2 flags are only used by the ipanema schedclass for now:
+ * The next flags are only used by the ipanema sched class for now:
  * SWITCHING_CLASS   - the task is switching scheduling class
  * ATTR_CHANGE       - the task is changing its attributes (sched_setattr)
+ * OUSTED            - the task is migrated because it cannot stay on its
+ *                     current cpu (set_cpus_allowed())
  *
  */
 
@@ -1425,6 +1427,7 @@ extern const u32 sched_prio_to_wmult[40];
 
 #define SWITCHING_CLASS         0x100
 #define ATTR_CHANGE             0x200
+#define OUSTED                  0x400
 
 #define RETRY_TASK		((void *)-1UL)
 

@@ -6,6 +6,7 @@
 
 /* checksum = 13410 */
 #define LINUX
+#define pr_fmt(fmt) "ipanema[" KBUILD_MODNAME "]: " fmt
 
 #include <linux/delay.h>
 #include <linux/ipanema.h>
@@ -280,6 +281,9 @@ static int migrate_from_to(struct cfs_ipa_core *busiest,
         	t = policy_metadata(pos);
                 if (pos->on_cpu)
                 	continue;
+
+		if (!cpumask_test_cpu(self_38->id, &pos->cpus_allowed))
+			continue;
                 
                 if ((busiest->cload - self_cload) >= (2 * t->load)) {
                 	list_add(&pos->ipanema.ipa_tasks, &tasks);
@@ -588,6 +592,10 @@ static int ipanema_cfs_new_prepare(struct ipanema_policy *policy,
 	sg = find_idlest_group(policy, sd);
 	idlest = find_idlest_cpu_group(policy, sg);
 
+	/* if thread cannot be on this cpu, choose any good cpu */
+	if (!cpumask_test_cpu(idlest->id, &task_15->cpus_allowed))
+		idlest = &ipanema_core(cpumask_any_and(&task_15->cpus_allowed,
+						       &policy->allowed_cores));
 	/* should never happen ? */
 	if (!idlest)
 		idlest = c;
@@ -733,6 +741,11 @@ static int ipanema_cfs_unblock_prepare(struct ipanema_policy *policy,
 		idlest = c;
 
 end:
+	/* if thread cannot be on this cpu, choose any good cpu */
+	if (!cpumask_test_cpu(idlest->id, &task_15->cpus_allowed))
+		idlest = &ipanema_core(cpumask_any_and(&task_15->cpus_allowed,
+						       &policy->allowed_cores));
+
 	/* add min_vruntime from new cpu */
 	p->vruntime += idlest->min_vruntime;
 

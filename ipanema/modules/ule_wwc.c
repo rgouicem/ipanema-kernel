@@ -263,6 +263,9 @@ static int migrate_from_to(struct ule_wwc_ipa_core *busiest,
                 if (pos->on_cpu)
                 	continue;
 
+		if (!cpumask_test_cpu(thief->id, &pos->cpus_allowed))
+			continue;
+
 		thief->balanced = true;
 		busiest->balanced = true;
                 if (busiest->cload - thief_cload >= 2) {
@@ -284,6 +287,9 @@ static int migrate_from_to(struct ule_wwc_ipa_core *busiest,
         	t = policy_metadata(pos);
                 if (pos->on_cpu)
                 	continue;
+
+		if (!cpumask_test_cpu(thief->id, &pos->cpus_allowed))
+			continue;
 
 		thief->balanced = true;
 		busiest->balanced = true;
@@ -433,7 +439,7 @@ static int ipanema_ule_wwc_new_prepare(struct ipanema_policy *policy,
 	cpumask_clear(&mask);
 	c = &ipanema_core(task_cpu(task_15));
 	idlest = c;
-	for_each_cpu(cpu, &policy->allowed_cores) {
+	for_each_cpu_and(cpu, &policy->allowed_cores, &task_15->cpus_allowed) {
 		c = &ipanema_core(cpu);
 		if (c->cload <= idlest->cload)
 			cpumask_set_cpu(cpu, &mask);
@@ -599,6 +605,12 @@ static int ipanema_ule_wwc_unblock_prepare(struct ipanema_policy *policy,
 	struct ule_wwc_ipa_core *idlest = NULL;
 
 	idlest = pickup_core(policy, p);
+	
+	/* if thread cannot be on this cpu, choose any good cpu */
+	if (!cpumask_test_cpu(idlest->id, &task_15->cpus_allowed))
+		idlest = &ipanema_core(cpumask_any_and(&task_15->cpus_allowed,
+						       &policy->allowed_cores));
+
 	p->slptime = ktime_sub(ktime_get(), p->last_blocked);
 
         return idlest->id;
@@ -646,10 +658,12 @@ static void ipanema_ule_wwc_schedule(struct ipanema_policy *policy,
 {
 	struct task_struct *task_20 = NULL;
         struct ule_wwc_ipa_process *p;
+	struct ipanema_rq *rq = &ipanema_state(cpu).realtime;
 
-	task_20 = ipanema_first_task(&ipanema_state(cpu).realtime);
+	task_20 = ipanema_first_task(rq);
         if (!task_20) {
-		task_20 = ipanema_first_task(&ipanema_state(cpu).timeshare);
+		rq = &ipanema_state(cpu).timeshare;
+		task_20 = ipanema_first_task(rq);
 		if (!task_20)
 			return;
 	}
@@ -658,6 +672,13 @@ static void ipanema_ule_wwc_schedule(struct ipanema_policy *policy,
 	p->last_schedule = ktime_get();
 	p->last_core = cpu;
 	p->slice = get_slice(p);
+
+	if (task_cpu(task_20) != cpu ||
+	    task_cpu(task_20) != rq->cpu ||
+	    cpu != rq->cpu)
+		pr_warn("%s(pid=%d): task_cpu()=%d ; cpu=%d ; rq->cpu=%d\n",
+			__func__, task_20->pid, task_cpu(task_20), cpu,
+			rq->cpu);
 
         ipa_change_proc(p, &ipanema_state(cpu).current_0, CURRENT_0_STATE);
 }

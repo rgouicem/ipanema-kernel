@@ -1,3 +1,5 @@
+#define pr_fmt(fmt) "ipanema[" KBUILD_MODNAME "]: " fmt
+
 #include <linux/delay.h>
 #include <linux/ipanema.h>
 #include <linux/ipanema_rbtree.h>
@@ -127,7 +129,10 @@ static int ipanema_template_new_prepare(struct ipanema_policy *policy,
 	tgt->id = p->pid;
 
 	/* Choose a destination core */
-	dst = task_cpu(p);
+	if (cpumask_test_cpu(task_cpu(p), &p->cpus_allowed))
+		dst = task_cpu(p);
+	else
+		dst = cpumask_any_and(&p->cpus_allowed, &policy->allowed_cores);
 
         return dst;
 }
@@ -281,7 +286,10 @@ static int ipanema_template_unblock_prepare(struct ipanema_policy *policy,
 {
 	struct task_struct *p = e->target;
 
-	return task_cpu(p);
+	if (cpumask_test_cpu(task_cpu(p), &p->cpus_allowed))
+		return task_cpu(p);
+
+	return cpumask_any_and(&policy->allowed_cores, &p->cpus_allowed);
 }
 
 /**
@@ -443,6 +451,9 @@ static void ipanema_template_balancing(struct ipanema_policy *policy,
 			break;
 		if (ipanema_task_state(p) != IPANEMA_READY)
 			break;
+
+		if (!cpumask_test_cpu(busiest, &p->cpus_allowed))
+			continue;
 
 		tgt = policy_metadata(p);
 		list_add_tail(&tgt->list, &stolen_tasks);

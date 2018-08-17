@@ -198,6 +198,9 @@ static unsigned int detach_tasks(struct ipanema_rq *rq, int nr,
 		if (ipanema_task_state(p) != IPANEMA_READY)
 			continue;
 
+		if (!cpumask_test_cpu(next_cpu, &p->cpus_allowed))
+			continue;
+
 		tgt = policy_metadata(p);
 
 		list_add_tail(&tgt->list, list);
@@ -304,6 +307,11 @@ static int ipanema_oltp_new_prepare(struct ipanema_policy *policy,
 		sd = sd->parent;
 	}
 	idlest = find_idlest_cpu(policy, sd);
+
+	/* if thread cannot be on this cpu, choose any good cpu */
+	if (!cpumask_test_cpu(idlest->id, &task_15->cpus_allowed))
+		idlest = &ipanema_core(cpumask_any_and(&task_15->cpus_allowed,
+						       &policy->allowed_cores));
 
 	/* should never happen ? */
 	if (!idlest)
@@ -420,6 +428,11 @@ static int ipanema_oltp_unblock_prepare(struct ipanema_policy *policy,
 		idlest = c;
 
 end:
+	/* if thread cannot be on this cpu, choose any good cpu */
+	if (!cpumask_test_cpu(idlest->id, &task_15->cpus_allowed))
+		idlest = &ipanema_core(cpumask_any_and(&task_15->cpus_allowed,
+						       &policy->allowed_cores));
+
 	/* change NORMAL <-> STRAGGLER if necessary */
 	now = ktime_get();
 	latency = ktime_sub(now, p->start);

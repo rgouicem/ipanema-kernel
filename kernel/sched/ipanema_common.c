@@ -214,6 +214,14 @@ void change_state(struct task_struct *p, enum ipanema_state next_state,
 	    cpu_rq(prev_cpu)->nr_running &&
 	    prev_cpu == next_cpu)
 		resched_curr(cpu_rq(prev_cpu));
+
+	if (task_cpu(p) != next_cpu ||
+	    (next_rq && task_cpu(p) != next_rq->cpu)) {
+		pr_warn("[WARN] Discrepency with task %d (task_cpu()=%d, next_cpu=%d, next_rq->cpu=%d)\n",
+			p->pid, task_cpu(p), next_cpu,
+			next_rq ? next_rq->cpu : -1);
+		dump_stack();
+	}
 }
 EXPORT_SYMBOL(change_state);
 
@@ -262,7 +270,7 @@ static void enqueue_task_ipanema(struct rq *rq,
 	 * We are in the middle of a migration. We don't need to do anything,
 	 * just update rq->nr_running/count_ready
 	 */
-	if (task_on_rq_migrating(p))
+	if (task_on_rq_migrating(p) && !(flags & OUSTED))
 		goto end;
 
 	/* The thread is switching to SCHED_IPANEMA class,
@@ -313,8 +321,14 @@ static void enqueue_task_ipanema(struct rq *rq,
 	 * try_to_wake_up(), which sets the task's state to TASK_WAKING and
 	 * then calls enqueue_task(). Therefore, we're only in the presence of
 	 * an true unblock() if the state is TASK_WAKING.
+	 *
+	 * We also check for the OUSTED flag and TASK_ON_RQ_MIGRATING to
+	 * simulate a block/unblock pair when a thread is kicked out from its
+	 * cpu. It will be placed on a cpu handled by the policy and authorized
+	 * for this thread.
 	 */
-	if (p->state == TASK_WAKING) {
+	if (p->state == TASK_WAKING ||
+	    (flags & OUSTED && task_on_rq_migrating(p))) {
 		/*
 		 * If unblock_prepare() chose an IDLE cpu, we must call the
 		 * exit_idle() handler to wake it up on the policy
@@ -382,7 +396,7 @@ static void dequeue_task_ipanema(struct rq *rq,
 	 * We are in the middle of a migration. We don't need to do anything,
 	 * just update rq->nr_running/count_ready
 	 */
-	if (task_on_rq_migrating(p))
+	if (task_on_rq_migrating(p) && !(flags & OUSTED))
 		goto end;
 
 	/*
@@ -403,11 +417,17 @@ static void dequeue_task_ipanema(struct rq *rq,
 	 *
 	 * We add TASK_KILLABLE to make sure that all received signals are
 	 * handled correctly.
+	 *
+	 * We also check for the OUSTED flag and TASK_ON_RQ_MIGRATING to
+	 * simulate a block/unblock pair when a thread is kicked out from its
+	 * cpu. It will be placed on a cpu handled by the policy and authorized
+	 * for this thread.
 	 */
 	if (p->state & TASK_INTERRUPTIBLE ||
 	    p->state & TASK_UNINTERRUPTIBLE ||
 	    p->state & TASK_STOPPED ||
-	    p->state & TASK_KILLABLE) {
+	    p->state & TASK_KILLABLE ||
+	    (flags & OUSTED && task_on_rq_migrating(p))) {
 		ipanema_block(&e);
 		goto end;
 	}

@@ -940,7 +940,7 @@ static struct rq *move_queued_task(struct rq *rq, struct rq_flags *rf,
 	lockdep_assert_held(&rq->lock);
 
 	p->on_rq = TASK_ON_RQ_MIGRATING;
-	dequeue_task(rq, p, DEQUEUE_NOCLOCK);
+	dequeue_task(rq, p, DEQUEUE_NOCLOCK | OUSTED);
 	set_task_cpu(p, new_cpu);
 	rq_unlock(rq, rf);
 
@@ -948,7 +948,7 @@ static struct rq *move_queued_task(struct rq *rq, struct rq_flags *rf,
 
 	rq_lock(rq, rf);
 	BUG_ON(task_cpu(p) != new_cpu);
-	enqueue_task(rq, p, 0);
+	enqueue_task(rq, p, OUSTED);
 	p->on_rq = TASK_ON_RQ_QUEUED;
 	check_preempt_curr(rq, p, 0);
 
@@ -1089,6 +1089,7 @@ static int __set_cpus_allowed_ptr(struct task_struct *p,
 				  const struct cpumask *new_mask, bool check)
 {
 	const struct cpumask *cpu_valid_mask = cpu_active_mask;
+	struct cpumask mask;
 	unsigned int dest_cpu;
 	struct rq_flags rf;
 	struct rq *rq;
@@ -1121,6 +1122,21 @@ static int __set_cpus_allowed_ptr(struct task_struct *p,
 		goto out;
 	}
 
+	cpumask_copy(&mask, cpu_valid_mask);
+	/*
+	 * If p is running an ipanema policy, new_mask and the policy's allowed
+	 * cpumask must intersect. We also update the cpu_valid_mask accordingly
+	 */
+	if (task_has_ipanema_policy(p)) {
+		cpumask_and(&mask, cpu_valid_mask,
+			    &p->ipanema.policy->allowed_cores);
+		if (!cpumask_intersects(new_mask,
+					&p->ipanema.policy->allowed_cores)) {
+			ret = -EINVAL;
+			goto out;
+		}
+	}
+
 	do_set_cpus_allowed(p, new_mask);
 
 	if (p->flags & PF_KTHREAD) {
@@ -1137,7 +1153,7 @@ static int __set_cpus_allowed_ptr(struct task_struct *p,
 	if (cpumask_test_cpu(task_cpu(p), new_mask))
 		goto out;
 
-	dest_cpu = cpumask_any_and(cpu_valid_mask, new_mask);
+	dest_cpu = cpumask_any_and(&mask, new_mask);
 	if (task_running(rq, p) || p->state == TASK_WAKING) {
 		struct migration_arg arg = { p, dest_cpu };
 		/* Need help from migration thread: drop lock and wait. */
@@ -1200,6 +1216,12 @@ void set_task_cpu(struct task_struct *p, unsigned int new_cpu)
 #endif
 
 	trace_sched_migrate_task(p, new_cpu);
+
+	if (unlikely(strncmp(p->comm, "mpiexec", 7) == 0)) {
+		pr_warn("[WARN] %s(pid=%d, comm=%s): cpu%d -> cpu%d\n",
+			__func__, p->pid, p->comm, task_cpu(p), new_cpu);
+		dump_stack();
+	}
 
 	if (task_cpu(p) != new_cpu) {
 		if (p->sched_class->migrate_task_rq)
