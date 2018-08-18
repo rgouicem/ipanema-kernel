@@ -1217,12 +1217,6 @@ void set_task_cpu(struct task_struct *p, unsigned int new_cpu)
 
 	trace_sched_migrate_task(p, new_cpu);
 
-	if (unlikely(strncmp(p->comm, "mpiexec", 7) == 0)) {
-		pr_warn("[WARN] %s(pid=%d, comm=%s): cpu%d -> cpu%d\n",
-			__func__, p->pid, p->comm, task_cpu(p), new_cpu);
-		dump_stack();
-	}
-
 	if (task_cpu(p) != new_cpu) {
 		if (p->sched_class->migrate_task_rq)
 			p->sched_class->migrate_task_rq(p);
