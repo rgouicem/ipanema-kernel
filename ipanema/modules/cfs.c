@@ -6,6 +6,7 @@
 
 /* checksum = 13410 */
 #define LINUX
+#define pr_fmt(fmt) "ipanema[" KBUILD_MODNAME "]: " fmt
 
 #include <linux/delay.h>
 #include <linux/ipanema.h>
@@ -191,13 +192,13 @@ int ipanema_cfs_order_process(struct task_struct *a,
 static int get_class(int state)
 {
 	switch(state) {
-        	case CURRENT_0_STATE: return IPANEMA_RUNNING;
-                case READY_STATE: return IPANEMA_READY;
-                case BLOCKED_STATE: return IPANEMA_BLOCKED;
-                case TERMINATED_STATE: return IPANEMA_TERMINATED;
-                case READY_TICK_STATE: return IPANEMA_READY_TICK;
-                case MIGRATING_STATE: return IPANEMA_MIGRATING;
-                default: return -1;
+	case CURRENT_0_STATE: return IPANEMA_RUNNING;
+	case READY_STATE: return IPANEMA_READY;
+	case BLOCKED_STATE: return IPANEMA_BLOCKED;
+	case TERMINATED_STATE: return IPANEMA_TERMINATED;
+	case READY_TICK_STATE: return IPANEMA_READY_TICK;
+	case MIGRATING_STATE: return IPANEMA_MIGRATING;
+	default: return -1;
         }
 }
 
@@ -317,6 +318,9 @@ static int migrate_from_to(struct cfs_ipa_core *busiest,
                 if (pos->on_cpu)
                 	continue;
 
+		if (!cpumask_test_cpu(self_38->id, &pos->cpus_allowed))
+			continue;
+
                 if (env->busiest_grp_runnable > cpumask_weight(busiest_grp->cores) &&
 		    (env->thief_grp_runnable < cpumask_weight(thief_grp->cores) ||
 		     env->busiest_grp_cload - env->thief_grp_cload >= t->load)) {
@@ -361,7 +365,7 @@ static int migrate_from_to(struct cfs_ipa_core *busiest,
         
         if (dbg_cpt != 0)
         	IPA_EMERG_SAFE("Some tasks (%d) were lost on a migration from %d to %d\n",
-        		dbg_cpt, busiest->id, self_38->id);
+			       dbg_cpt, busiest->id, self_38->id);
         
         return ret;
 }
@@ -599,7 +603,7 @@ find_idlest_group(struct ipanema_policy *policy,
 }
 
 static int ipanema_cfs_new_prepare(struct ipanema_policy *policy,
-                                    struct process_event *e)
+				   struct process_event *e)
 {
 	struct cfs_ipa_process *tgt;
 	struct cfs_ipa_sched_domain *sd;
@@ -627,16 +631,21 @@ static int ipanema_cfs_new_prepare(struct ipanema_policy *policy,
 	sg = find_idlest_group(policy, sd);
 	idlest = find_idlest_cpu_group(policy, sg);
 
+	/* if thread cannot be on this cpu, choose any good cpu */
+	if (!cpumask_test_cpu(idlest->id, &task_15->cpus_allowed))
+		idlest = &ipanema_core(cpumask_any_and(&task_15->cpus_allowed,
+						       &policy->allowed_cores));
 	/* should never happen ? */
 	if (!idlest)
 		idlest = c;
+		
 	tgt->vruntime = idlest->min_vruntime;
 	tgt->load = 1024;
 	return idlest->id;
 }
 
 static void ipanema_cfs_new_place(struct ipanema_policy *policy,
-                                   struct process_event *e)
+				  struct process_event *e)
 {
 	struct cfs_ipa_process * tgt = policy_metadata(e->target);
         int idlecore_10 = task_cpu(e->target);
@@ -650,7 +659,7 @@ static void ipanema_cfs_new_place(struct ipanema_policy *policy,
 }
 
 static void ipanema_cfs_new_end(struct ipanema_policy *policy,
-                                 struct process_event *e)
+				struct process_event *e)
 {
 	IPA_EMERG_SAFE("[%d] post new on core %d\n", e->target->pid, e->target->cpu);
 }
@@ -772,6 +781,11 @@ static int ipanema_cfs_unblock_prepare(struct ipanema_policy *policy,
 		idlest = c;
 
 end:
+	/* if thread cannot be on this cpu, choose any good cpu */
+	if (!cpumask_test_cpu(idlest->id, &task_15->cpus_allowed))
+		idlest = &ipanema_core(cpumask_any_and(&task_15->cpus_allowed,
+						       &policy->allowed_cores));
+
 	/* add min_vruntime from new cpu */
 	p->vruntime += idlest->min_vruntime;
 
@@ -779,7 +793,7 @@ end:
 }
 
 static void ipanema_cfs_unblock_place(struct ipanema_policy *policy,
-                                       struct process_event *e)
+				      struct process_event *e)
 {
 	struct cfs_ipa_process * tgt = policy_metadata(e->target);
         int idlecore_11 = task_cpu(e->target);
@@ -792,7 +806,7 @@ static void ipanema_cfs_unblock_place(struct ipanema_policy *policy,
 }
 
 static void ipanema_cfs_unblock_end(struct ipanema_policy *policy,
-                                     struct process_event *e)
+				    struct process_event *e)
 {
 	IPA_EMERG_SAFE("[%d] post unblock on core %d\n", e->target->pid,
 		       e->target->cpu);
@@ -815,7 +829,7 @@ static void ipanema_cfs_schedule(struct ipanema_policy *policy,
 }
 
 static void ipanema_cfs_core_entry(struct ipanema_policy *policy,
-                                    struct core_event *e)
+				   struct core_event *e)
 {
 	struct cfs_ipa_core * tgt = &per_cpu(core, e->target);
 
@@ -900,39 +914,39 @@ struct ipanema_module_routines ipanema_cfs_routines =
 {
 	.get_core_state = ipanema_cfs_get_core_state,
         .new_prepare
-                 = ipanema_cfs_new_prepare,
+	= ipanema_cfs_new_prepare,
         .new_place
-                 = ipanema_cfs_new_place,
+	= ipanema_cfs_new_place,
         .new_end = ipanema_cfs_new_end,
         .tick    = ipanema_cfs_tick,
         .yield   = ipanema_cfs_yield,
         .block   = ipanema_cfs_block,
         .unblock_prepare
-                 = ipanema_cfs_unblock_prepare,
+	= ipanema_cfs_unblock_prepare,
         .unblock_place
-                 = ipanema_cfs_unblock_place,
+	= ipanema_cfs_unblock_place,
         .unblock_end
-                 = ipanema_cfs_unblock_end,
+	= ipanema_cfs_unblock_end,
         .terminate
-                 = ipanema_cfs_detach,
+	= ipanema_cfs_detach,
         .schedule= ipanema_cfs_schedule,
         .newly_idle
-                 = ipanema_cfs_newly_idle,
+	= ipanema_cfs_newly_idle,
         .enter_idle
-                 = ipanema_cfs_enter_idle,
+	= ipanema_cfs_enter_idle,
         .exit_idle
-                 = ipanema_cfs_exit_idle,
+	= ipanema_cfs_exit_idle,
         .balancing_select
-                 = ipanema_cfs_balancing,
+	= ipanema_cfs_balancing,
         .core_entry
-                 = ipanema_cfs_core_entry,
+	= ipanema_cfs_core_entry,
         .core_exit
-                 = ipanema_cfs_core_exit,
+	= ipanema_cfs_core_exit,
         .init    = ipanema_cfs_init,
         .free_metadata
-                 = ipanema_cfs_free_metadata,
+	= ipanema_cfs_free_metadata,
         .can_be_default
-                 = ipanema_cfs_can_be_default,
+	= ipanema_cfs_can_be_default,
         .attach  = ipanema_cfs_attach
 };
 
@@ -1332,7 +1346,7 @@ void cleanup_module(void)
 		printk("[IPANEMA] ERROR: unknown error (%d).\n", res);
         }
         return;
- end:
+end:
 	destroy_scheduling_domains();
         kfree(module);
         /* deallocation of every cpumask_var_t of struct core_state_info */
