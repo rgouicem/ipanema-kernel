@@ -88,6 +88,7 @@ struct ule_wwc_ipa_process {
         struct task_struct *task; // Internal
 	struct task_struct *parent; //system
 	int prio;
+	u64 order;
 	int last_core;
 	int slice;
 	ktime_t rtime;
@@ -108,6 +109,7 @@ struct ule_wwc_ipa_core {
         int cload;
         struct ule_wwc_ipa_sched_domain *sd;
 	bool balanced;
+	u64 order;
 };
 
 struct ule_wwc_ipa_sched_group {
@@ -154,8 +156,16 @@ int ipanema_ule_wwc_order_process(struct task_struct *a,
 {
 	struct ule_wwc_ipa_process *pa = policy_metadata(a);
 	struct ule_wwc_ipa_process *pb = policy_metadata(b);
+	int prio_order = pb->prio - pa->prio;
 
-        return pb->prio - pa->prio;
+	if (prio_order == 0) {
+		if (pa->order > pb->order)
+			return 1;
+		if (pa->order < pb->order)
+			return -1;
+		return 0;
+	}
+	return prio_order;
 }
 
 static int get_class(int state)
@@ -316,6 +326,7 @@ unlock_busiest:
 				       ipa_tasks);
                 pos = container_of(imd, struct task_struct, ipanema);
 		t = policy_metadata(pos);
+		t->order = thief->order++;
 		if (t->prio == REGULAR)
 			ipa_change_queue(t, &ipanema_state(thief->id).timeshare,
 					 READY_STATE);
@@ -470,6 +481,7 @@ static void ipanema_ule_wwc_new_place(struct ipanema_policy *policy,
 	struct ule_wwc_ipa_core *c = &ipanema_core(idlecore_10);
 
 	c->cload += tgt->load;
+	tgt->order = c->order++;
 	smp_wmb();
         ipa_change_queue_and_core(tgt,
                                   &ipanema_state(c->id).timeshare,
@@ -511,6 +523,7 @@ static void ipanema_ule_wwc_tick(struct ipanema_policy *policy,
 	tgt->slice--;
 	if (tgt->slice <= 0) {
 		update_rtime(tgt);
+		tgt->order = c->order++;
                 ipa_change_queue(tgt,
                                  &ipanema_state(task_cpu(tgt->task)).timeshare,
                                  READY_TICK_STATE);
@@ -526,6 +539,7 @@ static void ipanema_ule_wwc_yield(struct ipanema_policy *policy,
 	int old_load = tgt->load;
 
         update_rtime(tgt);
+	tgt->order = c->order++;
         ipa_change_queue(tgt, &ipanema_state(task_cpu(tgt->task)).timeshare,
                          READY_STATE);
 	c->cload += (tgt->load - old_load);
@@ -624,6 +638,7 @@ static void ipanema_ule_wwc_unblock_place(struct ipanema_policy *policy,
 	struct ule_wwc_ipa_core *c = &ipanema_core(idlecore_11);
 
         c->cload += tgt->load;
+	tgt->order = c->order++;
 	smp_wmb();
 	if (update_realtime(tgt))
 		ipa_change_queue_and_core(tgt,
