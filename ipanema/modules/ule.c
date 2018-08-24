@@ -373,7 +373,6 @@ static struct ule_ipa_core *pickup_core(struct ipanema_policy *policy,
 			idlest = c;
 		}
 	}
-	idlest = &ipanema_core(cpu);
 
 	return idlest;
 }
@@ -457,14 +456,10 @@ static void update_rtime(struct ule_ipa_process *t)
 	t->rtime = ktime_sub(ktime_get(), t->last_schedule);
 }
 
-static unsigned int ticks_0 = 0;
 static void ipanema_ule_tick(struct ipanema_policy *policy,
 			     struct process_event *e)
 {
 	struct ule_ipa_process *tgt = policy_metadata(e->target);
-
-	if (task_cpu(e->target) == 0)
-		ticks_0++;
 
 	tgt->slice--;
 	if (tgt->slice <= 0) {
@@ -603,6 +598,17 @@ static void ipanema_ule_core_exit(struct ipanema_policy *policy,
 static void ipanema_ule_newly_idle(struct ipanema_policy *policy,
 				   struct core_event *e)
 {
+	struct ule_ipa_core *c = &ipanema_core(e->target);
+	struct ule_ipa_sched_domain *sd;
+
+	for (sd = c->sd; sd; sd = sd->parent) {
+		if (!(sd->flags & DOMAIN_CACHE))
+			continue;
+
+		steal_for_dom(policy, c, sd);
+		if (c->cload > 0)
+			break;
+	}
 }
 
 static void ipanema_ule_enter_idle(struct ipanema_policy *policy,
@@ -621,7 +627,7 @@ static void ipanema_ule_exit_idle(struct ipanema_policy *policy,
 }
 
 static const int balance_interval = 128;
-static ktime_t next_balance = 0;
+static int balance_ticks = 1;
 static int balance_nr = 0;
 
 static void ipanema_ule_balancing(struct ipanema_policy *policy,
@@ -629,27 +635,18 @@ static void ipanema_ule_balancing(struct ipanema_policy *policy,
 {
 	struct ule_ipa_core *c, *idlest;
 	int cpu = e->target;
-	ktime_t now = ktime_get(), delta;
 	unsigned long flags;
 
-	if (cpu != 0)
+	/* Generated if synchronized keyword is used */
+	if (!spin_trylock_irqsave(&lb_lock, flags))
 		return;
 
-	/* Generated if synchronized keyword is used */
-	spin_trylock_irqsave(&lb_lock, flags);
-
-	//pr_info("a\n");
-	if (ktime_before(now, next_balance))
+	if (--balance_ticks)
 		goto end;
 
-	delta = ticks_to_time(max(balance_interval / 2, 1) +
-			      (sched_random() % balance_interval));
-	next_balance = ktime_add(now, delta);
+        balance_ticks = max(balance_interval / 2, 1) +
+		(sched_random() % balance_interval);
 	balance_nr++;
-
-	/* pr_info("%s(nr=%d): start; next in %d ticks (%d ms)\n", */
-	/* 	__func__, balance_nr, balance_ticks, */
-	/* 	balance_ticks * 4); */
 
 	for_each_cpu(cpu, &policy->allowed_cores) {
 		c = &ipanema_core(cpu);
@@ -670,10 +667,6 @@ next:
 		steal_for_dom(policy, idlest, NULL);
 		goto next;
 	}
-
-	/* pr_info("%s(nr=%d): end; next in %d ticks (%d ms)\n", */
-	/* 	__func__, balance_nr, balance_ticks, */
-	/* 	balance_ticks * 4); */
 
 end:
 	/* Generated if synchronized keyword is used */
@@ -978,7 +971,6 @@ static int proc_show(struct seq_file *s, void *p)
 
 	seq_printf(s, "-------------------------------\n");
         seq_printf(s, "cload = %d\n", ipanema_core(cpu).cload);
-	seq_printf(s, "ticks_0 = %u\n", ticks_0);
 	seq_printf(s, "balance_nr = %d\n", balance_nr);
 
 	seq_printf(s, "\nTopology:\n");
