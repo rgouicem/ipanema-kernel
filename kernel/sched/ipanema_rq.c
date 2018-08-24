@@ -71,8 +71,6 @@ static inline int ipanema_add_task_fifo(struct list_head *head,
 					int (*cmp_fn)(struct task_struct *,
 						      struct task_struct *))
 {
-	if (!list_empty(&data->ipanema.node_list))
-		return -EINVAL;
 	list_add_tail(&data->ipanema.node_list, head);
 	return 0;
 }
@@ -80,7 +78,7 @@ static inline int ipanema_add_task_fifo(struct list_head *head,
 static inline struct task_struct *
 ipanema_remove_task_fifo(struct list_head *head, struct task_struct *data)
 {
-	list_del(&data->ipanema.node_list);
+	list_del_init(&data->ipanema.node_list);
 
 	return data;
 }
