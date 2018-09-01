@@ -10,7 +10,7 @@
 
 #include <linux/delay.h>
 #include <linux/ipanema.h>
-#include <linux/ipanema_rbtree.h>
+#include <linux/ipanema_rq.h>
 #include <linux/ktime.h>
 #include <linux/lockdep.h>
 #include <linux/module.h>
@@ -1252,8 +1252,8 @@ int init_module(void)
                 /* FIXME init of core variables of the user */
 		ipanema_core(cpu).cload = 0;
                 /* allocation of ipanema rqs */
-		init_ipanema_rq(&ipanema_state(cpu).ready, cpu, IPANEMA_READY,
-				ipanema_cfs_order_process);
+		init_ipanema_rq(&ipanema_state(cpu).ready, RBTREE, cpu,
+				IPANEMA_READY, ipanema_cfs_order_process);
         }
         
         /* allocation of every cpumask_var_t of struct core_state_info */

@@ -556,7 +556,12 @@ ipanema_state_to_str(const enum ipanema_state s)
 struct ipanema_rq;
 
 struct sched_ipanema_entity {
-	struct rb_node node_runqueue;
+	union {
+		struct rb_node node_runqueue;
+		struct list_head node_list;
+	};
+
+	/* used for load balancing in policies */
 	struct list_head ipa_tasks;
 
 	int just_yielded;
