@@ -2,7 +2,7 @@
 
 #include <linux/delay.h>
 #include <linux/ipanema.h>
-#include <linux/ipanema_rbtree.h>
+#include <linux/ipanema_rq.h>
 #include <linux/ktime.h>
 #include <linux/lockdep.h>
 #include <linux/module.h>
@@ -542,8 +542,8 @@ int init_module(void)
         	get_policy_core(cpu).id = cpu;
 
 		/* READY rq */
-		init_ipanema_rq(&get_policy_rq(cpu, ready), cpu, IPANEMA_READY,
-				ipanema_template_order_process);
+		init_ipanema_rq(&get_policy_rq(cpu, ready), RBTREE, cpu,
+				IPANEMA_READY, ipanema_template_order_process);
 
 		/* RUNNING task */
 		get_policy_core(cpu).curr = NULL;

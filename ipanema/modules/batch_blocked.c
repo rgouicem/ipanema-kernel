@@ -2,7 +2,7 @@
 
 #include <linux/delay.h>
 #include <linux/ipanema.h>
-#include <linux/ipanema_rbtree.h>
+#include <linux/ipanema_rq.h>
 #include <linux/ktime.h>
 #include <linux/lockdep.h>
 #include <linux/module.h>
@@ -880,9 +880,9 @@ int init_module(void)
         for_each_possible_cpu(cpu) {
         	ipanema_core(cpu).id = cpu;
                 /* allocation of ipanema rqs */
-		init_ipanema_rq(&ipanema_state(cpu).normal, cpu, IPANEMA_READY,
-				ipanema_batch_order_process);
-		init_ipanema_rq(&ipanema_state(cpu).blocked, cpu,
+		init_ipanema_rq(&ipanema_state(cpu).normal, RBTREE, cpu,
+				IPANEMA_READY, ipanema_batch_order_process);
+		init_ipanema_rq(&ipanema_state(cpu).blocked, RBTREE, cpu,
 				IPANEMA_BLOCKED, ipanema_batch_order_process);
         }
 

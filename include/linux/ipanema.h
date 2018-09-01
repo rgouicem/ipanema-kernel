@@ -51,16 +51,22 @@ do {									       \
 
 enum ipanema_core_state { IPANEMA_ACTIVE_CORE, IPANEMA_IDLE_CORE };
 
+enum ipanema_rq_type { RBTREE, FIFO };
+
 struct ipanema_rq {
+	enum ipanema_rq_type type;
+	union {
+		struct rb_root root;
+		struct list_head head;
+	};
 	unsigned int cpu;
-	struct rb_root root;
 	enum ipanema_state state;
 	unsigned int nr_tasks;
 	int (*order_fn) (struct task_struct *a, struct task_struct *b);
 };
 
-void init_ipanema_rq(struct ipanema_rq *rq, unsigned int cpu,
-		     enum ipanema_state state,
+void init_ipanema_rq(struct ipanema_rq *rq, enum ipanema_rq_type type,
+		     unsigned int cpu, enum ipanema_state state,
 		     int (*order_fn) (struct task_struct *a,
 				      struct task_struct *b));
 

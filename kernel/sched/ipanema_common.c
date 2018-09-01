@@ -103,7 +103,9 @@ static void change_rq(struct task_struct *p, enum ipanema_state next_state,
 		next_cpu = next_rq->cpu;
 		next_state = next_rq->state;
 		lockdep_assert_held(&cpu_rq(next_cpu)->lock);
-		ipanema_add_task(next_rq, p);
+		if (ipanema_add_task(next_rq, p))
+			pr_err("[ERR] %s(pid=%d, cpu=%u) failed. Gonna crash soon...\n",
+			       __func__, p->pid, next_cpu);
 		next_rq->nr_tasks++;
 	}
 }
