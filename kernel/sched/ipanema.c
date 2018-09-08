@@ -710,27 +710,6 @@ struct task_struct *ipanema_get_task_of(void *proc)
 }
 EXPORT_SYMBOL(ipanema_get_task_of);
 
-void init_ipanema_rq(struct ipanema_rq *rq, enum ipanema_rq_type type,
-		     unsigned int cpu, enum ipanema_state state,
-		     int (*order_fn) (struct task_struct *a,
-				      struct task_struct *b))
-{
-	rq->type = type;
-	switch (type) {
-	case RBTREE:
-		rq->root.rb_node = NULL;
-		break;
-	case FIFO:
-		INIT_LIST_HEAD(&rq->head);
-		break;
-	}
-	rq->cpu = cpu;
-	rq->state = state;
-	rq->nr_tasks = 0;
-	rq->order_fn = order_fn;
-}
-EXPORT_SYMBOL(init_ipanema_rq);
-
 bool __checkparam_ipanema(const struct sched_attr *attr,
 			  struct ipanema_policy *policy)
 {

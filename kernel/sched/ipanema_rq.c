@@ -64,6 +64,43 @@ ipanema_first_task_rbtree(struct rb_root *root)
 
 
 /*
+ * LIST manipulation
+ */
+static inline int ipanema_add_task_list(struct list_head *head,
+					struct task_struct *data,
+					int (*cmp_fn)(struct task_struct *,
+						      struct task_struct *))
+{
+	struct task_struct *ts;
+
+	list_for_each_entry(ts, head, ipanema.node_list) {
+		if (cmp_fn(data, ts) < 0) {
+			list_add_tail(&data->ipanema.node_list,
+				      &ts->ipanema.node_list);
+			return 0;
+		}
+	}
+	list_add_tail(&data->ipanema.node_list, head);
+	return 0;
+}
+
+static inline struct task_struct *
+ipanema_remove_task_list(struct list_head *head, struct task_struct *data)
+{
+	list_del_init(&data->ipanema.node_list);
+
+	return data;
+}
+
+static inline struct task_struct *
+ipanema_first_task_list(struct list_head *head)
+{
+	return list_first_entry_or_null(head, struct task_struct,
+					ipanema.node_list);
+}
+
+
+/*
  * FIFO manipulation
  */
 static inline int ipanema_add_task_fifo(struct list_head *head,
@@ -75,21 +112,6 @@ static inline int ipanema_add_task_fifo(struct list_head *head,
 	return 0;
 }
 
-static inline struct task_struct *
-ipanema_remove_task_fifo(struct list_head *head, struct task_struct *data)
-{
-	list_del_init(&data->ipanema.node_list);
-
-	return data;
-}
-
-static inline struct task_struct *
-ipanema_first_task_fifo(struct list_head *head)
-{
-	return list_first_entry_or_null(head, struct task_struct,
-					ipanema.node_list);
-}
-
 
 /*
  * Generic ipanema_rq API
@@ -99,13 +121,14 @@ int ipanema_add_task(struct ipanema_rq *rq, struct task_struct *data)
 	switch (rq->type) {
 	case RBTREE:
 		return ipanema_add_task_rbtree(&rq->root, data, rq->order_fn);
+	case LIST:
+		return ipanema_add_task_list(&rq->head, data, rq->order_fn);
 	case FIFO:
 		return ipanema_add_task_fifo(&rq->head, data, rq->order_fn);
 	default:
 		return -EINVAL;
 	}
 }
-/* EXPORT_SYMBOL(ipanema_add_task); */
 
 struct task_struct *ipanema_remove_task(struct ipanema_rq *rq,
 					struct task_struct *data)
@@ -113,23 +136,46 @@ struct task_struct *ipanema_remove_task(struct ipanema_rq *rq,
 	switch (rq->type) {
 	case RBTREE:
 		return ipanema_remove_task_rbtree(&rq->root, data);
+	case LIST:
 	case FIFO:
-		return ipanema_remove_task_fifo(&rq->head, data);
+		return ipanema_remove_task_list(&rq->head, data);
 	default:
 		return NULL;
 	}
 }
-/* EXPORT_SYMBOL(ipanema_remove_task); */
 
 struct task_struct *ipanema_first_task(struct ipanema_rq *rq)
 {
 	switch (rq->type) {
 	case RBTREE:
 		return ipanema_first_task_rbtree(&rq->root);
+	case LIST:
 	case FIFO:
-		return ipanema_first_task_fifo(&rq->head);
+		return ipanema_first_task_list(&rq->head);
 	default:
 		return NULL;
 	}
 }
 EXPORT_SYMBOL(ipanema_first_task);
+
+void init_ipanema_rq(struct ipanema_rq *rq, enum ipanema_rq_type type,
+		     unsigned int cpu, enum ipanema_state state,
+		     int (*order_fn) (struct task_struct *a,
+				      struct task_struct *b))
+{
+	rq->type = type;
+	switch (type) {
+	case RBTREE:
+		rq->root.rb_node = NULL;
+		break;
+	case LIST:
+	case FIFO:
+		INIT_LIST_HEAD(&rq->head);
+		break;
+	}
+	rq->cpu = cpu;
+	rq->state = state;
+	rq->nr_tasks = 0;
+	rq->order_fn = order_fn;
+}
+EXPORT_SYMBOL(init_ipanema_rq);
