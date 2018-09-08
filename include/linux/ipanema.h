@@ -51,7 +51,7 @@ do {									       \
 
 enum ipanema_core_state { IPANEMA_ACTIVE_CORE, IPANEMA_IDLE_CORE };
 
-enum ipanema_rq_type { RBTREE, FIFO };
+enum ipanema_rq_type { RBTREE, LIST, FIFO };
 
 struct ipanema_rq {
 	enum ipanema_rq_type type;
