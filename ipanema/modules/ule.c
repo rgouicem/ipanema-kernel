@@ -70,7 +70,6 @@ struct ule_ipa_process {
          *  in the process = {...} declaration
          */
         int state; // Internal
-	struct ipanema_rq *rq;
         struct task_struct *task; // Internal
 	struct task_struct *parent; //system
 	int prio;
@@ -395,7 +394,6 @@ static int ipanema_ule_new_prepare(struct ipanema_policy *policy,
 		tgt->parent = NULL;
 	else
 		tgt->parent = task_15->parent;
-        tgt->rq = NULL;
 
 	/* find idlest cores on machine */
 	idlest = pickup_core(policy, tgt);
