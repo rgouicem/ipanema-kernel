@@ -16,10 +16,10 @@ KERNEL=../../
 # ccflags-y := -O0
 
 all:
-	make -C $(KERNEL) M=$(PWD) modules
+	+make -C $(KERNEL) M=$(PWD) modules
 
 clean:
-	make -C $(KERNEL) M=$(PWD) clean
+	+make -C $(KERNEL) M=$(PWD) clean
 	rm -rf *~
 
 .PHONY: all clean
