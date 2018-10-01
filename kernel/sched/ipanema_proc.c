@@ -110,24 +110,22 @@ static ssize_t ipanema_policies_proc_write(struct file *file,
 	return count;
 }
 
-static ssize_t ipanema_info_proc_read(struct file *file,
-				      char __user *buf,
-				      size_t buf_len,
-				      loff_t *ppos)
+static ssize_t ipanema_info_proc_read(struct file *file, char __user *buf,
+				      size_t buf_len, loff_t *ppos)
 {
 	int len = 0, i = 0, output_len;
 	struct ipanema_policy *policy;
 	static int done;
 	char *output;
 
-	output = kmalloc_array(MAX_BUF_LEN, sizeof(char), GFP_KERNEL);
-	if (!output)
-		return -ENOMEM;
-
 	if (done) {
 		done = 0;
 		return 0;
 	}
+
+	output = kmalloc_array(MAX_BUF_LEN, sizeof(char), GFP_KERNEL);
+	if (!output)
+		return -ENOMEM;
 
 	snprintf(output, MAX_BUF_LEN,
 			"DEBUGGING:\n==========\n");
