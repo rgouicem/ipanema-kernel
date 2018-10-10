@@ -234,7 +234,7 @@ static void ipanema_Simple_new_place(struct ipanema_policy *policy,
 static void ipanema_Simple_new_end(struct ipanema_policy *policy,
 				   struct process_event *e)
 {
-	IPA_EMERG_SAFE("[%d] post new on core %d\n",
+	pr_info("[%d] post new on core %d\n",
 		       e->target->pid, e->target->cpu);
 }
 
@@ -313,7 +313,7 @@ static void ipanema_Simple_unblock_place(struct ipanema_policy *policy,
 static void ipanema_Simple_unblock_end(struct ipanema_policy *policy,
 				       struct process_event *e)
 {
-	IPA_EMERG_SAFE("[%d] post unblock on core %d\n",
+	pr_info("[%d] post unblock on core %d\n",
 		       e->target->pid, e->target->cpu);
 }
 
@@ -821,28 +821,17 @@ int init_module(void)
 	/* build hierarchy with topology */
 	build_hierarchy();
 
-	module->name = name;
+	strncpy(module->name, name, MAX_POLICY_NAME_LEN);
 	module->routines = &ipanema_Simple_routines;
 	module->kmodule = THIS_MODULE;
 
 	/* Register module to the runtime */
 	res = ipanema_add_module(module);
-	if (res) {
-		switch (res) {
-		case -ETOOMANYMODULES:
-			printk("[IPANEMA] ERROR: too many loaded modules.\n");
-			break;
-		case -EINVAL:
-			printk("[IPANEMA] ERROR: unable to load module. A module with the same name is already loaded.\n");
-			break;
-		default:
-			printk("[IPANEMA] ERROR: couldn't load module.\n");
-		}
+	if (res)
 		goto clean_module;
-	}
 
 	/* Create /proc/Simple/<cpu> and topology files */
-	procdir = proc_mkdir(name, NULL);
+	procdir = proc_mkdir(name, ipa_procdir);
 	if (!procdir) {
 		pr_info("%s: /proc/%s creation failed\n", name, name);
 		goto clean_module;
@@ -873,25 +862,14 @@ void cleanup_module(void)
 {
 	int res;
 
-        remove_proc_subtree(name, NULL);
-        
-        res = ipanema_remove_module(module);
-	if (!res)
-		goto end;
-	switch (res) {
-	case -EMODULENOTFOUND:
-		printk ("[IPANEMA] ERROR: module not found... Shouldn't happen !\n");
-		/* We can safely exit. */
-		break;
-	case -EMODULEINUSE:
-		printk ("[IPANEMA] ERROR: module in use! Remove all instances from /proc/ipanema_policies. Shouldn't happen\n");
-		break;
-	default:
-		printk ("[IPANEMA] ERROR: unknown error (%d).\n", res);
-	}
-	return;
+        remove_proc_subtree(name, ipa_procdir);
 
-end:
+        res = ipanema_remove_module(module);
+	if (res) {
+		pr_err("Cleanup failed (%d)\n", res);
+		return;
+	}
+
         kfree(module);
         /* deallocation of every cpumask_var_t of struct core_state_info */
         free_cpumask_var(cstate_info.active_cores);

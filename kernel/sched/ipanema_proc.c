@@ -1,208 +1,136 @@
+#define pr_fmt(fmt) "ipanema: " fmt
+
 #include <linux/seq_file.h>
 #include <linux/cpu.h>
 
 #include "sched.h"
 #include "ipanema_common.h"
 
-#define MAX_POLICY_STR_LENGTH 256
-#define MAX_BUF_LEN 32768
 
-static char policy_str[MAX_POLICY_STR_LENGTH];
-
-static ssize_t ipanema_debug_proc_write(struct file *file,
-					const char __user *buf,
-					size_t count,
-					loff_t *ppos)
+static ssize_t ipanema_policies_write(struct file *file, const char __user *buf,
+				      size_t count, loff_t *ppos)
 {
-	char c;
+	int res;
+	char kbuf[MAX_POLICY_NAME_LEN];
 
-	if (count) {
-		if (get_user(c, buf))
-			return -EFAULT;
-		if (c == 'd')
-			ipanema_debug = 1;
-		else if (c == 'D')
-			ipanema_debug = 0;
-		else if (c == 'p')
-			debug_ipanema();
-	}
+	count = min((int)count, MAX_POLICY_NAME_LEN);
 
-	return count;
-}
-
-static ssize_t ipanema_policies_proc_read(struct file *file,
-					  char __user *buf,
-					  size_t buf_len,
-					  loff_t *ppos)
-{
-	int len, tmp_policy_str_len;
-	char tmp_policy_str[MAX_POLICY_STR_LENGTH];
-	static int done;
-
-	if (done) {
-		done = 0;
-		return 0;
-	}
-
-	snprintf(tmp_policy_str, MAX_POLICY_STR_LENGTH, "%s\n", policy_str);
-
-	tmp_policy_str_len = strlen(tmp_policy_str);
-	len = tmp_policy_str_len < MAX_POLICY_STR_LENGTH ?
-		      tmp_policy_str_len : MAX_POLICY_STR_LENGTH;
-
-	if (copy_to_user(buf, tmp_policy_str, len))
+	if (copy_from_user(kbuf, buf, count))
 		return -EFAULT;
 
-	*ppos += len;
-	done = 1;
+	/* Remove the newline */
+	kbuf[count - 1] = '\0';
 
-	return len;
-}
-
-static ssize_t ipanema_policies_proc_write(struct file *file,
-					   const char __user *buf,
-					   size_t count,
-					   loff_t *ppos)
-{
-	int i, res;
-
-	if (count > MAX_POLICY_STR_LENGTH)
-		count = MAX_POLICY_STR_LENGTH;
-
-	for (i = 0; i < count; i++)
-		get_user(policy_str[i], buf + i);
-
-	/* Remove the newline. */
-	policy_str[i - 1] = '\0';
-
-	IPA_DBG_SAFE("Calling ipanema_set_policy() with argument %s.\n",
-		     policy_str);
-
-	switch ((res = ipanema_set_policy(policy_str))) {
-	case 0:
-		return count;
-
-	case -EBOUNDS:
-		IPA_DBG_SAFE("ERROR: some core values are out of bounds!\n");
-		break;
-
-	case -EOVERLAP:
-		IPA_DBG_SAFE("ERROR: some policies use overlapping cores!\n");
-		break;
-
-	case -ESYNTAX:
-		IPA_DBG_SAFE("ERROR: syntax error!\n");
-		break;
-
-	case -ENOMEM:
-		IPA_DBG_SAFE("ERROR: out of memory error!\n");
-		break;
-
-	case -EMODULENOTFOUND:
-		IPA_DBG_SAFE("ERROR: one of the modules wasn't found!\n");
-		break;
-
-	default: /* Shouldn't happen */
-		IPA_DBG_SAFE("ERROR: couldn't parse the policy string!\n");
-		break;
-	}
+	res = ipanema_set_policy(kbuf);
+	if (res)
+		return res;
 
 	return count;
 }
 
-static ssize_t ipanema_info_proc_read(struct file *file, char __user *buf,
-				      size_t buf_len, loff_t *ppos)
+static void *ipanema_policies_start(struct seq_file *f, loff_t *pos)
 {
-	int len = 0, i = 0, output_len;
-	struct ipanema_policy *policy;
-	static int done;
-	char *output;
-
-	if (done) {
-		done = 0;
-		return 0;
-	}
-
-	output = kmalloc_array(MAX_BUF_LEN, sizeof(char), GFP_KERNEL);
-	if (!output)
-		return -ENOMEM;
-
-	snprintf(output, MAX_BUF_LEN,
-			"DEBUGGING:\n==========\n");
-
-	snprintf(output + strlen(output), MAX_BUF_LEN - strlen(output),
-			"Debugging is %s.\n\n", ipanema_debug ? "on" : "off");
-
-	snprintf(output + strlen(output), MAX_BUF_LEN - strlen(output),
-			"MODULES:\n========\n");
-
-	for (i = 0; i < num_ipanema_modules; i++) {
-		snprintf(output + strlen(output),
-			 MAX_BUF_LEN - strlen(output),
-			 "Module #%d: %s\n", i, ipanema_modules[i]->name);
-	}
-
-	snprintf(output + strlen(output), MAX_BUF_LEN - strlen(output),
-			"\nPOLICIES:\n=========\n");
-
-	list_for_each_entry(policy, &ipanema_policies, list) {
-		snprintf(output + strlen(output),
-			 MAX_BUF_LEN - strlen(output),
-			 "Policy #%d \"%s\" on cores [",
-			 policy->id, policy->name);
-
-		snprintf(output + strlen(output),
-			 MAX_BUF_LEN - strlen(output),
-			 "%*pbl",
-			 cpumask_pr_args(&policy->allowed_cores));
-
-		snprintf(output + strlen(output),
-			 MAX_BUF_LEN - strlen(output),
-			 "]\n");
-	}
-
-	output_len = strlen(output);
-	len = output_len < MAX_BUF_LEN ? output_len : MAX_BUF_LEN;
-	if (copy_to_user(buf, output, len)) {
-		len = -EFAULT;
-		goto err;
-	}
-
-	*ppos += len;
-	done = 1;
-
- err:
-	kfree(output);
-
-	return len;
+	read_lock(&ipanema_rwlock);
+	return seq_list_start(&ipanema_policies, *pos);
 }
 
-static const struct file_operations ipanema_debug_cntrl_fops = {
-	.write	= ipanema_debug_proc_write
-};
-
-static const struct file_operations ipanema_policies_cntrl_fops = {
-	.read	= ipanema_policies_proc_read,
-	.write	= ipanema_policies_proc_write
-};
-
-static const struct file_operations ipanema_info_cntrl_fops = {
-	.read	= ipanema_info_proc_read
-};
-
-__init int ipanema_create_procs(void)
+static void *ipanema_policies_next(struct seq_file *f, void *v, loff_t *pos)
 {
-	/*
-	 * /proc files cannot be created during early init phases. Do that once
-	 * the kernel has booted.
-	 */
-	proc_create("ipanema_debug", 0222, NULL, &ipanema_debug_cntrl_fops);
-	proc_create("ipanema_policies", 0222, NULL,
-				&ipanema_policies_cntrl_fops);
-	proc_create("ipanema_info", 0444, NULL, &ipanema_info_cntrl_fops);
+	return seq_list_next(v, &ipanema_policies, pos);
+}
 
-	pr_info("ipanema: procfs files created\n");
+static void ipanema_policies_stop(struct seq_file *f, void *v)
+{
+	read_unlock(&ipanema_rwlock);
+}
+
+static int ipanema_policies_show(struct seq_file *f, void *v)
+{
+	struct ipanema_policy *policy = list_entry(v, struct ipanema_policy,
+						   list);
+	seq_printf(f, "%d %s %*pbl\n",
+		   policy->id, policy->name,
+		   cpumask_pr_args(&policy->allowed_cores));
+	return 0;
+}
+
+static const struct seq_operations ipanema_policies_ops = {
+	.start = ipanema_policies_start,
+	.next  = ipanema_policies_next,
+	.show  = ipanema_policies_show,
+	.stop  = ipanema_policies_stop
+};
+
+static int ipanema_policies_open(struct inode *inode, struct file *file)
+{
+	return seq_open(file, &ipanema_policies_ops);
+}
+
+static const struct file_operations ipanema_policies_fops = {
+	.open    = ipanema_policies_open,
+	.read    = seq_read,
+	.write   = ipanema_policies_write,
+	.llseek  = seq_lseek,
+	.release = seq_release,
+};
+
+static void *ipanema_modules_start(struct seq_file *f, loff_t *pos)
+{
+	read_lock(&ipanema_rwlock);
+	return seq_list_start(&ipanema_modules, *pos);
+}
+
+static void *ipanema_modules_next(struct seq_file *f, void *v, loff_t *pos)
+{
+	return seq_list_next(v, &ipanema_modules, pos);
+}
+
+static void ipanema_modules_stop(struct seq_file *f, void *v)
+{
+	read_unlock(&ipanema_rwlock);
+}
+
+static int ipanema_modules_show(struct seq_file *f, void *v)
+{
+	struct ipanema_module *m = list_entry(v, struct ipanema_module, list);
+	seq_printf(f, "%s\n", m->name);
+	return 0;
+}
+
+static const struct seq_operations ipanema_modules_ops = {
+	.start = ipanema_modules_start,
+	.next  = ipanema_modules_next,
+	.show  = ipanema_modules_show,
+	.stop  = ipanema_modules_stop
+};
+
+static int ipanema_modules_open(struct inode *inode, struct file *file)
+{
+	return seq_open(file, &ipanema_modules_ops);
+}
+
+static const struct file_operations ipanema_modules_fops = {
+	.open    = ipanema_modules_open,
+	.read    = seq_read,
+	.llseek  = seq_lseek,
+	.release = seq_release,
+};
+
+struct proc_dir_entry *ipa_procdir;
+EXPORT_SYMBOL(ipa_procdir);
+
+/*
+ * /proc files cannot be created during early init phases. Do that once
+ * the kernel has booted.
+ */
+__init int ipanema_create_procfs(void)
+{
+	ipa_procdir = proc_mkdir("ipanema", NULL);
+	proc_create("modules", 0444, ipa_procdir, &ipanema_modules_fops);
+	proc_create("policies", 0666, ipa_procdir, &ipanema_policies_fops);
+
+	pr_info("procfs files created\n");
 
 	return 0;
 }
-late_initcall(ipanema_create_procs);
+late_initcall(ipanema_create_procfs);

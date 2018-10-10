@@ -480,7 +480,7 @@ static void ipanema_template_balancing(struct ipanema_policy *policy,
 	local_irq_restore(flags);
 
 	if (nr_theft)
-		IPA_EMERG_SAFE("Load-balance on cpu%d (%d tasks stolen) from cpu%d\n",
+		pr_info("Load-balance on cpu%d (%d tasks stolen) from cpu%d\n",
 			       cpu, nr_theft, busiest);
 }
 
@@ -535,6 +535,7 @@ struct ipanema_module_routines ipanema_template_routines =
 int init_module(void)
 {
 	int res = 0, cpu;
+        struct proc_dir_entry *procdir = NULL;
         
         /* Initialize per-core scheduler variables */
         for_each_possible_cpu(cpu) {
@@ -566,24 +567,21 @@ int init_module(void)
                 goto clean_cpumask_var;
         }
 
-        module->name = name;
+        strncpy(module->name, name, MAX_POLICY_NAME_LEN);
         module->routines = &ipanema_template_routines;
 	module->kmodule = THIS_MODULE;
 
 	res = ipanema_add_module(module);
-        if (res) {
-        	switch (res) {
-		case -ETOOMANYMODULES:
-			pr_err("[IPANEMA] ERROR: too many loaded modules.\n");
-			break;
-		case -EINVAL:
-			pr_err("[IPANEMA] ERROR: unable to load module. A module with the same name is already loaded.\n");
-			break;
-		default:
-			pr_err("[IPANEMA] ERROR: couldn't load module.\n");  
-                }
-                goto clean_module;
-        }
+        if (res)
+        	goto clean_module;
+        
+        /*
+	 * Create /proc/cfs/<cpu> files and /proc/cfs/topology file
+	 * If file creation fails, module insertion does not
+	 */
+	procdir = proc_mkdir(name, ipa_procdir);
+	if (!procdir)
+		pr_err("%s: /proc/%s creation failed\n", name, name);
 
         return 0;
         
@@ -600,21 +598,14 @@ void cleanup_module(void)
 {
 	int res;
 
+        remove_proc_subtree(name, ipa_procdir);
+
 	res = ipanema_remove_module(module);
-	if (!res)
-		goto end;
-	switch(res) {
-	case -EMODULENOTFOUND:
-		pr_err("[IPANEMA] ERROR: module not found... Shouldn't happen !\n");
-		break;
-	case -EMODULEINUSE:
-		pr_err("[IPANEMA] ERROR: module in use! Remove all instances from /proc/ipanema_policies. Shouldn't happen\n");
-		break;
-	default:
-		pr_err("[IPANEMA] ERROR: unknown error (%d)\n", res);
+	if (res) {
+		pr_err("Cleanup failed (%d)\n", res);
+		return;
 	}
 
-end:
         kfree(module);
         free_cpumask_var(active_cores);
         free_cpumask_var(idle_cores);
