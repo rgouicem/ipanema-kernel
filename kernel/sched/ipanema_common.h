@@ -15,7 +15,6 @@
 #include <linux/proc_fs.h>
 #include <linux/sort.h>
 
-struct ipanema_policy;
 
 int ipanema_order_process(struct task_struct *a, struct task_struct *b);
 enum ipanema_core_state ipanema_get_core_state(struct ipanema_policy *policy,
@@ -45,13 +44,9 @@ void ipanema_newly_idle(struct ipanema_policy *policy, unsigned int core,
 void ipanema_enter_idle(struct ipanema_policy *policy, unsigned int core);
 void ipanema_exit_idle(struct ipanema_policy *policy, unsigned int core);
 
-extern struct ipanema_module *ipanema_modules[];
-extern unsigned int num_ipanema_modules;
-
+extern struct list_head ipanema_modules;
 extern struct list_head ipanema_policies;
 extern unsigned int num_ipanema_policies;
-
-void debug_ipanema(void);
 
 int ipanema_set_policy(char *policies_str);
 

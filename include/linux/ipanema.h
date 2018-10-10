@@ -6,48 +6,9 @@
 
 #include "sched.h"
 
-#define ESYNTAX					1000
-#define EBOUNDS					1001
-#define EOVERLAP				1002
-#define EINVALIDDEFAULT				1003
-#define EMODULENOTFOUND				1004
-#define EMODULEINUSE				1005
-#define ETOOMANYMODULES				1006
-#define ETOOMANYPOLICIES			1007
-
-#define MAX_IPANEMA_MODULES			64
+#define MAX_POLICY_NAME_LEN     32
 
 #ifdef __KERNEL__
-
-#ifndef IPA_DBG
-/* Prone to deadlocks if rq lock is held. */
-#define IPA_DBG(msg, args...)						       \
-do {									       \
-	if (ipanema_debug)						       \
-		printk("CPU %02d %s %04d " msg, smp_processor_id(),	       \
-		       __FUNCTION__, __LINE__, ##args);			       \
-} while(0)
-#endif
-
-#ifndef IPA_DBG_SAFE
-/* Safe to use when the rq lock is held. */
-#define IPA_DBG_SAFE(msg, args...)					       \
-do {									       \
-	if (ipanema_debug)						       \
-		printk_deferred("CPU %02d %s %04d " msg,		       \
-				smp_processor_id(), __FUNCTION__,	       \
-				__LINE__, ##args);			       \
-} while(0)
-#endif
-
-#ifndef IPA_EMERG_SAFE
-/* For messages that will be displayed no matter what. */
-#define IPA_EMERG_SAFE(msg, args...)					       \
-do {									       \
-	printk_deferred(KERN_EMERG "CPU %02d %s %04d " msg,		       \
-			smp_processor_id(), __FUNCTION__, __LINE__, ##args);   \
-} while(0)
-#endif
 
 enum ipanema_core_state { IPANEMA_ACTIVE_CORE, IPANEMA_IDLE_CORE };
 
@@ -70,7 +31,6 @@ void init_ipanema_rq(struct ipanema_rq *rq, enum ipanema_rq_type type,
 		     int (*order_fn) (struct task_struct *a,
 				      struct task_struct *b));
 
-extern int ipanema_debug;
 extern DEFINE_PER_CPU(struct task_struct *, ipanema_current);
 
 extern int nb_topology_levels;
@@ -92,7 +52,7 @@ struct ipanema_module;
 struct ipanema_policy {
 	cpumask_t allowed_cores;
 	__u32 id;
-	char *name;
+	char name[MAX_POLICY_NAME_LEN];
 	struct ipanema_module *module;
 	struct list_head list;
 	void *data;
@@ -153,10 +113,13 @@ struct ipanema_module_routines {
 };
 
 struct ipanema_module {
-	char *name;
+	char name[MAX_POLICY_NAME_LEN];
 	struct ipanema_module_routines *routines;
 	struct module *kmodule;
+	struct list_head list;
 };
+
+extern struct proc_dir_entry *ipa_procdir;
 
 /* topology level types, used as flags in struct topology_level */
 #define DOMAIN_SMT   0x1      	/* cpus share computing units (simultaneous multi-threading) */

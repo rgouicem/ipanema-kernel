@@ -12,9 +12,6 @@
 #include <linux/cpufreq.h>
 #include <linux/kgdb.h>
 
-int ipanema_debug;
-EXPORT_SYMBOL(ipanema_debug);
-
 /* Current running task per type */
 DEFINE_PER_CPU(struct task_struct *, ipanema_current);
 EXPORT_SYMBOL(ipanema_current);
@@ -166,7 +163,7 @@ void change_state(struct task_struct *p, enum ipanema_state next_state,
 		return;
 
 	if (unlikely(ipanema_fsm_log))
-		pr_info("ipanema: [pid=%d] %s[%d] -> %s[%d]\n",
+		pr_info("[pid=%d] %s[%d] -> %s[%d]\n",
 			p->pid, ipanema_state_to_str(prev_state), prev_cpu,
 			ipanema_state_to_str(next_state), next_cpu);
 
@@ -1094,15 +1091,11 @@ static void task_change_group_ipanema(struct task_struct *p, int type)
 		pr_info("In %s [pid=%d]\n",
 			__func__, p->pid);
 
-	switch (type) {
-	case TASK_SET_GROUP:
-		IPA_DBG_SAFE("In %s setting group.\n", __func__);
-		break;
-
-	case TASK_MOVE_GROUP:
-		IPA_DBG_SAFE("In %s moving group.\n", __func__);
-		break;
-	}
+	/* switch (type) { */
+	/* case TASK_SET_GROUP: */
+	/* case TASK_MOVE_GROUP: */
+	/* 	break; */
+	/* } */
 }
 #endif
 
@@ -1240,7 +1233,7 @@ void __init init_sched_ipanema_class(void)
 	rwlock_init(&ipanema_rwlock);
 	open_softirq(SCHED_SOFTIRQ_IPANEMA, run_rebalance_domains);
 
-	pr_info("ipanema: sched_class initialized\n");
+	pr_info("sched_class initialized\n");
 }
 
 int __init init_sched_ipanema_late(void)
@@ -1249,7 +1242,7 @@ int __init init_sched_ipanema_late(void)
 
 	ret = create_topology();
 	if (ret)
-		pr_err("ipanema: create_topology() failed\n");
+		pr_err("create_topology() failed\n");
 
 #ifdef CONFIG_IPANEMA_DEBUG_TOPOLOGY
 	print_topology();

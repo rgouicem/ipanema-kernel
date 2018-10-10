@@ -1,3 +1,5 @@
+#define pr_fmt(fmt) "ipanema: " fmt
+
 #include <linux/kobject.h>
 #include <linux/sysfs.h>
 #include <linux/init.h>
@@ -106,14 +108,14 @@ static int __init ipanema_sysfs_init(void)
 	if (error)
 		goto kset_exit;
 
-	pr_info("ipanema: /sys/kernel/ipanema created\n");
+	pr_info("/sys/kernel/ipanema created\n");
 
 	return 0;
 
 kset_exit:
 	kobject_put(ipanema_kobj);
 exit:
-	pr_err("ipanema: failed to create /sys/kernel/ipanema (%s)\n",
+	pr_err("failed to create /sys/kernel/ipanema (%s)\n",
 	       error == -ENOMEM ? "ENOMEM" : "sysfs_create_group error");
 
 	return error;
