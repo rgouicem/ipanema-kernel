@@ -44,7 +44,7 @@ static inline void usage()
 		"Usage:\n"
 		"\t ipastart policy program [args]\n"
 		"\n"
-		"\t policy   ipanema policy id (see /proc/ipanema_info)\n"
+		"\t policy   ipanema policy id (see /proc/ipanema/policies)\n"
 		"\t program  the program to launch\n"
 		"\t args     arguments for program\n");
 }
