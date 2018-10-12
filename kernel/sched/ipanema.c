@@ -140,11 +140,11 @@ int ipanema_set_policy(char *str)
 	ret = cpulist_parse(str, &cores_allowed);
 	if (ret != 0) {
 		if (str[1] == '\n') {
-			if (str[0] == '*')
+			if (str[0] == '*') {
 				cpumask_copy(&cores_allowed, cpu_possible_mask);
-			else if (str[0] == 'r')
+			} else if (str[0] == 'r') {
 				remove = true;
-			else {
+			} else {
 				ret = -EINVAL;
 				goto end_nolock;
 			}
@@ -153,6 +153,7 @@ int ipanema_set_policy(char *str)
 			goto end_nolock;
 		}
 	}
+	ret = 0;
 
 	/*
 	 * From now on, we read or write to ipanema_modules and ipanema_policies
@@ -198,7 +199,6 @@ int ipanema_set_policy(char *str)
 			num_ipanema_policies--;
 			module_put(policy_cur->module->kmodule);
 			kref_put(&policy_cur->refcount, ipanema_policy_free);
-			ret = 0;
 			goto end;
 		}
 		ret = -EBUSY;
