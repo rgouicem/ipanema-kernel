@@ -44,7 +44,7 @@ static inline void usage()
 		"Usage:\n"
 		"\t ipasetpolicy policy pid\n"
 		"\n"
-		"\t policy   ipanema policy id (see /proc/ipanema_info)\n"
+		"\t policy   ipanema policy id (see /proc/ipanema/policies)\n"
 		"\t pid      the pid to move to ipanema policy\n");
 }
 
