@@ -809,7 +809,7 @@ static int select_task_rq_ipanema(struct task_struct *p,
 	return ret;
 }
 
-static void migrate_task_rq_ipanema(struct task_struct *p)
+static void migrate_task_rq_ipanema(struct task_struct *p, int new_cpu)
 {
 #ifdef CONFIG_SCHED_MONITOR_IPANEMA
 	u64 start = 0;
@@ -818,8 +818,8 @@ static void migrate_task_rq_ipanema(struct task_struct *p)
 	sched_monitor_ipanema_start(start);
 
 	if (unlikely(ipanema_sched_class_log))
-		pr_info("In %s, [pid=%d]\n",
-			__func__, p->pid);
+		pr_info("In %s, [pid=%d, new_cpu=%d]\n",
+			__func__, p->pid, new_cpu);
 
 	sched_monitor_ipanema_stop(MIGRATE, start);
 }

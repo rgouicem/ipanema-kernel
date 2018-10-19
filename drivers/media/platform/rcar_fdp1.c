@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
  * Renesas R-Car Fine Display Processor
  *
@@ -8,11 +9,6 @@
  *
  * This code is developed and inspired from the vim2m, rcar_jpu,
  * m2m-deinterlace, and vsp1 drivers.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by the
- * Free Software Foundation; either version 2 of the
- * License, or (at your option) any later version
  */
 
 #include <linux/clk.h>
@@ -1132,7 +1128,7 @@ static int fdp1_device_process(struct fdp1_ctx *ctx)
  * mem2mem callbacks
  */
 
-/**
+/*
  * job_ready() - check whether an instance is ready to be scheduled to run
  */
 static int fdp1_m2m_job_ready(void *priv)
@@ -2032,7 +2028,7 @@ static void fdp1_stop_streaming(struct vb2_queue *q)
 	}
 }
 
-static struct vb2_ops fdp1_qops = {
+static const struct vb2_ops fdp1_qops = {
 	.queue_setup	 = fdp1_queue_setup,
 	.buf_prepare	 = fdp1_buf_prepare,
 	.buf_queue	 = fdp1_buf_queue,

@@ -1,17 +1,14 @@
-/*
- * ASoC audio graph SCU sound card support
- *
- * Copyright (C) 2017 Renesas Solutions Corp.
- * Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
- *
- * based on
- *	${LINUX}/sound/soc/generic/simple-scu-card.c
- *	${LINUX}/sound/soc/generic/audio-graph-card.c
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- */
+// SPDX-License-Identifier: GPL-2.0
+//
+// ASoC audio graph SCU sound card support
+//
+// Copyright (C) 2017 Renesas Solutions Corp.
+// Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+//
+// based on
+//	${LINUX}/sound/soc/generic/simple-scu-card.c
+//	${LINUX}/sound/soc/generic/audio-graph-card.c
+
 #include <linux/clk.h>
 #include <linux/device.h>
 #include <linux/gpio.h>
@@ -56,7 +53,7 @@ static void asoc_graph_card_shutdown(struct snd_pcm_substream *substream)
 	asoc_simple_card_clk_disable(dai_props);
 }
 
-static struct snd_soc_ops asoc_graph_card_ops = {
+static const struct snd_soc_ops asoc_graph_card_ops = {
 	.startup = asoc_graph_card_startup,
 	.shutdown = asoc_graph_card_shutdown,
 };
@@ -348,8 +345,8 @@ static int asoc_graph_card_probe(struct platform_device *pdev)
 	if (num == 0)
 		return -EINVAL;
 
-	dai_props = devm_kzalloc(dev, sizeof(*dai_props) * num, GFP_KERNEL);
-	dai_link  = devm_kzalloc(dev, sizeof(*dai_link)  * num, GFP_KERNEL);
+	dai_props = devm_kcalloc(dev, num, sizeof(*dai_props), GFP_KERNEL);
+	dai_link  = devm_kcalloc(dev, num, sizeof(*dai_link), GFP_KERNEL);
 	if (!dai_props || !dai_link)
 		return -ENOMEM;
 
@@ -401,6 +398,7 @@ MODULE_DEVICE_TABLE(of, asoc_graph_of_match);
 static struct platform_driver asoc_graph_card = {
 	.driver = {
 		.name = "asoc-audio-graph-scu-card",
+		.pm = &snd_soc_pm_ops,
 		.of_match_table = asoc_graph_of_match,
 	},
 	.probe = asoc_graph_card_probe,

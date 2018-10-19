@@ -36,7 +36,7 @@
 
 #include "vbox_drv.h"
 
-int vbox_modeset = -1;
+static int vbox_modeset = -1;
 
 MODULE_PARM_DESC(modeset, "Disable/Enable modesetting");
 module_param_named(modeset, vbox_modeset, int, 0400);
@@ -51,14 +51,49 @@ MODULE_DEVICE_TABLE(pci, pciidlist);
 
 static int vbox_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 {
-	return drm_get_pci_dev(pdev, ent, &driver);
+	struct drm_device *dev = NULL;
+	int ret = 0;
+
+	dev = drm_dev_alloc(&driver, &pdev->dev);
+	if (IS_ERR(dev)) {
+		ret = PTR_ERR(dev);
+		goto err_drv_alloc;
+	}
+
+	ret = pci_enable_device(pdev);
+	if (ret)
+		goto err_pci_enable;
+
+	dev->pdev = pdev;
+	pci_set_drvdata(pdev, dev);
+
+	ret = vbox_driver_load(dev);
+	if (ret)
+		goto err_vbox_driver_load;
+
+	ret = drm_dev_register(dev, 0);
+	if (ret)
+		goto err_drv_dev_register;
+
+	return ret;
+
+ err_drv_dev_register:
+	vbox_driver_unload(dev);
+ err_vbox_driver_load:
+	pci_disable_device(pdev);
+ err_pci_enable:
+	drm_dev_put(dev);
+ err_drv_alloc:
+	return ret;
 }
 
 static void vbox_pci_remove(struct pci_dev *pdev)
 {
 	struct drm_device *dev = pci_get_drvdata(pdev);
 
-	drm_put_dev(dev);
+	drm_dev_unregister(dev);
+	vbox_driver_unload(dev);
+	drm_dev_put(dev);
 }
 
 static int vbox_drm_freeze(struct drm_device *dev)
@@ -227,12 +262,9 @@ static struct drm_driver driver = {
 	    DRIVER_PRIME,
 	.dev_priv_size = 0,
 
-	.load = vbox_driver_load,
-	.unload = vbox_driver_unload,
 	.lastclose = vbox_driver_lastclose,
 	.master_set = vbox_master_set,
 	.master_drop = vbox_master_drop,
-	.set_busid = drm_pci_set_busid,
 
 	.fops = &vbox_fops,
 	.irq_handler = vbox_irq_handler,
@@ -243,7 +275,7 @@ static struct drm_driver driver = {
 	.minor = DRIVER_MINOR,
 	.patchlevel = DRIVER_PATCHLEVEL,
 
-	.gem_free_object = vbox_gem_free_object,
+	.gem_free_object_unlocked = vbox_gem_free_object,
 	.dumb_create = vbox_dumb_create,
 	.dumb_map_offset = vbox_dumb_mmap_offset,
 	.dumb_destroy = drm_gem_dumb_destroy,
@@ -270,12 +302,12 @@ static int __init vbox_init(void)
 	if (vbox_modeset == 0)
 		return -EINVAL;
 
-	return drm_pci_init(&driver, &vbox_pci_driver);
+	return pci_register_driver(&vbox_pci_driver);
 }
 
 static void __exit vbox_exit(void)
 {
-	drm_pci_exit(&driver, &vbox_pci_driver);
+	pci_unregister_driver(&vbox_pci_driver);
 }
 
 module_init(vbox_init);

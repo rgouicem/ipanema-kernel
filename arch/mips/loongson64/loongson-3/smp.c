@@ -319,8 +319,8 @@ static void loongson3_init_secondary(void)
 		loongson3_ipi_write32(0xffffffff, ipi_en0_regs[cpu_logical_map(i)]);
 
 	per_cpu(cpu_state, cpu) = CPU_ONLINE;
-	cpu_data[cpu].core =
-		cpu_logical_map(cpu) % loongson_sysconf.cores_per_package;
+	cpu_set_core(&cpu_data[cpu],
+		     cpu_logical_map(cpu) % loongson_sysconf.cores_per_package);
 	cpu_data[cpu].package =
 		cpu_logical_map(cpu) / loongson_sysconf.cores_per_package;
 
@@ -386,7 +386,8 @@ static void __init loongson3_smp_setup(void)
 	ipi_status0_regs_init();
 	ipi_en0_regs_init();
 	ipi_mailbox_buf_init();
-	cpu_data[0].core = cpu_logical_map(0) % loongson_sysconf.cores_per_package;
+	cpu_set_core(&cpu_data[0],
+		     cpu_logical_map(0) % loongson_sysconf.cores_per_package);
 	cpu_data[0].package = cpu_logical_map(0) / loongson_sysconf.cores_per_package;
 }
 
@@ -399,7 +400,7 @@ static void __init loongson3_prepare_cpus(unsigned int max_cpus)
 /*
  * Setup the PC, SP, and GP of a secondary processor and start it runing!
  */
-static void loongson3_boot_secondary(int cpu, struct task_struct *idle)
+static int loongson3_boot_secondary(int cpu, struct task_struct *idle)
 {
 	unsigned long startargs[4];
 
@@ -422,6 +423,7 @@ static void loongson3_boot_secondary(int cpu, struct task_struct *idle)
 			(void *)(ipi_mailbox_buf[cpu_logical_map(cpu)]+0x8));
 	loongson3_ipi_write64(startargs[0],
 			(void *)(ipi_mailbox_buf[cpu_logical_map(cpu)]+0x0));
+	return 0;
 }
 
 #ifdef CONFIG_HOTPLUG_CPU
@@ -680,7 +682,8 @@ void play_dead(void)
 			(void *)CKSEG1ADDR((unsigned long)loongson3a_r1_play_dead);
 		break;
 	case PRID_REV_LOONGSON3A_R2:
-	case PRID_REV_LOONGSON3A_R3:
+	case PRID_REV_LOONGSON3A_R3_0:
+	case PRID_REV_LOONGSON3A_R3_1:
 		play_dead_at_ckseg1 =
 			(void *)CKSEG1ADDR((unsigned long)loongson3a_r2r3_play_dead);
 		break;
@@ -697,7 +700,7 @@ void play_dead(void)
 
 static int loongson3_disable_clock(unsigned int cpu)
 {
-	uint64_t core_id = cpu_data[cpu].core;
+	uint64_t core_id = cpu_core(&cpu_data[cpu]);
 	uint64_t package_id = cpu_data[cpu].package;
 
 	if ((read_c0_prid() & PRID_REV_MASK) == PRID_REV_LOONGSON3A_R1) {
@@ -711,7 +714,7 @@ static int loongson3_disable_clock(unsigned int cpu)
 
 static int loongson3_enable_clock(unsigned int cpu)
 {
-	uint64_t core_id = cpu_data[cpu].core;
+	uint64_t core_id = cpu_core(&cpu_data[cpu]);
 	uint64_t package_id = cpu_data[cpu].package;
 
 	if ((read_c0_prid() & PRID_REV_MASK) == PRID_REV_LOONGSON3A_R1) {
@@ -734,7 +737,7 @@ early_initcall(register_loongson3_notifier);
 
 #endif
 
-struct plat_smp_ops loongson3_smp_ops = {
+const struct plat_smp_ops loongson3_smp_ops = {
 	.send_ipi_single = loongson3_send_ipi_single,
 	.send_ipi_mask = loongson3_send_ipi_mask,
 	.init_secondary = loongson3_init_secondary,

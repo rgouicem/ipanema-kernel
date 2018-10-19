@@ -468,7 +468,6 @@ static void xgene_enet_configure_clock(struct xgene_enet_pdata *pdata)
 
 static void xgene_gmac_set_speed(struct xgene_enet_pdata *pdata)
 {
-	struct device *dev = &pdata->pdev->dev;
 	u32 icm0, icm2, mc2;
 	u32 intf_ctl, rgmii, value;
 
@@ -500,10 +499,8 @@ static void xgene_gmac_set_speed(struct xgene_enet_pdata *pdata)
 		intf_ctl |= ENET_GHD_MODE;
 		CFG_MACMODE_SET(&icm0, 2);
 		CFG_WAITASYNCRD_SET(&icm2, 0);
-		if (dev->of_node) {
-			CFG_TXCLK_MUXSEL0_SET(&rgmii, pdata->tx_delay);
-			CFG_RXCLK_MUXSEL0_SET(&rgmii, pdata->rx_delay);
-		}
+		CFG_TXCLK_MUXSEL0_SET(&rgmii, pdata->tx_delay);
+		CFG_RXCLK_MUXSEL0_SET(&rgmii, pdata->rx_delay);
 		rgmii |= CFG_SPEED_1250;
 
 		xgene_enet_rd_csr(pdata, DEBUG_REG_ADDR, &value);
@@ -839,19 +836,19 @@ static void xgene_enet_adjust_link(struct net_device *ndev)
 #ifdef CONFIG_ACPI
 static struct acpi_device *acpi_phy_find_device(struct device *dev)
 {
-	struct acpi_reference_args args;
+	struct fwnode_reference_args args;
 	struct fwnode_handle *fw_node;
 	int status;
 
 	fw_node = acpi_fwnode_handle(ACPI_COMPANION(dev));
 	status = acpi_node_get_property_reference(fw_node, "phy-handle", 0,
 						  &args);
-	if (ACPI_FAILURE(status)) {
+	if (ACPI_FAILURE(status) || !is_acpi_device_node(args.fwnode)) {
 		dev_dbg(dev, "No matching phy in ACPI table\n");
 		return NULL;
 	}
 
-	return args.adev;
+	return to_acpi_device_node(args.fwnode);
 }
 #endif
 

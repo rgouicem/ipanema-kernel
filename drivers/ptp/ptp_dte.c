@@ -14,6 +14,7 @@
 #include <linux/err.h>
 #include <linux/io.h>
 #include <linux/module.h>
+#include <linux/mod_devicetable.h>
 #include <linux/platform_device.h>
 #include <linux/ptp_clock_kernel.h>
 #include <linux/types.h>
@@ -221,7 +222,7 @@ static int ptp_dte_enable(struct ptp_clock_info *ptp,
 	return -EOPNOTSUPP;
 }
 
-static struct ptp_clock_info ptp_dte_caps = {
+static const struct ptp_clock_info ptp_dte_caps = {
 	.owner		= THIS_MODULE,
 	.name		= "DTE PTP timer",
 	.max_adj	= 50000000,

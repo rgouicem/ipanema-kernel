@@ -59,6 +59,7 @@ static int linear_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 
 	ti->num_flush_bios = 1;
 	ti->num_discard_bios = 1;
+	ti->num_secure_erase_bios = 1;
 	ti->num_write_same_bios = 1;
 	ti->num_write_zeroes_bios = 1;
 	ti->private = lc;
@@ -88,7 +89,7 @@ static void linear_map_bio(struct dm_target *ti, struct bio *bio)
 {
 	struct linear_c *lc = ti->private;
 
-	bio->bi_bdev = lc->dev->bdev;
+	bio_set_dev(bio, lc->dev->bdev);
 	if (bio_sectors(bio) || bio_op(bio) == REQ_OP_ZONE_RESET)
 		bio->bi_iter.bi_sector =
 			linear_map_sector(ti, bio->bi_iter.bi_sector);
@@ -101,6 +102,7 @@ static int linear_map(struct dm_target *ti, struct bio *bio)
 	return DM_MAPIO_REMAPPED;
 }
 
+#ifdef CONFIG_BLK_DEV_ZONED
 static int linear_end_io(struct dm_target *ti, struct bio *bio,
 			 blk_status_t *error)
 {
@@ -111,6 +113,7 @@ static int linear_end_io(struct dm_target *ti, struct bio *bio,
 
 	return DM_ENDIO_DONE;
 }
+#endif
 
 static void linear_status(struct dm_target *ti, status_type_t type,
 			  unsigned status_flags, char *result, unsigned maxlen)
@@ -129,8 +132,7 @@ static void linear_status(struct dm_target *ti, status_type_t type,
 	}
 }
 
-static int linear_prepare_ioctl(struct dm_target *ti,
-		struct block_device **bdev, fmode_t *mode)
+static int linear_prepare_ioctl(struct dm_target *ti, struct block_device **bdev)
 {
 	struct linear_c *lc = (struct linear_c *) ti->private;
 	struct dm_dev *dev = lc->dev;
@@ -154,6 +156,7 @@ static int linear_iterate_devices(struct dm_target *ti,
 	return fn(ti, lc->dev, lc->start, ti->len, data);
 }
 
+#if IS_ENABLED(CONFIG_DAX_DRIVER)
 static long linear_dax_direct_access(struct dm_target *ti, pgoff_t pgoff,
 		long nr_pages, void **kaddr, pfn_t *pfn)
 {
@@ -184,8 +187,8 @@ static size_t linear_dax_copy_from_iter(struct dm_target *ti, pgoff_t pgoff,
 	return dax_copy_from_iter(dax_dev, pgoff, addr, bytes, i);
 }
 
-static void linear_dax_flush(struct dm_target *ti, pgoff_t pgoff, void *addr,
-		size_t size)
+static size_t linear_dax_copy_to_iter(struct dm_target *ti, pgoff_t pgoff,
+		void *addr, size_t bytes, struct iov_iter *i)
 {
 	struct linear_c *lc = ti->private;
 	struct block_device *bdev = lc->dev->bdev;
@@ -193,26 +196,36 @@ static void linear_dax_flush(struct dm_target *ti, pgoff_t pgoff, void *addr,
 	sector_t dev_sector, sector = pgoff * PAGE_SECTORS;
 
 	dev_sector = linear_map_sector(ti, sector);
-	if (bdev_dax_pgoff(bdev, dev_sector, ALIGN(size, PAGE_SIZE), &pgoff))
-		return;
-	dax_flush(dax_dev, pgoff, addr, size);
+	if (bdev_dax_pgoff(bdev, dev_sector, ALIGN(bytes, PAGE_SIZE), &pgoff))
+		return 0;
+	return dax_copy_to_iter(dax_dev, pgoff, addr, bytes, i);
 }
+
+#else
+#define linear_dax_direct_access NULL
+#define linear_dax_copy_from_iter NULL
+#define linear_dax_copy_to_iter NULL
+#endif
 
 static struct target_type linear_target = {
 	.name   = "linear",
 	.version = {1, 4, 0},
+#ifdef CONFIG_BLK_DEV_ZONED
+	.end_io = linear_end_io,
 	.features = DM_TARGET_PASSES_INTEGRITY | DM_TARGET_ZONED_HM,
+#else
+	.features = DM_TARGET_PASSES_INTEGRITY,
+#endif
 	.module = THIS_MODULE,
 	.ctr    = linear_ctr,
 	.dtr    = linear_dtr,
 	.map    = linear_map,
-	.end_io = linear_end_io,
 	.status = linear_status,
 	.prepare_ioctl = linear_prepare_ioctl,
 	.iterate_devices = linear_iterate_devices,
 	.direct_access = linear_dax_direct_access,
 	.dax_copy_from_iter = linear_dax_copy_from_iter,
-	.dax_flush = linear_dax_flush,
+	.dax_copy_to_iter = linear_dax_copy_to_iter,
 };
 
 int __init dm_linear_init(void)

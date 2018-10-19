@@ -56,8 +56,6 @@ static struct rcu_ctrlblk rcu_bh_ctrlblk = {
 	.curtail	= &rcu_bh_ctrlblk.rcucblist,
 };
 
-#include "tiny_plugin.h"
-
 void rcu_barrier_bh(void)
 {
 	wait_rcu_gp(call_rcu_bh);
@@ -124,10 +122,8 @@ void rcu_check_callbacks(int user)
 {
 	if (user)
 		rcu_sched_qs();
-	else if (!in_softirq())
+	if (user || !in_softirq())
 		rcu_bh_qs();
-	if (user)
-		rcu_note_voluntary_context_switch(current);
 }
 
 /*
