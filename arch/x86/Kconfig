@@ -1043,8 +1043,6 @@ config SCHED_MC_PRIO
 
 	  If unsure say Y here.
 
-source "kernel/Kconfig.preempt"
-
 menu "Scheduler monitoring"
 
 source "kernel/sched/Kconfig.sched_monitor"
