@@ -1,3 +1,7 @@
+stages:
+  - build
+  - build-ipanema
+
 build-kernel:
   stage: build
   tags:
@@ -7,4 +11,37 @@ build-kernel:
     - make localmodconfig
     - make ipanema.config
     - make -j48
-    - cd ipanema/modules && make -j48
+  cache:
+    untracked: true
+    key: kbuild-cache
+    paths:
+      - .
+      - .config
+
+build-ipanema-policies:
+  stage: build-ipanema
+  tags:
+    - ipanema
+  script:
+    - cd ipanema/modules && make -j48 && cd ../..
+  cache:
+    untracked: true
+    key: kbuild-cache
+    paths:
+      - .
+      - .config
+
+build-ipanema-ipastart:
+  stage: build-ipanema
+  tags:
+    - ipanema
+  script:
+    - cd tools/ipanema/ipastart && make && cd ../../..
+
+
+build-ipanema-ipasetspolicy:
+  stage: build-ipanema
+  tags:
+    - ipanema
+  script:
+    - cd tools/ipanema/ipasetpolicy && make && cd ../../..
