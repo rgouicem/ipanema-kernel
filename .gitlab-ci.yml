@@ -12,25 +12,24 @@ build-kernel:
     - make ipanema.config
     - make -j48
   cache:
+    untracked: true
     key: kbuild-cache
     paths:
-      - Module.symvers
-      - System.map
+      - .
+      - .config
 
 build-ipanema-policies:
   stage: build-ipanema
   tags:
     - ipanema
   script:
-    - make defconfig
-    - make localmodconfig
-    - make ipanema.config
     - cd ipanema/modules && make -j48 && cd ../..
   cache:
+    untracked: true
     key: kbuild-cache
     paths:
-      - Module.symvers
-      - System.map
+      - .
+      - .config
 
 build-ipanema-ipastart:
   stage: build-ipanema
