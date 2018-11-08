@@ -17,6 +17,7 @@ build-kernel:
       - Module.symvers
       - System.map
       - .config
+      - include/generated
 
 build-ipanema-policies:
   stage: build-ipanema
@@ -30,6 +31,7 @@ build-ipanema-policies:
       - Module.symvers
       - System.map
       - .config
+      - include/generated
 
 build-ipanema-ipastart:
   stage: build-ipanema
