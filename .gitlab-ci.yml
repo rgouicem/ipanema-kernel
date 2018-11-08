@@ -15,7 +15,8 @@ build-kernel:
     untracked: true
     key: kbuild-cache
     paths:
-      - .
+      - Module.symvers
+      - System.map
       - .config
 
 build-ipanema-policies:
@@ -28,7 +29,8 @@ build-ipanema-policies:
     untracked: true
     key: kbuild-cache
     paths:
-      - .
+      - Module.symvers
+      - System.map
       - .config
 
 build-ipanema-ipastart:
