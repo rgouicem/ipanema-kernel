@@ -812,7 +812,7 @@ int init_module(void)
 	}
 
 	/* Allocate & setup the ipanema_module */
-	module = kmalloc(sizeof(struct ipanema_module), GFP_KERNEL);
+	module = kzalloc(sizeof(struct ipanema_module), GFP_KERNEL);
 	if (!module) {
 		res = -ENOMEM;
 		goto clean_cpumask_var;
