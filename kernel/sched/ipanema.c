@@ -34,13 +34,16 @@ void ipanema_unlock_core(unsigned int id)
 }
 EXPORT_SYMBOL(ipanema_unlock_core);
 
+static DEFINE_SPINLOCK(ipanema_user_proc_lock);
+
 int ipanema_add_module(struct ipanema_module *module)
 {
 	unsigned long flags;
 	int ret = 0;
 	struct ipanema_module *mod;
 
-	write_lock_irqsave(&ipanema_rwlock, flags);
+	spin_lock_irqsave(&ipanema_user_proc_lock, flags);
+	write_lock(&ipanema_rwlock);
 
 	list_for_each_entry(mod, &ipanema_modules, list) {
 		if (!strcmp(mod->name, module->name)) {
@@ -53,7 +56,8 @@ int ipanema_add_module(struct ipanema_module *module)
 	list_add_tail(&module->list, &ipanema_modules);
 
 end:
-	write_unlock_irqrestore(&ipanema_rwlock, flags);
+	write_unlock(&ipanema_rwlock);
+	spin_unlock_irqrestore(&ipanema_user_proc_lock, flags);
 
 	return ret;
 }
@@ -74,7 +78,8 @@ int ipanema_remove_module(struct ipanema_module *module)
 	struct ipanema_module *mod;
 	int ret = 0;
 
-	write_lock_irqsave(&ipanema_rwlock, flags);
+	spin_lock_irqsave(&ipanema_user_proc_lock, flags);
+	write_lock(&ipanema_rwlock);
 
 	list_for_each_entry(mod, &ipanema_modules, list) {
 		if (mod == module) {
@@ -99,7 +104,8 @@ int ipanema_remove_module(struct ipanema_module *module)
 	list_del(&module->list);
 
 end:
-	write_unlock_irqrestore(&ipanema_rwlock, flags);
+	write_unlock(&ipanema_rwlock);
+	spin_unlock_irqrestore(&ipanema_user_proc_lock, flags);
 
 	return ret;
 }
@@ -156,12 +162,13 @@ int ipanema_set_policy(char *str)
 	ret = 0;
 
 	/*
-	 * From now on, we read or write to ipanema_modules and ipanema_policies
-	 * We need to take a lock for writing
+	 * We lock all other user interactions with ipanema, and we will use the
+	 * rwlock when necessary.
 	 */
-	write_lock_irqsave(&ipanema_rwlock, flags);
+	spin_lock_irqsave(&ipanema_user_proc_lock, flags);
 
 	/* Check if module exists as an ipanema module */
+	write_lock(&ipanema_rwlock);
 	list_for_each_entry(mod, &ipanema_modules, list) {
 		if (!strcmp(module_name, mod->name)) {
 			module = mod;
@@ -171,7 +178,7 @@ int ipanema_set_policy(char *str)
 
 	if (!module) {
 		ret = -EINVAL;
-		goto end;
+		goto end_wlock;
 	}
 
 	/* Check if policy already exists */
@@ -189,7 +196,7 @@ int ipanema_set_policy(char *str)
 	 */
 	if (!exists && remove) {
 		ret = -EINVAL;
-		goto end;
+		goto end_wlock;
 	}
 	if (exists && remove) {
 		nr_users = kref_read(&policy_cur->refcount);
@@ -199,11 +206,12 @@ int ipanema_set_policy(char *str)
 			num_ipanema_policies--;
 			module_put(policy_cur->module->kmodule);
 			kref_put(&policy_cur->refcount, ipanema_policy_free);
-			goto end;
+			goto end_wlock;
 		}
 		ret = -EBUSY;
-		goto end;
+		goto end_wlock;
 	}
+	write_unlock(&ipanema_rwlock);
 
 	/*
 	 * If it already exists, change the allowed_cores mask and:
@@ -284,17 +292,21 @@ int ipanema_set_policy(char *str)
 		raw_spin_unlock_irqrestore(&cpu_rq(cpu)->lock, percpu_flags);
 	}
 
+	write_lock(&ipanema_rwlock);
 	/* Insert policy into active policies */
 	list_add_tail(&policy->list, &ipanema_policies);
 	num_ipanema_policies++;
 
+end_wlock:
+	write_unlock(&ipanema_rwlock);
 end:
-	write_unlock_irqrestore(&ipanema_rwlock, flags);
+	spin_unlock_irqrestore(&ipanema_user_proc_lock, flags);
 end_nolock:
 	return ret;
 
 free_policy:
 	kfree(policy);
+	spin_unlock_irqrestore(&ipanema_user_proc_lock, flags);
 	return ret;
 }
 EXPORT_SYMBOL(ipanema_set_policy);

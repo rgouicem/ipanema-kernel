@@ -796,7 +796,7 @@ static int create_scheduling_domains(unsigned int cpu)
 			}
 		}
 		if (!seen) {
-			sd = kmalloc(sd_size, GFP_KERNEL);
+			sd = kzalloc(sd_size, GFP_KERNEL);
 			if (!sd)
 				goto err;
 			INIT_LIST_HEAD(&sd->siblings);
@@ -1064,7 +1064,7 @@ int init_module(void)
 	build_hierarchy();
 
 	/* Allocate & setup the ipanema_module */
-        module = kmalloc(sizeof(struct ipanema_module), GFP_KERNEL);
+        module = kzalloc(sizeof(struct ipanema_module), GFP_KERNEL);
         if (!module) {
         	res = -ENOMEM;
                 goto clean_cpumask_var;

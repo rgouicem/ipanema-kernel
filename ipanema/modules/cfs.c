@@ -1015,7 +1015,7 @@ static int create_scheduling_domains(unsigned int cpu)
 			}
 		}
 		if (!seen) {
-			sd = kmalloc(sd_size, GFP_KERNEL);
+			sd = kzalloc(sd_size, GFP_KERNEL);
 			if (!sd)
 				goto err;
 			INIT_LIST_HEAD(&sd->siblings);
@@ -1245,23 +1245,23 @@ int init_module(void)
         char procbuf[10];
 
 	max_quanta = ms_to_ktime(max_quanta_ms);
-        
+
         /* Initialize scheduler variables with non-const value (function call) */
         for_each_possible_cpu(cpu) {
-        	ipanema_core(cpu).id = cpu;
+		ipanema_core(cpu).id = cpu;
                 /* FIXME init of core variables of the user */
 		ipanema_core(cpu).cload = 0;
                 /* allocation of ipanema rqs */
 		init_ipanema_rq(&ipanema_state(cpu).ready, RBTREE, cpu,
 				IPANEMA_READY, ipanema_cfs_order_process);
         }
-        
+
         /* allocation of every cpumask_var_t of struct core_state_info */
         if (!zalloc_cpumask_var(&(cstate_info.active_cores), GFP_KERNEL)) {
         	res = -ENOMEM;
                 goto clean_cpumask_var;
         }
-        
+
         if (!zalloc_cpumask_var(&(cstate_info.idle_cores), GFP_KERNEL)) {
         	res = -ENOMEM;
                 goto clean_cpumask_var;
@@ -1271,7 +1271,7 @@ int init_module(void)
 	build_hierarchy();
 
 	/* Allocate & setup the ipanema_module */
-        module = kmalloc(sizeof(struct ipanema_module), GFP_KERNEL);
+        module = kzalloc(sizeof(struct ipanema_module), GFP_KERNEL);
         if (!module) {
         	res = -ENOMEM;
                 goto clean_cpumask_var;
