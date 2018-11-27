@@ -53,25 +53,25 @@ enum oltp_rq_id {
 };
 
 struct oltp_ipa_process {
-        enum ipanema_state state; // Internal
-        struct ipanema_rq *rq; // Internal
-        struct rb_node node; // Internal
-        struct task_struct *task; // Internal
-        ktime_t start;
+	enum ipanema_state state; // Internal
+	struct ipanema_rq *rq; // Internal
+	struct rb_node node; // Internal
+	struct task_struct *task; // Internal
+	ktime_t start;
 	enum oltp_rq_id rq_id;
 	/* list_head for balancing */
 	struct list_head list;
 };
 
 struct oltp_ipa_core {
-        enum ipanema_core_state state; // Internal
-        cpumask_var_t *cpuset; // Internal
-        int id; // System
-        struct oltp_ipa_sched_domain *sd;
+	enum ipanema_core_state state; // Internal
+	cpumask_t *cpuset; // Internal
+	int id; // System
+	struct oltp_ipa_sched_domain *sd;
 };
 
 struct oltp_ipa_sched_group {
-        cpumask_var_t cores;
+	cpumask_t cores;
 };
 
 
@@ -88,14 +88,14 @@ struct oltp_ipa_sched_group {
  */
 struct oltp_ipa_sched_domain {
 	/* domain attributes
-         *  specified by the scheduling policy
-         *  in the domain = {...} declaration
-         */
+	 *  specified by the scheduling policy
+	 *  in the domain = {...} declaration
+	 */
 	struct list_head siblings;  // link domains of the same level
 	struct oltp_ipa_sched_domain *parent;
-        int ___sched_group_idx; // Internal
-        struct oltp_ipa_sched_group *groups;
-        cpumask_var_t cores;
+	int ___sched_group_idx; // Internal
+	struct oltp_ipa_sched_group *groups;
+	cpumask_t cores;
 	spinlock_t lock;
 	int flags; // Internal
 	ktime_t next_balance;
@@ -113,7 +113,7 @@ static int ipanema_oltp_order_process(struct task_struct *a,
 	struct oltp_ipa_process *pa = policy_metadata(a);
 	struct oltp_ipa_process *pb = policy_metadata(b);
 
-        return pb->start - pa->start;
+	return pb->start - pa->start;
 }
 
 static void ipa_change_proc(struct oltp_ipa_process *proc,
@@ -127,11 +127,11 @@ static void ipa_change_proc(struct oltp_ipa_process *proc,
 	proc->rq = NULL;
 	change_state(proc->task, state, task_cpu(proc->task), NULL);
 	/* pr_info("%s(pid=%d, state=%s[%d]->%s[%d]): -> %s\n", */
-	/* 	__func__, */
-	/* 	proc->task->pid, */
-	/* 	ipanema_state_to_str(old), task_cpu(proc->task), */
-	/* 	ipanema_state_to_str(state), task_cpu(proc->task), */
-	/* 	proc->rq_id == NORMAL ? "NORMAL" : "STRAGGLER"); */
+	/*	__func__, */
+	/*	proc->task->pid, */
+	/*	ipanema_state_to_str(old), task_cpu(proc->task), */
+	/*	ipanema_state_to_str(state), task_cpu(proc->task), */
+	/*	proc->rq_id == NORMAL ? "NORMAL" : "STRAGGLER"); */
 }
 
 static void ipa_change_queue(struct oltp_ipa_process *proc,
@@ -147,11 +147,11 @@ static void ipa_change_queue(struct oltp_ipa_process *proc,
 	proc->rq = rq;
 	change_state(proc->task, state, task_cpu(proc->task), rq);
 	/* pr_info("%s(pid=%d, state=%s[%d]->%s[%d]): -> %s\n", */
-	/* 	__func__, */
-	/* 	proc->task->pid, */
-	/* 	ipanema_state_to_str(old), old_cpu, */
-	/* 	ipanema_state_to_str(state), task_cpu(proc->task), */
-	/* 	proc->rq_id == NORMAL ? "NORMAL" : "STRAGGLER"); */
+	/*	__func__, */
+	/*	proc->task->pid, */
+	/*	ipanema_state_to_str(old), old_cpu, */
+	/*	ipanema_state_to_str(state), task_cpu(proc->task), */
+	/*	proc->rq_id == NORMAL ? "NORMAL" : "STRAGGLER"); */
 }
 
 
@@ -169,11 +169,11 @@ static void ipa_change_queue_and_core(struct oltp_ipa_process *proc,
 	proc->rq = rq;
 	change_state(proc->task, state, core->id, rq);
 	/* pr_info("%s(pid=%d, state=%s[%d]->%s[%d]): -> %s\n", */
-	/* 	__func__, */
-	/* 	proc->task->pid, */
-	/* 	ipanema_state_to_str(old), old_cpu, */
-	/* 	ipanema_state_to_str(state), task_cpu(proc->task), */
-	/* 	proc->rq_id == NORMAL ? "NORMAL" : "STRAGGLER"); */
+	/*	__func__, */
+	/*	proc->task->pid, */
+	/*	ipanema_state_to_str(old), old_cpu, */
+	/*	ipanema_state_to_str(state), task_cpu(proc->task), */
+	/*	proc->rq_id == NORMAL ? "NORMAL" : "STRAGGLER"); */
 }
 
 static enum ipanema_core_state
@@ -239,7 +239,7 @@ static unsigned int attach_tasks(struct ipanema_rq *rq, struct list_head *list)
 static void balance_cpus(struct oltp_ipa_core *victim,
 			 struct oltp_ipa_core *thief)
 {
-        LIST_HEAD(stolen_tasks);
+	LIST_HEAD(stolen_tasks);
 	struct ipanema_rq *victim_n_rq, *thief_n_rq;
 	unsigned int nr;
 	unsigned long flags;
@@ -253,10 +253,10 @@ static void balance_cpus(struct oltp_ipa_core *victim,
 
 	local_irq_save(flags);
 
-        /* Remove tasks from victim's normal rq */
+	/* Remove tasks from victim's normal rq */
 	detach_tasks(victim_n_rq, nr, &stolen_tasks, thief->id);
-        
-        /* Add them to my queue */
+
+	/* Add them to my queue */
 	nr = attach_tasks(thief_n_rq, &stolen_tasks);
 
 	local_irq_restore(flags);
@@ -270,7 +270,7 @@ find_idlest_cpu(struct ipanema_policy *policy, struct oltp_ipa_sched_domain *sd)
 	struct ipanema_rq *rq;
 	struct oltp_ipa_core *idlest = NULL;
 
-	for_each_cpu_and(cpu, sd->cores, &policy->allowed_cores) {
+	for_each_cpu_and(cpu, &sd->cores, &policy->allowed_cores) {
 		rq = &ipanema_state(cpu).normal;
 		if (rq->nr_tasks < min_nr) {
 			min_nr = rq->nr_tasks;
@@ -282,21 +282,21 @@ find_idlest_cpu(struct ipanema_policy *policy, struct oltp_ipa_sched_domain *sd)
 }
 
 static int ipanema_oltp_new_prepare(struct ipanema_policy *policy,
-                                    struct process_event *e)
+				    struct process_event *e)
 {
 	struct oltp_ipa_process *tgt;
 	struct oltp_ipa_sched_domain *sd;
 	struct oltp_ipa_core *c, *idlest = NULL;
-        struct task_struct *task_15;
-        
-        task_15 = e->target;
-        tgt = kzalloc(sizeof(struct oltp_ipa_process), GFP_ATOMIC);
-        if (!tgt) 
-        	return -1;
+	struct task_struct *task_15;
 
-        policy_metadata(task_15) = tgt;
-        tgt->task = task_15;
-        tgt->rq = NULL;
+	task_15 = e->target;
+	tgt = kzalloc(sizeof(struct oltp_ipa_process), GFP_ATOMIC);
+	if (!tgt)
+		return -1;
+
+	policy_metadata(task_15) = tgt;
+	tgt->task = task_15;
+	tgt->rq = NULL;
 
 	/* find idlest group in highest domain, then idlest core */
 	c = &ipanema_core(task_cpu(task_15));
@@ -323,18 +323,18 @@ static int ipanema_oltp_new_prepare(struct ipanema_policy *policy,
 }
 
 static void ipanema_oltp_new_place(struct ipanema_policy *policy,
-                                   struct process_event *e)
+				   struct process_event *e)
 {
 	struct task_struct *p = e->target;
 	struct oltp_ipa_process *tgt = policy_metadata(p);
 	struct oltp_ipa_core *c = &ipanema_core(task_cpu(p));
 	struct ipanema_rq *rq = &ipanema_state(c->id).normal;
 
-        ipa_change_queue_and_core(tgt, rq, IPANEMA_READY, c);
+	ipa_change_queue_and_core(tgt, rq, IPANEMA_READY, c);
 }
 
 static void ipanema_oltp_new_end(struct ipanema_policy *policy,
-                                 struct process_event *e)
+				 struct process_event *e)
 {
 	pr_info("[%d] post new on core %d\n",
 		       e->target->pid, e->target->cpu);
@@ -346,8 +346,8 @@ static void ipanema_oltp_detach(struct ipanema_policy *policy,
 {
 	struct oltp_ipa_process *tgt = policy_metadata(e->target);
 
-        ipa_change_queue(tgt, NULL, IPANEMA_TERMINATED);
-        kfree(tgt);
+	ipa_change_queue(tgt, NULL, IPANEMA_TERMINATED);
+	kfree(tgt);
 }
 
 static void ipanema_oltp_tick(struct ipanema_policy *policy,
@@ -364,11 +364,11 @@ static void ipanema_oltp_tick(struct ipanema_policy *policy,
 	latency = ktime_sub(now, tgt->start);
 	if (ktime_after(latency, qos)) {
 		/* pr_info("%s(pid=%d, cpu=%d): qos=%lld, latency=%lld\n", */
-		/* 	__func__, e->target->pid, c->id, qos, latency); */
+		/*	__func__, e->target->pid, c->id, qos, latency); */
 		tgt->rq_id = STRAGGLER;
-                ipa_change_queue(tgt,
-                                 &ipanema_state(c->id).straggler,
-                                 IPANEMA_READY_TICK);
+		ipa_change_queue(tgt,
+				 &ipanema_state(c->id).straggler,
+				 IPANEMA_READY_TICK);
 	}
 }
 
@@ -385,8 +385,8 @@ static void ipanema_oltp_yield(struct ipanema_policy *policy,
 		rq = &ipanema_state(c->id).normal;
 
 	/* pr_info("%s(pid=%d, cpu=%d)\n", */
-	/* 	__func__, e->target->pid, c->id); */
-        ipa_change_queue(tgt, rq, IPANEMA_READY);
+	/*	__func__, e->target->pid, c->id); */
+	ipa_change_queue(tgt, rq, IPANEMA_READY);
 }
 
 static void ipanema_oltp_block(struct ipanema_policy *policy,
@@ -394,7 +394,7 @@ static void ipanema_oltp_block(struct ipanema_policy *policy,
 {
 	struct oltp_ipa_process *tgt = policy_metadata(e->target);
 
-        ipa_change_queue(tgt, NULL, IPANEMA_BLOCKED);
+	ipa_change_queue(tgt, NULL, IPANEMA_BLOCKED);
 }
 
 static int ipanema_oltp_unblock_prepare(struct ipanema_policy *policy,
@@ -403,7 +403,7 @@ static int ipanema_oltp_unblock_prepare(struct ipanema_policy *policy,
 	struct task_struct *task_15 = e->target;
 	struct oltp_ipa_process *p = policy_metadata(task_15);
 	struct oltp_ipa_sched_domain *sd;
-        struct oltp_ipa_core *c, *idlest = NULL;
+	struct oltp_ipa_core *c, *idlest = NULL;
 	ktime_t now, latency;
 
 	/* remove min_vruntime from previous cpu */
@@ -442,27 +442,27 @@ end:
 	} else if (ktime_after(latency, qos))
 		p->rq_id = STRAGGLER;
 
-        return idlest->id;
+	return idlest->id;
 }
 
 static void ipanema_oltp_unblock_place(struct ipanema_policy *policy,
-                                       struct process_event *e)
+				       struct process_event *e)
 {
 	struct task_struct *p = e->target;
 	struct oltp_ipa_process *tgt = policy_metadata(p);
 	struct oltp_ipa_core *c = &ipanema_core(task_cpu(p));
 	struct ipanema_rq *rq;
-	
+
 	if (tgt->rq_id == STRAGGLER)
 		rq = &ipanema_state(c->id).straggler;
 	else
 		rq = &ipanema_state(c->id).normal;
 
-        ipa_change_queue_and_core(tgt, rq, IPANEMA_READY, c);
+	ipa_change_queue_and_core(tgt, rq, IPANEMA_READY, c);
 }
 
 static void ipanema_oltp_unblock_end(struct ipanema_policy *policy,
-                                     struct process_event *e)
+				     struct process_event *e)
 {
 	pr_info("[%d] post unblock on core %d\n", e->target->pid,
 		       e->target->cpu);
@@ -472,25 +472,25 @@ static void ipanema_oltp_schedule(struct ipanema_policy *policy,
 				  unsigned int cpu)
 {
 	struct task_struct *task_20 = NULL;
-        struct oltp_ipa_process *p;
+	struct oltp_ipa_process *p;
 
 	task_20 = ipanema_first_task(&ipanema_state(cpu).normal);
-        if (!task_20) {
+	if (!task_20) {
 		task_20 = ipanema_first_task(&ipanema_state(cpu).straggler);
 		if (!task_20)
 			return;
 	}
 
-        p = policy_metadata(task_20);
+	p = policy_metadata(task_20);
 	if (p->rq_id == STRAGGLER)
 		p->start = ktime_get();
 	p->rq_id = NORMAL;
 
-        ipa_change_proc(p, &ipanema_state(cpu).curr, IPANEMA_RUNNING);
+	ipa_change_proc(p, &ipanema_state(cpu).curr, IPANEMA_RUNNING);
 }
 
 static void ipanema_oltp_core_entry(struct ipanema_policy *policy,
-                                    struct core_event *e)
+				    struct core_event *e)
 {
 	struct oltp_ipa_core *c = &ipanema_core(e->target);
 
@@ -514,7 +514,7 @@ find_busiest_cpu(struct ipanema_policy *policy,
 	struct ipanema_rq *rq;
 	struct oltp_ipa_core *busiest = NULL;
 
-	for_each_cpu_and(cpu, sd->cores, &policy->allowed_cores) {
+	for_each_cpu_and(cpu, &sd->cores, &policy->allowed_cores) {
 		rq = &ipanema_state(cpu).normal;
 		if (rq->nr_tasks > max_nr) {
 			max_nr = rq->nr_tasks;
@@ -598,7 +598,7 @@ static void ipanema_oltp_balancing(struct ipanema_policy *policy,
 			if (!victim || victim == c)
 				goto next;
 			balance_cpus(victim, c);
-			delta = cpumask_weight(sd->cores);
+			delta = cpumask_weight(&sd->cores);
 			sd->next_balance = ktime_add(now, ms_to_ktime(delta));
 		}
 	next:
@@ -622,7 +622,7 @@ static bool ipanema_oltp_attach(struct ipanema_policy * policy,
 static int ipanema_oltp_free_metadata(struct ipanema_policy *policy)
 {
 	kfree(policy->data);
-        return 0;
+	return 0;
 }
 
 static int ipanema_oltp_can_be_default(struct ipanema_policy *policy)
@@ -705,27 +705,27 @@ static void ipanema_oltp_getparam_attr(struct task_struct *p,
 struct ipanema_module_routines ipanema_oltp_routines =
 {
 	.get_core_state   = ipanema_oltp_get_core_state,
-        .new_prepare      = ipanema_oltp_new_prepare,
-        .new_place        = ipanema_oltp_new_place,
-        .new_end          = ipanema_oltp_new_end,
-        .tick             = ipanema_oltp_tick,
-        .yield            = ipanema_oltp_yield,
-        .block            = ipanema_oltp_block,
-        .unblock_prepare  = ipanema_oltp_unblock_prepare,
-        .unblock_place    = ipanema_oltp_unblock_place,
-        .unblock_end      = ipanema_oltp_unblock_end,
-        .terminate        = ipanema_oltp_detach,
-        .schedule         = ipanema_oltp_schedule,
-        .newly_idle       = ipanema_oltp_newly_idle,
-        .enter_idle       = ipanema_oltp_enter_idle,
-        .exit_idle        = ipanema_oltp_exit_idle,
-        .balancing_select = ipanema_oltp_balancing,
-        .core_entry       = ipanema_oltp_core_entry,
-        .core_exit        = ipanema_oltp_core_exit,
-        .init             = ipanema_oltp_init,
-        .free_metadata    = ipanema_oltp_free_metadata,
-        .can_be_default   = ipanema_oltp_can_be_default,
-        .attach           = ipanema_oltp_attach,
+	.new_prepare      = ipanema_oltp_new_prepare,
+	.new_place        = ipanema_oltp_new_place,
+	.new_end          = ipanema_oltp_new_end,
+	.tick             = ipanema_oltp_tick,
+	.yield            = ipanema_oltp_yield,
+	.block            = ipanema_oltp_block,
+	.unblock_prepare  = ipanema_oltp_unblock_prepare,
+	.unblock_place    = ipanema_oltp_unblock_place,
+	.unblock_end      = ipanema_oltp_unblock_end,
+	.terminate        = ipanema_oltp_detach,
+	.schedule         = ipanema_oltp_schedule,
+	.newly_idle       = ipanema_oltp_newly_idle,
+	.enter_idle       = ipanema_oltp_enter_idle,
+	.exit_idle        = ipanema_oltp_exit_idle,
+	.balancing_select = ipanema_oltp_balancing,
+	.core_entry       = ipanema_oltp_core_entry,
+	.core_exit        = ipanema_oltp_core_exit,
+	.init             = ipanema_oltp_init,
+	.free_metadata    = ipanema_oltp_free_metadata,
+	.can_be_default   = ipanema_oltp_can_be_default,
+	.attach           = ipanema_oltp_attach,
 	.checkparam_attr  = ipanema_oltp_checkparam_attr,
 	.setparam_attr    = ipanema_oltp_setparam_attr,
 	.getparam_attr    = ipanema_oltp_getparam_attr,
@@ -791,7 +791,7 @@ static int create_scheduling_domains(unsigned int cpu)
 		/* if cpu is present in current level */
 		seen = false;
 		list_for_each_entry(sd, oltp_ipa_topology + level, siblings) {
-			if (cpumask_test_cpu(cpu, sd->cores)) {
+			if (cpumask_test_cpu(cpu, &sd->cores)) {
 				seen = true;
 				break;
 			}
@@ -804,7 +804,7 @@ static int create_scheduling_domains(unsigned int cpu)
 			sd->parent = NULL;
 			sd->___sched_group_idx = 0;
 			sd->groups = NULL;
-			cpumask_copy(sd->cores, &t->cores);
+			cpumask_copy(&sd->cores, &t->cores);
 			sd->flags = t->flags;
 			sd->next_balance = 0;
 			sd->count = 0;
@@ -839,7 +839,7 @@ static int build_groups(struct oltp_ipa_sched_domain *sd,
 	int n = 0;
 
 	list_for_each_entry(sdl, &oltp_ipa_topology[lvl - 1], siblings) {
-		if (cpumask_subset(sdl->cores, sd->cores)) {
+		if (cpumask_subset(&sdl->cores, &sd->cores)) {
 			n++;
 			sg = krealloc(sg,
 				      n * sizeof(struct oltp_ipa_sched_group),
@@ -847,7 +847,7 @@ static int build_groups(struct oltp_ipa_sched_domain *sd,
 			if (!sg)
 				goto err;
 
-			cpumask_copy(sg[n - 1].cores, sdl->cores);
+			cpumask_copy(&sg[n - 1].cores, &sdl->cores);
 		}
 	}
 
@@ -865,16 +865,16 @@ static int build_lower_groups(struct oltp_ipa_sched_domain *sd)
 {
 	int cpu, n, i = 0;
 
-	n = cpumask_weight(sd->cores);
+	n = cpumask_weight(&sd->cores);
 	sd->groups = kzalloc(n * sizeof(struct oltp_ipa_sched_group),
 			     GFP_KERNEL);
 	if (!sd->groups)
 		goto fail;
 	sd->___sched_group_idx = n;
 
-	for_each_cpu(cpu, sd->cores) {
-		cpumask_clear(sd->groups[i].cores);
-		cpumask_set_cpu(cpu, sd->groups[i].cores);
+	for_each_cpu(cpu, &sd->cores) {
+		cpumask_clear(&sd->groups[i].cores);
+		cpumask_set_cpu(cpu, &sd->groups[i].cores);
 		i++;
 	}
 
@@ -932,87 +932,88 @@ static void build_hierarchy(void)
 static int proc_show(struct seq_file *s, void *p)
 {
 	long cpu = (long) s->private;
-        struct task_struct *pos, *n;
+	struct task_struct *pos, *n;
 	struct ipanema_rq *rq;
-        struct oltp_ipa_process *pr;
+	struct oltp_ipa_process *pr;
 	struct oltp_ipa_sched_domain *sd = ipanema_core(cpu).sd;
-        int i;
-        
-        ipanema_lock_core(cpu);
-        pr = ipanema_state(cpu).curr;
-        seq_printf(s, "CPU: %ld\n", cpu);
+	int i;
 
-        seq_printf(s, "RUNNING (policy): %d\n",
+	ipanema_lock_core(cpu);
+	pr = ipanema_state(cpu).curr;
+	seq_printf(s, "CPU: %ld\n", cpu);
+
+	seq_printf(s, "RUNNING (policy): %d\n",
 		   pr ? pr->task->pid : -1);
-        n = per_cpu(ipanema_current, cpu);
-        seq_printf(s, "RUNNING (runtime): %d\n", n ? n->pid : -1);
+	n = per_cpu(ipanema_current, cpu);
+	seq_printf(s, "RUNNING (runtime): %d\n", n ? n->pid : -1);
 
 	rq = &(ipanema_state(cpu).normal);
-        seq_printf(s, "\nNORMAL: nr_tasks = %d, state = %s\n",
+	seq_printf(s, "\nNORMAL: nr_tasks = %d, state = %s\n",
 		   rq->nr_tasks, ipanema_state_to_str(rq->state));
 	seq_printf(s, " pid  |         state         |    start    \n");
 	seq_printf(s, "------+-----------------------+---------------\n");
-        rbtree_postorder_for_each_entry_safe(pos, n, &rq->root,
+	rbtree_postorder_for_each_entry_safe(pos, n, &rq->root,
 					     ipanema.node_runqueue) {
 		pr = policy_metadata(pos);
-        	seq_printf(s, " %4d | %21s | %lld\n",
+		seq_printf(s, " %4d | %21s | %lld\n",
 			   pos->pid, ipanema_state_to_str(pr->state),
 			   pr->start);
-        }
+	}
 
 	rq = &(ipanema_state(cpu).straggler);
-        seq_printf(s, "\nSTRAGGLER: nr_tasks = %d, state = %s\n",
+	seq_printf(s, "\nSTRAGGLER: nr_tasks = %d, state = %s\n",
 		   rq->nr_tasks, ipanema_state_to_str(rq->state));
 	seq_printf(s, " pid  |         state         |    start    \n");
 	seq_printf(s, "------+-----------------------+---------------\n");
-        rbtree_postorder_for_each_entry_safe(pos, n, &rq->root,
+	rbtree_postorder_for_each_entry_safe(pos, n, &rq->root,
 					     ipanema.node_runqueue) {
 		pr = policy_metadata(pos);
-        	seq_printf(s, " %4d | %21s | %lld\n",
+		seq_printf(s, " %4d | %21s | %lld\n",
 			   pos->pid, ipanema_state_to_str(pr->state),
 			   pr->start);
-        }
+	}
 
 	seq_printf(s, "\nTopology:\n");
 	while (sd) {
-		seq_printf(s, "[%*pbl]: ", cpumask_pr_args(sd->cores));
+		seq_printf(s, "[%*pbl]: ", cpumask_pr_args(&sd->cores));
 		for (i = 0; i < sd->___sched_group_idx; i++)
 			seq_printf(s, "{%*pbl}",
-				   cpumask_pr_args(sd->groups[i].cores));
+				   cpumask_pr_args(&sd->groups[i].cores));
 		seq_printf(s, "\n");
 		sd = sd->parent;
 	}
-        
-        ipanema_unlock_core(cpu);
-        
-        return 0;
+
+	ipanema_unlock_core(cpu);
+
+	return 0;
 }
 
 static int proc_open(struct inode *inode, struct file *file)
 {
 	long cpu;
 
-        kstrtol(file->f_path.dentry->d_iname, 10, &cpu);
-        return single_open(file, proc_show, (void *)cpu);
+	if (!kstrtol(file->f_path.dentry->d_iname, 10, &cpu))
+		return single_open(file, proc_show, (void *)cpu);
+	return -ENOENT;
 }
 
 static struct file_operations proc_fops = {
-        .owner   = THIS_MODULE,
-        .open    = proc_open,
-        .read    = seq_read,
-        .llseek  = seq_lseek,
-        .release = single_release
+	.owner   = THIS_MODULE,
+	.open    = proc_open,
+	.read    = seq_read,
+	.llseek  = seq_lseek,
+	.release = single_release
 };
 
 static int proc_topo_show(struct seq_file *s, void *p)
 {
 	int i;
 	struct oltp_ipa_sched_domain *sd;
-	
+
 	for (i = 0; i < oltp_ipa_nr_topology_levels; i++) {
 		seq_printf(s, "Level %d: ", i);
 		list_for_each_entry(sd, oltp_ipa_topology + i, siblings) {
-			seq_printf(s, "[%*pbl]", cpumask_pr_args(sd->cores));
+			seq_printf(s, "[%*pbl]", cpumask_pr_args(&sd->cores));
 		}
 		seq_printf(s, "\n");
 	}
@@ -1036,41 +1037,41 @@ static struct file_operations proc_topo_fops = {
 int init_module(void)
 {
 	int res, cpu;
-        struct proc_dir_entry *procdir = NULL;
-        char procbuf[10];
+	struct proc_dir_entry *procdir = NULL;
+	char procbuf[10];
 
 	qos = ms_to_ktime(qos_ms);
 	qos_limit = ms_to_ktime(qos_limit_ms);
-        
-        /* Initialize scheduler variables with non-const value (function call) */
-        for_each_possible_cpu(cpu) {
-        	ipanema_core(cpu).id = cpu;
-                /* allocation of ipanema rqs */
+
+	/* Initialize scheduler variables with non-const value (function call) */
+	for_each_possible_cpu(cpu) {
+		ipanema_core(cpu).id = cpu;
+		/* allocation of ipanema rqs */
 		init_ipanema_rq(&ipanema_state(cpu).normal, RBTREE, cpu,
 				IPANEMA_READY, ipanema_oltp_order_process);
 		init_ipanema_rq(&ipanema_state(cpu).straggler, RBTREE, cpu,
 				IPANEMA_READY, ipanema_oltp_order_process);
-        }
+	}
 
 	/* build hierarchy with topology */
 	build_hierarchy();
 
 	/* Allocate & setup the ipanema_module */
-        module = kzalloc(sizeof(struct ipanema_module), GFP_KERNEL);
-        if (!module) {
-        	res = -ENOMEM;
-                goto end;
-        }
-        strncpy(module->name, name, MAX_POLICY_NAME_LEN);
-        module->routines = &ipanema_oltp_routines;
-        module->kmodule = THIS_MODULE;
+	module = kzalloc(sizeof(struct ipanema_module), GFP_KERNEL);
+	if (!module) {
+		res = -ENOMEM;
+		goto end;
+	}
+	strncpy(module->name, name, MAX_POLICY_NAME_LEN);
+	module->routines = &ipanema_oltp_routines;
+	module->kmodule = THIS_MODULE;
 
 	/* Register module to the runtime */
 	res = ipanema_add_module(module);
 	if (res)
 		goto clean_module;
-        
-        /*
+
+	/*
 	 * Create /proc/oltp/<cpu> files and /proc/oltp/topology file
 	 * If file creation fails, module insertion does not
 	 */
@@ -1087,28 +1088,28 @@ int init_module(void)
 		pr_err("%s: /proc/%s/topology creation failed\n",
 		       name, name);
 
-        return 0;
+	return 0;
 
 clean_module:
-        kfree(module);
+	kfree(module);
 end:
-        return res;
+	return res;
 }
 
 void cleanup_module(void)
 {
 	int res;
-        
-        remove_proc_subtree(name, ipa_procdir);
 
-        res = ipanema_remove_module(module);
+	remove_proc_subtree(name, ipa_procdir);
+
+	res = ipanema_remove_module(module);
 	if (res) {
 		pr_err("Cleanup failed (%d)\n", res);
 		return;
 	}
 
 	destroy_scheduling_domains();
-        kfree(module);
+	kfree(module);
 }
 
 MODULE_AUTHOR("Ipanema Compiler");

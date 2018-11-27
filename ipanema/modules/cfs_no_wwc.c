@@ -52,7 +52,7 @@ struct cfs_ipa_sched_group;
 struct state_info
 {
 	struct cfs_ipa_process *current_0; /* private / unshared */
-        struct ipanema_rq ready; /* public / shared */
+	struct ipanema_rq ready; /* public / shared */
 };
 
 
@@ -66,50 +66,50 @@ DEFINE_PER_CPU_SHARED_ALIGNED(struct state_info, state_info);
 /* definition of core's states */
 struct core_state_info
 {
-	cpumask_var_t active_cores;
-        cpumask_var_t idle_cores;
+	cpumask_t active_cores;
+	cpumask_t idle_cores;
 };
 
 
 static struct core_state_info cstate_info;
 
-struct cfs_ipa_process 
+struct cfs_ipa_process
 {
 	/* process attributes
-         *  specified by the scheduling policy
-         *  in the process = {...} declaration
-         */
-        int state; // Internal
-        struct ipanema_rq * rq; // Internal
-        struct rb_node node; // Internal
-        struct task_struct * task; // Internal
-        ktime_t vruntime;
-        ktime_t last_sched;
-        int load;
+	 *  specified by the scheduling policy
+	 *  in the process = {...} declaration
+	 */
+	int state; // Internal
+	struct ipanema_rq * rq; // Internal
+	struct rb_node node; // Internal
+	struct task_struct * task; // Internal
+	ktime_t vruntime;
+	ktime_t last_sched;
+	int load;
 };
 
-struct cfs_ipa_core 
+struct cfs_ipa_core
 {
 	/* core attributes
-         *  specified by the scheduling policy
-         *  in the core = {...} declaration
-         */
-        int state; // Internal
-        cpumask_var_t *cpuset; // Internal
-        int id; // System
-        int cload;
+	 *  specified by the scheduling policy
+	 *  in the core = {...} declaration
+	 */
+	int state; // Internal
+	cpumask_t *cpuset; // Internal
+	int id; // System
+	int cload;
 	ktime_t min_vruntime;
-        struct cfs_ipa_sched_domain *sd;
+	struct cfs_ipa_sched_domain *sd;
 };
 
-struct cfs_ipa_sched_group 
+struct cfs_ipa_sched_group
 {
 	/* group attributes
-         *  specified by the scheduling policy
-         *  in the group = {...} declaration
-         */
-        cpumask_var_t cores;
-        int capacity;
+	 *  specified by the scheduling policy
+	 *  in the group = {...} declaration
+	 */
+	cpumask_t cores;
+	int capacity;
 };
 
 
@@ -126,14 +126,14 @@ struct cfs_ipa_sched_group
  */
 struct cfs_ipa_sched_domain {
 	/* domain attributes
-         *  specified by the scheduling policy
-         *  in the domain = {...} declaration
-         */
+	 *  specified by the scheduling policy
+	 *  in the domain = {...} declaration
+	 */
 	struct list_head siblings;  // link domains of the same level
 	struct cfs_ipa_sched_domain *parent;
-        int ___sched_group_idx; // Internal
-        struct cfs_ipa_sched_group *groups;
-        cpumask_var_t cores;
+	int ___sched_group_idx; // Internal
+	struct cfs_ipa_sched_group *groups;
+	cpumask_t cores;
 	spinlock_t lock;
 	int flags; // Internal
 	ktime_t next_balance;
@@ -151,7 +151,7 @@ inline static void update_thread(struct cfs_ipa_process *p)
 	ktime_t delta = ktime_sub(now, p->last_sched);
 	int cpu = task_cpu(p->task);
 	struct cfs_ipa_core *c = &ipanema_core(cpu);
-                
+
 	p->vruntime = ktime_add(p->vruntime, delta);
 	if (p->vruntime > c->min_vruntime)
 		c->min_vruntime = p->vruntime;
@@ -186,20 +186,20 @@ int ipanema_cfs_order_process(struct task_struct *a,
 	struct cfs_ipa_process *pa = policy_metadata(a);
 	struct cfs_ipa_process *pb = policy_metadata(b);
 
-        return pa->vruntime - pb->vruntime;
+	return pa->vruntime - pb->vruntime;
 }
 
 static int get_class(int state)
 {
 	switch(state) {
-        	case CURRENT_0_STATE: return IPANEMA_RUNNING;
-                case READY_STATE: return IPANEMA_READY;
-                case BLOCKED_STATE: return IPANEMA_BLOCKED;
-                case TERMINATED_STATE: return IPANEMA_TERMINATED;
-                case READY_TICK_STATE: return IPANEMA_READY_TICK;
-                case MIGRATING_STATE: return IPANEMA_MIGRATING;
-                default: return -1;
-        }
+		case CURRENT_0_STATE: return IPANEMA_RUNNING;
+		case READY_STATE: return IPANEMA_READY;
+		case BLOCKED_STATE: return IPANEMA_BLOCKED;
+		case TERMINATED_STATE: return IPANEMA_TERMINATED;
+		case READY_TICK_STATE: return IPANEMA_READY_TICK;
+		case MIGRATING_STATE: return IPANEMA_MIGRATING;
+		default: return -1;
+	}
 }
 
 static void ipa_change_proc(struct cfs_ipa_process *proc, struct cfs_ipa_process **dst, int state)
@@ -229,21 +229,21 @@ static void ipa_change_queue_and_core(struct cfs_ipa_process *proc, struct ipane
 	change_state(proc->task, get_class(state), core->id, rq);
 }
 
-static void set_active_core(struct cfs_ipa_core *core, cpumask_var_t *cores, int state)
+static void set_active_core(struct cfs_ipa_core *core, cpumask_t *cores, int state)
 {
 	core->state = state;
-	if (*(core->cpuset))
-		cpumask_clear_cpu(core->id, *(core->cpuset));
-	cpumask_set_cpu(core->id, *cores);
+	if (core->cpuset)
+		cpumask_clear_cpu(core->id, core->cpuset);
+	cpumask_set_cpu(core->id, cores);
 	core->cpuset = cores;
 }
 
-static void set_sleeping_core(struct cfs_ipa_core *core, cpumask_var_t *cores, int state)
+static void set_sleeping_core(struct cfs_ipa_core *core, cpumask_t *cores, int state)
 {
 	core->state = state;
-	if (*(core->cpuset))
-		cpumask_clear_cpu(core->id, *(core->cpuset));
-	cpumask_set_cpu(core->id, *cores);
+	if (core->cpuset)
+		cpumask_clear_cpu(core->id, core->cpuset);
+	cpumask_set_cpu(core->id, cores);
 	core->cpuset = cores;
 }
 
@@ -264,67 +264,67 @@ static int migrate_from_to(struct cfs_ipa_core *busiest,
 			   struct cfs_ipa_core *self_38)
 {
 	struct task_struct *pos, *n;
-        LIST_HEAD(tasks);
-        struct sched_ipanema_entity * imd;
-        struct cfs_ipa_process *t;
-        int dbg_cpt = 0, ret, self_cload;
+	LIST_HEAD(tasks);
+	struct sched_ipanema_entity * imd;
+	struct cfs_ipa_process *t;
+	int dbg_cpt = 0, ret, self_cload;
 	unsigned long flags;
-        
-        /* Remove tasks from busiest */
+
+	/* Remove tasks from busiest */
 	local_irq_save(flags);
 	ipanema_lock_core(busiest->id);
 
 	self_cload = self_38->cload;
-        rbtree_postorder_for_each_entry_safe(pos, n,
+	rbtree_postorder_for_each_entry_safe(pos, n,
 					     &ipanema_state(busiest->id).ready.root,
 					     ipanema.node_runqueue) {
-        	t = policy_metadata(pos);
-                if (pos->on_cpu)
-                	continue;
+		t = policy_metadata(pos);
+		if (pos->on_cpu)
+			continue;
 
 		if (!cpumask_test_cpu(self_38->id, &pos->cpus_allowed))
 			continue;
-                
-                if ((busiest->cload - self_cload) >= (2 * t->load)) {
-                	list_add(&pos->ipanema.ipa_tasks, &tasks);
+
+		if ((busiest->cload - self_cload) >= (2 * t->load)) {
+			list_add(&pos->ipanema.ipa_tasks, &tasks);
 			t->vruntime -= busiest->min_vruntime;
-                        ipa_change_queue_and_core(t, NULL, MIGRATING_STATE,
-                                                  self_38);
-                        dbg_cpt = dbg_cpt + 1;
-                        busiest->cload = busiest->cload - t->load;
-                        self_cload = self_cload + t->load;
-                }
-                /* Ensure migration cond. and stop cond. use the same ids ! */
-                if (busiest->cload == self_cload) 
-                	break;
-        }
-        ipanema_unlock_core(busiest->id);
-        ret = dbg_cpt;
-        
-        /* Add them to my queue */
-        ipanema_lock_core(self_38->id);
-        while (!list_empty(&tasks)) {
-        	imd = list_first_entry(&tasks, struct sched_ipanema_entity,
+			ipa_change_queue_and_core(t, NULL, MIGRATING_STATE,
+						  self_38);
+			dbg_cpt = dbg_cpt + 1;
+			busiest->cload = busiest->cload - t->load;
+			self_cload = self_cload + t->load;
+		}
+		/* Ensure migration cond. and stop cond. use the same ids ! */
+		if (busiest->cload == self_cload)
+			break;
+	}
+	ipanema_unlock_core(busiest->id);
+	ret = dbg_cpt;
+
+	/* Add them to my queue */
+	ipanema_lock_core(self_38->id);
+	while (!list_empty(&tasks)) {
+		imd = list_first_entry(&tasks, struct sched_ipanema_entity,
 				       ipa_tasks);
-                pos = container_of(imd, struct task_struct, ipanema);
+		pos = container_of(imd, struct task_struct, ipanema);
 		t = policy_metadata(pos);
 		t->vruntime += self_38->min_vruntime;
-                ipa_change_queue(t, &ipanema_state(self_38->id).ready,
+		ipa_change_queue(t, &ipanema_state(self_38->id).ready,
 				 READY_STATE);
 		self_38->cload = self_38->cload + t->load;
-                list_del_init(&imd->ipa_tasks);
-                dbg_cpt--;
-                
-        }
-        /* self_38->load = self_38->load + (my_load - m_load_tmp); */
+		list_del_init(&imd->ipa_tasks);
+		dbg_cpt--;
+
+	}
+	/* self_38->load = self_38->load + (my_load - m_load_tmp); */
 	ipanema_unlock_core(self_38->id);
 	local_irq_restore(flags);
-        
-        if (dbg_cpt != 0)
-        	pr_info("Some tasks (%d) were lost on a migration from %d to %d\n",
-        		dbg_cpt, busiest->id, self_38->id);
-        
-        return ret;
+
+	if (dbg_cpt != 0)
+		pr_info("Some tasks (%d) were lost on a migration from %d to %d\n",
+			dbg_cpt, busiest->id, self_38->id);
+
+	return ret;
 }
 
 static struct cfs_ipa_sched_group *
@@ -342,7 +342,7 @@ find_busiest_group(struct ipanema_policy *policy,
 			continue;
 		avg_load = 0;
 		nr_cpus = 0;
-		for_each_cpu_and(cpu, sd->cores, &policy->allowed_cores) {
+		for_each_cpu_and(cpu, &sd->cores, &policy->allowed_cores) {
 			avg_load += (&ipanema_core(cpu))->cload;
 			nr_cpus++;
 		}
@@ -368,7 +368,7 @@ find_busiest_cpu_group(struct ipanema_policy *policy,
 
 	cpumask_and(&mask, &policy->allowed_cores, stealable_cores);
 
-	for_each_cpu_and(cpu, sg->cores, &mask) {
+	for_each_cpu_and(cpu, &sg->cores, &mask) {
 		c = &ipanema_core(cpu);
 		if (c->cload > max_load) {
 			max_load = c->cload;
@@ -385,7 +385,7 @@ static bool can_steal_group(struct ipanema_policy *policy,
 {
 	int cpu, nr_threads = 0, nr_cores = 0;
 
-	for_each_cpu_and(cpu, tgt->cores, &policy->allowed_cores) {
+	for_each_cpu_and(cpu, &tgt->cores, &policy->allowed_cores) {
 		nr_threads += ipanema_state(cpu).ready.nr_tasks;
 		nr_cores++;
 	}
@@ -397,7 +397,7 @@ static struct cfs_ipa_sched_group *select_group(struct ipanema_policy *policy,
 						struct cfs_ipa_sched_domain *sd,
 						unsigned long *stealable_groups)
 {
-        return find_busiest_group(policy, sd, stealable_groups);
+	return find_busiest_group(policy, sd, stealable_groups);
 }
 
 static bool can_steal_core(struct cfs_ipa_core *tgt, struct cfs_ipa_core *thief)
@@ -420,7 +420,7 @@ static void steal_for_dom(struct ipanema_policy *policy,
 {
 	DECLARE_BITMAP(stealable_groups, sd->___sched_group_idx);
 	cpumask_t stealable_cores;
-        struct cfs_ipa_core *selected, *c;
+	struct cfs_ipa_core *selected, *c;
 	struct cfs_ipa_sched_group
 		*sg = NULL,
 		*thief_group = NULL,
@@ -434,7 +434,7 @@ static void steal_for_dom(struct ipanema_policy *policy,
 	/* find group containing core_31 */
 	for (i = 0; i < sd->___sched_group_idx; i++) {
 		sg = sd->groups + i;
-		if (cpumask_test_cpu(core_31->id, sg->cores)) {
+		if (cpumask_test_cpu(core_31->id, &sg->cores)) {
 			thief_group = sg;
 			break;
 		}
@@ -459,7 +459,7 @@ static void steal_for_dom(struct ipanema_policy *policy,
 			goto forward_next_balance;
 
 		/* Step 3: can_steal_core() */
-		for_each_cpu_and(i, target_group->cores,
+		for_each_cpu_and(i, &target_group->cores,
 				 &policy->allowed_cores) {
 			c = &ipanema_core(i);
 			if (c == core_31)
@@ -499,7 +499,7 @@ forward_next_balance:
 	spin_lock(&sd->lock);
 	sd->count++;
 	sd->next_balance = ktime_add(ktime_get(),
-				     ms_to_ktime(cpumask_weight(sd->cores)));
+				     ms_to_ktime(cpumask_weight(&sd->cores)));
 	spin_unlock(&sd->lock);
 
 }
@@ -515,10 +515,10 @@ find_idlest_cpu_group(struct ipanema_policy *policy,
 	if (unlikely(!sg))
 		return NULL;
 
-	for_each_cpu_and(cpu, sg->cores, &policy->allowed_cores) {
+	for_each_cpu_and(cpu, &sg->cores, &policy->allowed_cores) {
 		c = &ipanema_core(cpu);
 		/* if cpu is idle, choose it immediately */
-		if (cpumask_test_cpu(cpu, cstate_info.idle_cores)) {
+		if (cpumask_test_cpu(cpu, &cstate_info.idle_cores)) {
 			idlest = c;
 			goto end;
 		}
@@ -549,7 +549,7 @@ find_idlest_group(struct ipanema_policy *policy,
 	for (i = 0; i < sd->___sched_group_idx; sg++, i++) {
 		avg_load = 0;
 		nr_cpus = 0;
-		for_each_cpu_and(cpu, sg->cores, &policy->allowed_cores) {
+		for_each_cpu_and(cpu, &sg->cores, &policy->allowed_cores) {
 			avg_load += (&ipanema_core(cpu))->cload;
 			nr_cpus++;
 		}
@@ -564,22 +564,22 @@ find_idlest_group(struct ipanema_policy *policy,
 }
 
 static int ipanema_cfs_new_prepare(struct ipanema_policy *policy,
-                                    struct process_event *e)
+				    struct process_event *e)
 {
 	struct cfs_ipa_process *tgt;
 	struct cfs_ipa_sched_domain *sd;
 	struct cfs_ipa_sched_group *sg;
 	struct cfs_ipa_core *c, *idlest = NULL;
-        struct task_struct *task_15;
-        
-        task_15 = e->target;
-        tgt = kzalloc(sizeof(struct cfs_ipa_process), GFP_ATOMIC);
-        if (!tgt) 
-        	return -1;
+	struct task_struct *task_15;
 
-        policy_metadata(task_15) = tgt;
-        tgt->task = task_15;
-        tgt->rq = NULL;
+	task_15 = e->target;
+	tgt = kzalloc(sizeof(struct cfs_ipa_process), GFP_ATOMIC);
+	if (!tgt)
+		return -1;
+
+	policy_metadata(task_15) = tgt;
+	tgt->task = task_15;
+	tgt->rq = NULL;
 
 	/* find idlest group in highest domain, then idlest core in this group */
 	c = &ipanema_core(task_cpu(task_15));
@@ -605,21 +605,21 @@ static int ipanema_cfs_new_prepare(struct ipanema_policy *policy,
 }
 
 static void ipanema_cfs_new_place(struct ipanema_policy *policy,
-                                   struct process_event *e)
+				   struct process_event *e)
 {
 	struct cfs_ipa_process * tgt = policy_metadata(e->target);
-        int idlecore_10 = task_cpu(e->target);
+	int idlecore_10 = task_cpu(e->target);
 	struct cfs_ipa_core *c = &ipanema_core(idlecore_10);
 
 	c->cload += tgt->load;
 	smp_wmb();
-        ipa_change_queue_and_core(tgt,
-                                  &ipanema_state(task_cpu(tgt->task)).ready,
-                                  READY_STATE, c);
+	ipa_change_queue_and_core(tgt,
+				  &ipanema_state(task_cpu(tgt->task)).ready,
+				  READY_STATE, c);
 }
 
 static void ipanema_cfs_new_end(struct ipanema_policy *policy,
-                                 struct process_event *e)
+				 struct process_event *e)
 {
 	pr_info("[%d] post new on core %d\n", e->target->pid, e->target->cpu);
 }
@@ -631,10 +631,10 @@ static void ipanema_cfs_detach(struct ipanema_policy *policy,
 	struct cfs_ipa_process *tgt = policy_metadata(e->target);
 	struct cfs_ipa_core *c = &ipanema_core(task_cpu(tgt->task));
 
-        ipa_change_queue(tgt, NULL, TERMINATED_STATE);
+	ipa_change_queue(tgt, NULL, TERMINATED_STATE);
 	smp_wmb();
 	c->cload -= tgt->load;
-        kfree(tgt);
+	kfree(tgt);
 }
 
 static void ipanema_cfs_tick(struct ipanema_policy *policy,
@@ -646,12 +646,12 @@ static void ipanema_cfs_tick(struct ipanema_policy *policy,
 	ktime_t curr_runtime = ktime_sub(now, tgt->last_sched);
 	int old_load = tgt->load;
 
-        if (ktime_after(curr_runtime, max_quanta)) {
+	if (ktime_after(curr_runtime, max_quanta)) {
 		update_thread(tgt);
 		update_load(tgt);
-                ipa_change_queue(tgt,
-                                 &ipanema_state(task_cpu(tgt->task)).ready,
-                                 READY_TICK_STATE);
+		ipa_change_queue(tgt,
+				 &ipanema_state(task_cpu(tgt->task)).ready,
+				 READY_TICK_STATE);
 		c->cload += (tgt->load - old_load);
 	}
 }
@@ -663,10 +663,10 @@ static void ipanema_cfs_yield(struct ipanema_policy *policy,
 	struct cfs_ipa_core *c = &ipanema_core(task_cpu(e->target));
 	int old_load = tgt->load;
 
-        update_thread(tgt);
-        update_load(tgt);
-        ipa_change_queue(tgt, &ipanema_state(task_cpu(tgt->task)).ready,
-                         READY_STATE);
+	update_thread(tgt);
+	update_load(tgt);
+	ipa_change_queue(tgt, &ipanema_state(task_cpu(tgt->task)).ready,
+			 READY_STATE);
 	c->cload += (tgt->load - old_load);
 }
 
@@ -677,9 +677,9 @@ static void ipanema_cfs_block(struct ipanema_policy *policy,
 	struct cfs_ipa_core *c = &ipanema_core(task_cpu(e->target));
 	int old_load = tgt->load;
 
-        update_thread((struct cfs_ipa_process *)tgt);
-        update_load((struct cfs_ipa_process *)tgt);
-        ipa_change_queue(tgt, NULL, BLOCKED_STATE);
+	update_thread((struct cfs_ipa_process *)tgt);
+	update_load((struct cfs_ipa_process *)tgt);
+	ipa_change_queue(tgt, NULL, BLOCKED_STATE);
 	smp_wmb();
 	c->cload -= old_load;
 }
@@ -689,8 +689,8 @@ static struct cfs_ipa_core *find_idle_cpu(struct ipanema_policy *policy,
 {
 	int cpu;
 
-	for_each_cpu_and(cpu, sd->cores, &policy->allowed_cores) {
-		if (cpumask_test_cpu(cpu, cstate_info.idle_cores))
+	for_each_cpu_and(cpu, &sd->cores, &policy->allowed_cores) {
+		if (cpumask_test_cpu(cpu, &cstate_info.idle_cores))
 			return &ipanema_core(cpu);
 	}
 
@@ -704,7 +704,7 @@ static int ipanema_cfs_unblock_prepare(struct ipanema_policy *policy,
 	struct cfs_ipa_process *p = policy_metadata(task_15);
 	struct cfs_ipa_sched_domain *sd = NULL, *highest = NULL;
 	struct cfs_ipa_sched_group *sg = NULL;
-        struct cfs_ipa_core *c, *idlest = NULL;
+	struct cfs_ipa_core *c, *idlest = NULL;
 	int flags = 0;
 
 	/* remove min_vruntime from previous cpu */
@@ -712,7 +712,7 @@ static int ipanema_cfs_unblock_prepare(struct ipanema_policy *policy,
 	p->vruntime -= c->min_vruntime;
 
 	/* if c is idle, choose it */
-	if (cpumask_test_cpu(c->id, cstate_info.idle_cores)) {
+	if (cpumask_test_cpu(c->id, &cstate_info.idle_cores)) {
 		idlest = c;
 		goto end;
 	}
@@ -749,24 +749,24 @@ end:
 	/* add min_vruntime from new cpu */
 	p->vruntime += idlest->min_vruntime;
 
-        return idlest->id;
+	return idlest->id;
 }
 
 static void ipanema_cfs_unblock_place(struct ipanema_policy *policy,
-                                       struct process_event *e)
+				       struct process_event *e)
 {
 	struct cfs_ipa_process * tgt = policy_metadata(e->target);
-        int idlecore_11 = task_cpu(e->target);
+	int idlecore_11 = task_cpu(e->target);
 	struct cfs_ipa_core *c = &ipanema_core(idlecore_11);
 
-        c->cload += tgt->load;
+	c->cload += tgt->load;
 	smp_wmb();
-        ipa_change_queue_and_core(tgt, &ipanema_state(idlecore_11).ready,
-                                  READY_STATE, &per_cpu(core, idlecore_11));
+	ipa_change_queue_and_core(tgt, &ipanema_state(idlecore_11).ready,
+				  READY_STATE, &per_cpu(core, idlecore_11));
 }
 
 static void ipanema_cfs_unblock_end(struct ipanema_policy *policy,
-                                     struct process_event *e)
+				     struct process_event *e)
 {
 	pr_info("[%d] post unblock on core %d\n", e->target->pid,
 		       e->target->cpu);
@@ -776,24 +776,24 @@ static void ipanema_cfs_schedule(struct ipanema_policy *policy,
 				 unsigned int cpu)
 {
 	struct task_struct *task_20 = NULL;
-        struct cfs_ipa_process *p;
+	struct cfs_ipa_process *p;
 
 	task_20 = ipanema_first_task(&ipanema_state(cpu).ready);
-        if (!task_20) 
-        	return;
+	if (!task_20)
+		return;
 
-        p = policy_metadata(task_20);
+	p = policy_metadata(task_20);
 	p->last_sched = ktime_get();
 
-        ipa_change_proc(p, &ipanema_state(cpu).current_0, CURRENT_0_STATE);
+	ipa_change_proc(p, &ipanema_state(cpu).current_0, CURRENT_0_STATE);
 }
 
 static void ipanema_cfs_core_entry(struct ipanema_policy *policy,
-                                    struct core_event *e)
+				    struct core_event *e)
 {
 	struct cfs_ipa_core * tgt = &per_cpu(core, e->target);
 
-        set_active_core(tgt, &cstate_info.active_cores, ACTIVE_CORES_STATE);
+	set_active_core(tgt, &cstate_info.active_cores, ACTIVE_CORES_STATE);
 }
 
 static void ipanema_cfs_core_exit(struct ipanema_policy *policy,
@@ -802,7 +802,7 @@ static void ipanema_cfs_core_exit(struct ipanema_policy *policy,
 	struct cfs_ipa_core *tgt = &per_cpu(core, e->target);
 
 	tgt->min_vruntime = 0;
-        set_sleeping_core(tgt, &cstate_info.idle_cores, IDLE_CORES_STATE);
+	set_sleeping_core(tgt, &cstate_info.idle_cores, IDLE_CORES_STATE);
 }
 
 static void ipanema_cfs_newly_idle(struct ipanema_policy *policy,
@@ -823,14 +823,14 @@ static void ipanema_cfs_enter_idle(struct ipanema_policy *policy,
 				   struct core_event *e)
 {
 	struct cfs_ipa_core * tgt = &per_cpu(core, e->target);
-        set_sleeping_core(tgt, &cstate_info.idle_cores, IDLE_CORES_STATE);
+	set_sleeping_core(tgt, &cstate_info.idle_cores, IDLE_CORES_STATE);
 }
 
 static void ipanema_cfs_exit_idle(struct ipanema_policy *policy,
 				  struct core_event *e)
 {
 	struct cfs_ipa_core * tgt = &per_cpu(core, e->target);
-        set_active_core(tgt, &cstate_info.active_cores, ACTIVE_CORES_STATE);
+	set_active_core(tgt, &cstate_info.active_cores, ACTIVE_CORES_STATE);
 }
 
 static void ipanema_cfs_balancing(struct ipanema_policy *policy,
@@ -849,7 +849,7 @@ static void ipanema_cfs_balancing(struct ipanema_policy *policy,
 					    (long) sd, ((long) sd) >> 32);
 			for (i = 0; i < sd->___sched_group_idx; i++) {
 				sg = sd->groups + i;
-				thief = &ipanema_core(cpumask_first(sg->cores));
+				thief = &ipanema_core(cpumask_first(&sg->cores));
 				steal_for_dom(policy, thief, sd);
 			}
 			sched_monitor_trace(PERIODIC_BALANCE_END, c->id, current,
@@ -874,7 +874,7 @@ static bool ipanema_cfs_attach(struct ipanema_policy * policy,
 int ipanema_cfs_free_metadata(struct ipanema_policy *policy)
 {
 	kfree(policy->data);
-        return 0;
+	return 0;
 }
 
 int ipanema_cfs_can_be_default(struct ipanema_policy *policy)
@@ -885,41 +885,41 @@ int ipanema_cfs_can_be_default(struct ipanema_policy *policy)
 struct ipanema_module_routines ipanema_cfs_routines =
 {
 	.get_core_state = ipanema_cfs_get_core_state,
-        .new_prepare
-                 = ipanema_cfs_new_prepare,
-        .new_place
-                 = ipanema_cfs_new_place,
-        .new_end = ipanema_cfs_new_end,
-        .tick    = ipanema_cfs_tick,
-        .yield   = ipanema_cfs_yield,
-        .block   = ipanema_cfs_block,
-        .unblock_prepare
-                 = ipanema_cfs_unblock_prepare,
-        .unblock_place
-                 = ipanema_cfs_unblock_place,
-        .unblock_end
-                 = ipanema_cfs_unblock_end,
-        .terminate
-                 = ipanema_cfs_detach,
-        .schedule= ipanema_cfs_schedule,
-        .newly_idle
-                 = ipanema_cfs_newly_idle,
-        .enter_idle
-                 = ipanema_cfs_enter_idle,
-        .exit_idle
-                 = ipanema_cfs_exit_idle,
-        .balancing_select
-                 = ipanema_cfs_balancing,
-        .core_entry
-                 = ipanema_cfs_core_entry,
-        .core_exit
-                 = ipanema_cfs_core_exit,
-        .init    = ipanema_cfs_init,
-        .free_metadata
-                 = ipanema_cfs_free_metadata,
-        .can_be_default
-                 = ipanema_cfs_can_be_default,
-        .attach  = ipanema_cfs_attach
+	.new_prepare
+		 = ipanema_cfs_new_prepare,
+	.new_place
+		 = ipanema_cfs_new_place,
+	.new_end = ipanema_cfs_new_end,
+	.tick    = ipanema_cfs_tick,
+	.yield   = ipanema_cfs_yield,
+	.block   = ipanema_cfs_block,
+	.unblock_prepare
+		 = ipanema_cfs_unblock_prepare,
+	.unblock_place
+		 = ipanema_cfs_unblock_place,
+	.unblock_end
+		 = ipanema_cfs_unblock_end,
+	.terminate
+		 = ipanema_cfs_detach,
+	.schedule= ipanema_cfs_schedule,
+	.newly_idle
+		 = ipanema_cfs_newly_idle,
+	.enter_idle
+		 = ipanema_cfs_enter_idle,
+	.exit_idle
+		 = ipanema_cfs_exit_idle,
+	.balancing_select
+		 = ipanema_cfs_balancing,
+	.core_entry
+		 = ipanema_cfs_core_entry,
+	.core_exit
+		 = ipanema_cfs_core_exit,
+	.init    = ipanema_cfs_init,
+	.free_metadata
+		 = ipanema_cfs_free_metadata,
+	.can_be_default
+		 = ipanema_cfs_can_be_default,
+	.attach  = ipanema_cfs_attach
 };
 
 static int init_topology(void)
@@ -981,7 +981,7 @@ static int create_scheduling_domains(unsigned int cpu)
 		/* if cpu is present in current level */
 		seen = false;
 		list_for_each_entry(sd, cfs_ipa_topology + level, siblings) {
-			if (cpumask_test_cpu(cpu, sd->cores)) {
+			if (cpumask_test_cpu(cpu, &sd->cores)) {
 				seen = true;
 				break;
 			}
@@ -994,7 +994,7 @@ static int create_scheduling_domains(unsigned int cpu)
 			sd->parent = NULL;
 			sd->___sched_group_idx = 0;
 			sd->groups = NULL;
-			cpumask_copy(sd->cores, &t->cores);
+			cpumask_copy(&sd->cores, &t->cores);
 			sd->flags = t->flags;
 			sd->next_balance = 0;
 			sd->count = 0;
@@ -1029,7 +1029,7 @@ static int build_groups(struct cfs_ipa_sched_domain *sd,
 	int n = 0;
 
 	list_for_each_entry(sdl, &cfs_ipa_topology[lvl - 1], siblings) {
-		if (cpumask_subset(sdl->cores, sd->cores)) {
+		if (cpumask_subset(&sdl->cores, &sd->cores)) {
 			n++;
 			sg = krealloc(sg,
 				      n * sizeof(struct cfs_ipa_sched_group),
@@ -1037,7 +1037,7 @@ static int build_groups(struct cfs_ipa_sched_domain *sd,
 			if (!sg)
 				goto err;
 
-			cpumask_copy(sg[n - 1].cores, sdl->cores);
+			cpumask_copy(&sg[n - 1].cores, &sdl->cores);
 		}
 	}
 
@@ -1055,16 +1055,16 @@ static int build_lower_groups(struct cfs_ipa_sched_domain *sd)
 {
 	int cpu, n, i = 0;
 
-	n = cpumask_weight(sd->cores);
+	n = cpumask_weight(&sd->cores);
 	sd->groups = kzalloc(n * sizeof(struct cfs_ipa_sched_group),
 			     GFP_KERNEL);
 	if (!sd->groups)
 		goto fail;
 	sd->___sched_group_idx = n;
 
-	for_each_cpu(cpu, sd->cores) {
-		cpumask_clear(sd->groups[i].cores);
-		cpumask_set_cpu(cpu, sd->groups[i].cores);
+	for_each_cpu(cpu, &sd->cores) {
+		cpumask_clear(&sd->groups[i].cores);
+		cpumask_set_cpu(cpu, &sd->groups[i].cores);
 		i++;
 	}
 
@@ -1122,74 +1122,75 @@ static void build_hierarchy(void)
 static int proc_show(struct seq_file *s, void *p)
 {
 	long cpu = (long) s->private;
-        struct task_struct *pos, *n;
-        struct cfs_ipa_process *pr, *curr_proc;
+	struct task_struct *pos, *n;
+	struct cfs_ipa_process *pr, *curr_proc;
 	struct cfs_ipa_sched_domain *sd = ipanema_core(cpu).sd;
-        int load_sum = 0, i;
-        
-        ipanema_lock_core(cpu);
-        pr = ipanema_state(cpu).current_0;
-        seq_printf(s, "CPU: %ld\n", cpu);
-        seq_printf(s, "RUNNING (policy): %d (%d)\n",
+	int load_sum = 0, i;
+
+	ipanema_lock_core(cpu);
+	pr = ipanema_state(cpu).current_0;
+	seq_printf(s, "CPU: %ld\n", cpu);
+	seq_printf(s, "RUNNING (policy): %d (%d)\n",
 		   pr ? pr->task->pid : -1,
 		   pr ? pr->load : -1);
-        n = per_cpu(ipanema_current, cpu);
-        seq_printf(s, "RUNNING (runtime): %d\n", n ? n->pid : -1);
-        load_sum += pr ? pr->load : 0;
-        seq_printf(s, "READY: ");
-        rbtree_postorder_for_each_entry_safe(pos, n,
+	n = per_cpu(ipanema_current, cpu);
+	seq_printf(s, "RUNNING (runtime): %d\n", n ? n->pid : -1);
+	load_sum += pr ? pr->load : 0;
+	seq_printf(s, "READY: ");
+	rbtree_postorder_for_each_entry_safe(pos, n,
 					     &(ipanema_state(cpu).ready).root,
 					     ipanema.node_runqueue) {
-        	curr_proc = (struct cfs_ipa_process *)policy_metadata(pos);
-        	load_sum += curr_proc->load;
-        	seq_printf(s, "%d (%d) -> ", pos->pid, curr_proc->load);
-        }
-        
-        seq_printf(s, "\n");
-        seq_printf(s, "COUNT(READY) = %d\n", count(IPANEMA_READY, cpu));
-        seq_printf(s, "load = %d\n", ipanema_core(cpu).cload);
-        seq_printf(s, "load_sum = %d\n", load_sum);
+		curr_proc = (struct cfs_ipa_process *)policy_metadata(pos);
+		load_sum += curr_proc->load;
+		seq_printf(s, "%d (%d) -> ", pos->pid, curr_proc->load);
+	}
+
+	seq_printf(s, "\n");
+	seq_printf(s, "COUNT(READY) = %d\n", count(IPANEMA_READY, cpu));
+	seq_printf(s, "load = %d\n", ipanema_core(cpu).cload);
+	seq_printf(s, "load_sum = %d\n", load_sum);
 
 	seq_printf(s, "\nTopology:\n");
 	while (sd) {
-		seq_printf(s, "[%*pbl]: ", cpumask_pr_args(sd->cores));
+		seq_printf(s, "[%*pbl]: ", cpumask_pr_args(&sd->cores));
 		for (i = 0; i < sd->___sched_group_idx; i++)
 			seq_printf(s, "{%*pbl}",
-				   cpumask_pr_args(sd->groups[i].cores));
+				   cpumask_pr_args(&sd->groups[i].cores));
 		seq_printf(s, "\n");
 		sd = sd->parent;
 	}
-        
-        ipanema_unlock_core(cpu);
-        
-        return 0;
+
+	ipanema_unlock_core(cpu);
+
+	return 0;
 }
 
 static int proc_open(struct inode *inode, struct file *file)
 {
 	long cpu;
 
-        kstrtol(file->f_path.dentry->d_iname, 10, &cpu);
-        return single_open(file, proc_show, (void *)cpu);
+	if (!kstrtol(file->f_path.dentry->d_iname, 10, &cpu))
+		return single_open(file, proc_show, (void *)cpu);
+	return -ENOENT;
 }
 
 static struct file_operations proc_fops = {
-        .owner   = THIS_MODULE,
-        .open    = proc_open,
-        .read    = seq_read,
-        .llseek  = seq_lseek,
-        .release = single_release
+	.owner   = THIS_MODULE,
+	.open    = proc_open,
+	.read    = seq_read,
+	.llseek  = seq_lseek,
+	.release = single_release
 };
 
 static int proc_topo_show(struct seq_file *s, void *p)
 {
 	int i;
 	struct cfs_ipa_sched_domain *sd;
-	
+
 	for (i = 0; i < cfs_ipa_nr_topology_levels; i++) {
 		seq_printf(s, "Level %d: ", i);
 		list_for_each_entry(sd, cfs_ipa_topology + i, siblings) {
-			seq_printf(s, "[%*pbl]", cpumask_pr_args(sd->cores));
+			seq_printf(s, "[%*pbl]", cpumask_pr_args(&sd->cores));
 		}
 		seq_printf(s, "\n");
 	}
@@ -1213,51 +1214,40 @@ static struct file_operations proc_topo_fops = {
 int init_module(void)
 {
 	int res, cpu;
-        struct proc_dir_entry *procdir = NULL;
-        char procbuf[10];
+	struct proc_dir_entry *procdir = NULL;
+	char procbuf[10];
 
 	max_quanta = ms_to_ktime(max_quanta_ms);
-        
-        /* Initialize scheduler variables with non-const value (function call) */
-        for_each_possible_cpu(cpu) {
-        	ipanema_core(cpu).id = cpu;
-                /* FIXME init of core variables of the user */
+
+	/* Initialize scheduler variables with non-const value (function call) */
+	for_each_possible_cpu(cpu) {
+		ipanema_core(cpu).id = cpu;
+		/* FIXME init of core variables of the user */
 		ipanema_core(cpu).cload = 0;
-                /* allocation of ipanema rqs */
+		/* allocation of ipanema rqs */
 		init_ipanema_rq(&ipanema_state(cpu).ready, RBTREE, cpu,
 				IPANEMA_READY, ipanema_cfs_order_process);
-        }
-        
-        /* allocation of every cpumask_var_t of struct core_state_info */
-        if (!zalloc_cpumask_var(&(cstate_info.active_cores), GFP_KERNEL)) {
-        	res = -ENOMEM;
-                goto clean_cpumask_var;
-        }
-        
-        if (!zalloc_cpumask_var(&(cstate_info.idle_cores), GFP_KERNEL)) {
-        	res = -ENOMEM;
-                goto clean_cpumask_var;
-        }
+	}
 
 	/* build hierarchy with topology */
 	build_hierarchy();
 
 	/* Allocate & setup the ipanema_module */
-        module = kzalloc(sizeof(struct ipanema_module), GFP_KERNEL);
-        if (!module) {
-        	res = -ENOMEM;
-                goto clean_cpumask_var;
-        }
-        strncpy(module->name, name, MAX_POLICY_NAME_LEN);
-        module->routines = &ipanema_cfs_routines;
-        module->kmodule = THIS_MODULE;
+	module = kzalloc(sizeof(struct ipanema_module), GFP_KERNEL);
+	if (!module) {
+		res = -ENOMEM;
+		goto end;
+	}
+	strncpy(module->name, name, MAX_POLICY_NAME_LEN);
+	module->routines = &ipanema_cfs_routines;
+	module->kmodule = THIS_MODULE;
 
 	/* Register module to the runtime */
 	res = ipanema_add_module(module);
 	if (res)
 		goto clean_module;
-        
-        /*
+
+	/*
 	 * Create /proc/cfs/<cpu> files and /proc/cfs/topology file
 	 * If file creation fails, module insertion does not
 	 */
@@ -1274,35 +1264,28 @@ int init_module(void)
 		pr_err("%s: /proc/%s/topology creation failed\n",
 		       name, name);
 
-        return 0;
+	return 0;
 
 clean_module:
-        kfree(module);
-
-clean_cpumask_var:
-        /* free every cpumask_var_t of struct core_state_info */
-        free_cpumask_var(cstate_info.idle_cores);
-        free_cpumask_var(cstate_info.active_cores);
-        return res;
+	kfree(module);
+end:
+	return res;
 }
 
 void cleanup_module(void)
 {
 	int res;
-        
-        remove_proc_subtree(name, ipa_procdir);
 
-        res = ipanema_remove_module(module);
+	remove_proc_subtree(name, ipa_procdir);
+
+	res = ipanema_remove_module(module);
 	if (res) {
 		pr_err("Cleanup failed (%d)\n", res);
 		return;
 	}
 
 	destroy_scheduling_domains();
-        kfree(module);
-        /* deallocation of every cpumask_var_t of struct core_state_info */
-        free_cpumask_var(cstate_info.idle_cores);
-        free_cpumask_var(cstate_info.active_cores);
+	kfree(module);
 }
 
 MODULE_AUTHOR("Ipanema Compiler");
