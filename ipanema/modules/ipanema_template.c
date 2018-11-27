@@ -32,9 +32,9 @@ static struct ipanema_module *module;
 /* Definition of a process */
 struct process {
 	/* Pointer to ipanema_rq containing process */
-        struct ipanema_rq *rq;
+	struct ipanema_rq *rq;
 	/* Pointer to the corresponding struct task_struct */
-        struct task_struct *task;
+	struct task_struct *task;
 	/* list_head for balancing */
 	struct list_head list;
 
@@ -44,20 +44,20 @@ struct process {
 /* Definition of a core */
 struct core {
 	/* Current core state */
-        int state;
+	int state;
 	/* ID of the core */
-        int id;
+	int id;
 
 	/* Running process (RUNNING) */
-        struct process *curr;
+	struct process *curr;
 	/* Processes in READY state */
-        struct ipanema_rq ready;
+	struct ipanema_rq ready;
 };
 DEFINE_PER_CPU(struct core, core);
 
 /* cpumask of cores */
-static cpumask_var_t active_cores;
-static cpumask_var_t idle_cores;
+static cpumask_t active_cores;
+static cpumask_t idle_cores;
 
 
 /**
@@ -122,7 +122,7 @@ static int ipanema_template_new_prepare(struct ipanema_policy *policy,
 		BUG();
 	policy_metadata(p) = tgt;
 	tgt->task = p;
-        tgt->rq = NULL;
+	tgt->rq = NULL;
 	INIT_LIST_HEAD(&tgt->list);
 
 	/* Init policy specific fields */
@@ -134,7 +134,7 @@ static int ipanema_template_new_prepare(struct ipanema_policy *policy,
 	else
 		dst = cpumask_any_and(&p->cpus_allowed, &policy->allowed_cores);
 
-        return dst;
+	return dst;
 }
 
 /**
@@ -196,8 +196,8 @@ static void ipanema_template_terminate(struct ipanema_policy *policy,
 	struct process *tgt = policy_metadata(p);
 
 	tgt->rq = NULL;
-        change_state(p, IPANEMA_TERMINATED, task_cpu(p), tgt->rq);
-        kfree(tgt);
+	change_state(p, IPANEMA_TERMINATED, task_cpu(p), tgt->rq);
+	kfree(tgt);
 }
 
 /**
@@ -337,7 +337,7 @@ static void ipanema_template_unblock_end(struct ipanema_policy *policy,
  * @policy: ipanema policy calling this function
  * @cpu: the id of the CPU looking for a new process to be scheduled
  *
- * At the end of this function, if a task is set as IPANEMA_RUNNING with 
+ * At the end of this function, if a task is set as IPANEMA_RUNNING with
  * change_state(), it will run, else the core will go idle.
  *
  * Locks held: process and core.
@@ -375,9 +375,9 @@ static void ipanema_template_core_entry(struct ipanema_policy *policy,
 {
 	int cpu = e->target;
 
-	cpumask_clear_cpu(cpu, idle_cores);
+	cpumask_clear_cpu(cpu, &idle_cores);
 	get_policy_core(cpu).state = IPANEMA_ACTIVE_CORE;
-	cpumask_set_cpu(cpu, active_cores);
+	cpumask_set_cpu(cpu, &active_cores);
 }
 
 /**
@@ -394,9 +394,9 @@ static void ipanema_template_core_exit(struct ipanema_policy *policy,
 {
 	int cpu = e->target;
 
-	cpumask_clear_cpu(cpu, active_cores);
+	cpumask_clear_cpu(cpu, &active_cores);
 	get_policy_core(cpu).state = IPANEMA_IDLE_CORE;
-	cpumask_set_cpu(cpu, idle_cores);
+	cpumask_set_cpu(cpu, &idle_cores);
 }
 
 /**
@@ -425,7 +425,7 @@ static void ipanema_template_balancing(struct ipanema_policy *policy,
 	unsigned long flags;
 
 	/* Select the victim core */
-	for_each_cpu(victim, active_cores) {
+	for_each_cpu(victim, &active_cores) {
 		nr_victim = get_policy_rq(victim, ready).nr_tasks;
 		if (nr_victim > nr_busiest + 1) {
 			busiest = victim;
@@ -463,7 +463,7 @@ static void ipanema_template_balancing(struct ipanema_policy *policy,
 	}
 	ipanema_unlock_core(busiest);
 
-	/* 
+	/*
 	 * Lock cpu and add tasks to READY runqueue
 	 */
 	nr_theft = 0;
@@ -492,13 +492,13 @@ static int ipanema_template_init(struct ipanema_policy *policy)
 static bool ipanema_template_attach(struct ipanema_policy *policy,
 				    struct task_struct *p, char *command)
 {
-        return true;
+	return true;
 }
 
 int ipanema_template_free_metadata(struct ipanema_policy *policy)
 {
 	kfree(policy->data);
-        return 0;
+	return 0;
 }
 
 int ipanema_template_can_be_default(struct ipanema_policy *policy)
@@ -509,38 +509,38 @@ int ipanema_template_can_be_default(struct ipanema_policy *policy)
 struct ipanema_module_routines ipanema_template_routines =
 {
 	.get_core_state   = ipanema_template_get_core_state,
-        .new_prepare      = ipanema_template_new_prepare,
-        .new_place        = ipanema_template_new_place,
-        .new_end          = ipanema_template_new_end,
-        .tick             = ipanema_template_tick,
-        .yield            = ipanema_template_yield,
-        .block            = ipanema_template_block,
-        .unblock_prepare  = ipanema_template_unblock_prepare,
-        .unblock_place    = ipanema_template_unblock_place,
-        .unblock_end      = ipanema_template_unblock_end,
-        .terminate        = ipanema_template_terminate,
-        .schedule         = ipanema_template_schedule,
-        .newly_idle       = NULL,
-        .enter_idle       = NULL,
-        .exit_idle        = NULL,
-        .balancing_select = ipanema_template_balancing,
-        .core_entry       = ipanema_template_core_entry,
+	.new_prepare      = ipanema_template_new_prepare,
+	.new_place        = ipanema_template_new_place,
+	.new_end          = ipanema_template_new_end,
+	.tick             = ipanema_template_tick,
+	.yield            = ipanema_template_yield,
+	.block            = ipanema_template_block,
+	.unblock_prepare  = ipanema_template_unblock_prepare,
+	.unblock_place    = ipanema_template_unblock_place,
+	.unblock_end      = ipanema_template_unblock_end,
+	.terminate        = ipanema_template_terminate,
+	.schedule         = ipanema_template_schedule,
+	.newly_idle       = NULL,
+	.enter_idle       = NULL,
+	.exit_idle        = NULL,
+	.balancing_select = ipanema_template_balancing,
+	.core_entry       = ipanema_template_core_entry,
 	.core_exit        = ipanema_template_core_exit,
-        .init             = ipanema_template_init,
-        .free_metadata    = ipanema_template_free_metadata,
-        .can_be_default   = ipanema_template_can_be_default,
-        .attach           = ipanema_template_attach
+	.init             = ipanema_template_init,
+	.free_metadata    = ipanema_template_free_metadata,
+	.can_be_default   = ipanema_template_can_be_default,
+	.attach           = ipanema_template_attach
 };
 
 int init_module(void)
 {
 	int res = 0, cpu;
-        struct proc_dir_entry *procdir = NULL;
-        
-        /* Initialize per-core scheduler variables */
-        for_each_possible_cpu(cpu) {
+	struct proc_dir_entry *procdir = NULL;
+
+	/* Initialize per-core scheduler variables */
+	for_each_possible_cpu(cpu) {
 		get_policy_core(cpu).state = IPANEMA_IDLE_CORE;
-        	get_policy_core(cpu).id = cpu;
+		get_policy_core(cpu).id = cpu;
 
 		/* READY rq */
 		init_ipanema_rq(&get_policy_rq(cpu, ready), RBTREE, cpu,
@@ -548,34 +548,24 @@ int init_module(void)
 
 		/* RUNNING task */
 		get_policy_core(cpu).curr = NULL;
-        }
-        
-        /* allocation of the active_cores cpumask, zero-initialised */
-        if (!zalloc_cpumask_var(&active_cores, GFP_KERNEL)) {
-        	res = -ENOMEM;
-                goto clean_cpumask_var;
-        }
-        if (!zalloc_cpumask_var(&idle_cores, GFP_KERNEL)) {
-        	res = -ENOMEM;
-                goto clean_cpumask_var;
-        }
+	}
 
 	/* Allocation of the struct ipanema_module and init */
-        module = kzalloc(sizeof(struct ipanema_module), GFP_KERNEL);
-        if (!module) {
-        	res = -ENOMEM;
-                goto clean_cpumask_var;
-        }
+	module = kzalloc(sizeof(struct ipanema_module), GFP_KERNEL);
+	if (!module) {
+		res = -ENOMEM;
+		goto end;
+	}
 
-        strncpy(module->name, name, MAX_POLICY_NAME_LEN);
-        module->routines = &ipanema_template_routines;
+	strncpy(module->name, name, MAX_POLICY_NAME_LEN);
+	module->routines = &ipanema_template_routines;
 	module->kmodule = THIS_MODULE;
 
 	res = ipanema_add_module(module);
-        if (res)
-        	goto clean_module;
-        
-        /*
+	if (res)
+		goto clean_module;
+
+	/*
 	 * Create /proc/cfs/<cpu> files and /proc/cfs/topology file
 	 * If file creation fails, module insertion does not
 	 */
@@ -583,22 +573,19 @@ int init_module(void)
 	if (!procdir)
 		pr_err("%s: /proc/%s creation failed\n", name, name);
 
-        return 0;
-        
- clean_module:
-        kfree(module);
- clean_cpumask_var:
-        free_cpumask_var(active_cores);
-        free_cpumask_var(idle_cores);
+	return 0;
 
-        return res;
+clean_module:
+	kfree(module);
+end:
+	return res;
 }
 
 void cleanup_module(void)
 {
 	int res;
 
-        remove_proc_subtree(name, ipa_procdir);
+	remove_proc_subtree(name, ipa_procdir);
 
 	res = ipanema_remove_module(module);
 	if (res) {
@@ -606,9 +593,7 @@ void cleanup_module(void)
 		return;
 	}
 
-        kfree(module);
-        free_cpumask_var(active_cores);
-        free_cpumask_var(idle_cores);
+	kfree(module);
 }
 
 MODULE_AUTHOR("Redha Gouicem");

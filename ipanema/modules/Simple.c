@@ -59,7 +59,7 @@ DEFINE_PER_CPU_SHARED_ALIGNED(struct state_info, state_info);
 
 /* definition of core's states */
 struct core_state_info {
-	cpumask_var_t active_cores;
+	cpumask_t active_cores;
 };
 
 
@@ -96,22 +96,39 @@ struct Simple_ipa_sched_group {
 	 *  specified by the scheduling policy
 	 *  in the group = {...} declaration
 	 */
-	cpumask_var_t cores;
+	cpumask_t cores;
 	int capacity;
 };
 
+/*
+ * Example of topology:
+ *
+ *    O----------[0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15]
+ *    |           /         |              |          \
+ *    O----[0 1 2 3]-----[4 5 6 7]----[8 9 10 11]-----[12 13 14 15]
+ *    |    /      \      /      \      /       \        /        \
+ *    O--[0 1]--[2 3]--[4 5]--[6 7]--[8 9]--[10 11]--[12 13]--[14 15]
+ *    |
+ *   Simple_ipa_topology
+ */
 struct Simple_ipa_sched_domain {
 	/* domain attributes
 	 *  specified by the scheduling policy
 	 *  in the domain = {...} declaration
 	 */
+	struct list_head siblings;  // link domains of the same level
+	struct Simple_ipa_sched_domain *parent;
 	int ___sched_group_idx; // Internal
-	cpumask_var_t cores; // Internal
+	cpumask_t cores; // Internal
+	spinlock_t lock;
 	int flags; // Internal
-	struct Simple_ipa_sched_group * groups;
+	struct Simple_ipa_sched_group *groups;
 	ktime_t next_balance;
 	unsigned int idle_count, periodic_count;
 };
+
+static struct list_head *Simple_ipa_topology;
+static unsigned int Simple_ipa_nr_topology_levels;
 
 DEFINE_PER_CPU(struct Simple_ipa_core, core);
 
@@ -169,13 +186,13 @@ static void ipa_change_queue_and_core(struct Simple_ipa_process *proc,
 	change_state(proc->task, get_class(state), core->id, rq);
 }
 
-static void set_active_core(struct Simple_ipa_core *core, cpumask_var_t cores)
+static void set_active_core(struct Simple_ipa_core *core, cpumask_t *cores)
 {
 	core->state = IPANEMA_ACTIVE_CORE;
 	cpumask_set_cpu(core->id, cores);
 }
 
-static void set_inactive_core(struct Simple_ipa_core *core, cpumask_var_t cores)
+static void set_inactive_core(struct Simple_ipa_core *core, cpumask_t *cores)
 {
 	core->state = IPANEMA_IDLE_CORE;
 	cpumask_clear_cpu(core->id, cores);
@@ -209,7 +226,7 @@ static int ipanema_Simple_new_prepare(struct ipanema_policy *policy,
 	/* Choose the core with the lowest number of READY + RUNNING tasks */
 	dst = p->cpu;
 	dst_nr = ipanema_state(dst).ready.nr_tasks + (ipanema_state(dst).current_0 ? 1 : 0);
-	for_each_cpu(cpu, cstate_info.active_cores) {
+	for_each_cpu(cpu, &cstate_info.active_cores) {
 		cpu_nr = ipanema_state(cpu).ready.nr_tasks + (ipanema_state(cpu).current_0 ? 1 : 0);
 		if (cpu_nr < dst_nr) {
 			dst = cpu;
@@ -288,7 +305,7 @@ static int ipanema_Simple_unblock_prepare(struct ipanema_policy *policy,
 
 	dst = p->cpu;
 	dst_nr = ipanema_state(dst).ready.nr_tasks + (ipanema_state(dst).current_0 ? 1 : 0);
-	for_each_cpu(cpu, cstate_info.active_cores) {
+	for_each_cpu(cpu, &cstate_info.active_cores) {
 		cpu_nr = ipanema_state(cpu).ready.nr_tasks + (ipanema_state(cpu).current_0 ? 1 : 0);
 		if (cpu_nr < dst_nr) {
 			dst = cpu;
@@ -339,7 +356,7 @@ static void ipanema_Simple_core_entry(struct ipanema_policy *policy,
 {
 	struct Simple_ipa_core * tgt = &ipanema_core(e->target);
 
-	set_active_core(tgt, cstate_info.active_cores);
+	set_active_core(tgt, &cstate_info.active_cores);
 }
 
 static void ipanema_Simple_core_exit(struct ipanema_policy *policy,
@@ -347,7 +364,7 @@ static void ipanema_Simple_core_exit(struct ipanema_policy *policy,
 {
 	struct Simple_ipa_core * tgt = &ipanema_core(e->target);
 
-	set_inactive_core(tgt, cstate_info.active_cores);
+	set_inactive_core(tgt, &cstate_info.active_cores);
 	/* TODO: Migrate all tasks to another cpu */
 }
 
@@ -367,7 +384,7 @@ static void ipanema_Simple_load_balance(struct ipanema_policy *policy,
 	ktime_t old;
 
 	/* Select the busiest core */
-	for_each_cpu(victim, sd->cores) {
+	for_each_cpu(victim, &sd->cores) {
 		nr_victim = get_policy_rq(victim, ready).nr_tasks;
 		if (nr_victim > nr_busiest + 1) {
 			busiest = victim;
@@ -424,7 +441,7 @@ forward_next_balance:
 	/* Update sd->next_balance */
 	old = sd->next_balance;
 	sd->next_balance = ktime_add(ktime_get(),
-				     ms_to_ktime(10 * cpumask_weight(sd->cores)));
+				     ms_to_ktime(10 * cpumask_weight(&sd->cores)));
 }
 
 /* Called periodically by the runtime */
@@ -467,15 +484,15 @@ static void ipanema_Simple_newly_idle(struct ipanema_policy *policy,
 static void ipanema_Simple_enter_idle(struct ipanema_policy *policy,
 				      struct core_event *e)
 {
-	/* set_inactive_core(&ipanema_core(e->target), cstate_info.active_cores, */
-	/* 		  INACTIVE_CORES_STATE); */
+	/* set_inactive_core(&ipanema_core(e->target), &cstate_info.active_cores, */
+	/*		  INACTIVE_CORES_STATE); */
 }
 
 static void ipanema_Simple_exit_idle(struct ipanema_policy *policy,
 				     struct core_event *e)
 {
-	/* set_active_core(&ipanema_core(e->target), cstate_info.active_cores, */
-	/* 		ACTIVE_CORES_STATE); */
+	/* set_active_core(&ipanema_core(e->target), &cstate_info.active_cores, */
+	/*		ACTIVE_CORES_STATE); */
 }
 
 static int ipanema_Simple_init(struct ipanema_policy * policy)
@@ -527,176 +544,203 @@ struct ipanema_module_routines ipanema_Simple_routines =
 	.attach		  = ipanema_Simple_attach
 };
 
+static int init_topology(void)
+{
+	struct topology_level *t = per_cpu(topology_levels, 0);
+	size_t size;
+	int i;
+
+	Simple_ipa_nr_topology_levels = 0;
+
+	while (t) {
+		Simple_ipa_nr_topology_levels++;
+		t = t->next;
+	}
+
+	size = Simple_ipa_nr_topology_levels * sizeof(struct list_head);
+	Simple_ipa_topology = kzalloc(size, GFP_KERNEL);
+	if (!Simple_ipa_topology) {
+		Simple_ipa_nr_topology_levels = 0;
+		return -ENOMEM;
+	}
+
+	for (i = 0; i < Simple_ipa_nr_topology_levels; i++) {
+		INIT_LIST_HEAD(Simple_ipa_topology + i);
+	}
+
+	return 0;
+}
+
+static void destroy_scheduling_domains(void)
+{
+	struct Simple_ipa_sched_domain *sd, *tmp;
+	int i;
+
+	for (i = 0; i < Simple_ipa_nr_topology_levels; i++) {
+		list_for_each_entry_safe(sd, tmp, Simple_ipa_topology + i,
+					 siblings) {
+			list_del(&sd->siblings);
+			kfree(sd->groups);
+			kfree(sd);
+		}
+	}
+
+	kfree(Simple_ipa_topology);
+}
+
 static int create_scheduling_domains(unsigned int cpu)
 {
 	struct topology_level *t = per_cpu(topology_levels, cpu);
 	struct Simple_ipa_core *c = &ipanema_core(cpu);
-	size_t nr_levels = 0, sd_size = sizeof(struct Simple_ipa_sched_domain);
-	ktime_t now = ktime_get();
-	u64 next_lb;
-
-	/*
-	 * If create_scheduling_domains() was already called for this cpu, we
-	 * must free the sd field before rebuilding the hierarchy. Should not be
-	 * the case
-	 */
-	if (c->sd)
-		kfree(c->sd);
+	size_t sd_size = sizeof(struct Simple_ipa_sched_domain);
+	unsigned int level = 0;
+	struct Simple_ipa_sched_domain *sd, *lower_sd = NULL;
+	bool seen;
 
 	c->sd = NULL;
-	c->___sched_domains_idx = 0;
 
-	/* for each topological level exported by the runtime for cpu */
 	while (t) {
-		/* expand sd array in core struct by 1 sd */
-		c->sd = krealloc(c->sd, (nr_levels + 1) * sd_size, GFP_KERNEL);
-		if (!c->sd)
-			goto mem_fail;
-		/* copy the hw topology cpumask */
-		cpumask_copy(c->sd[nr_levels].cores, &t->cores);
-		/* copy the hw topology flags */
-		c->sd[nr_levels].flags = t->flags;
-		/* init sd fields */
-		c->sd[nr_levels].___sched_group_idx = 0;
-		c->sd[nr_levels].groups = NULL;
-		next_lb = cpumask_weight(c->sd[nr_levels].cores);
-		c->sd[nr_levels].next_balance = ktime_add(now,
-							  ms_to_ktime(next_lb));
-		c->sd[nr_levels].idle_count = 0;
-		c->sd[nr_levels].periodic_count = 0;
-		nr_levels++;
-		t = t->next;
-	}
-	c->___sched_domains_idx = nr_levels;
-
-	return 0;
-
-mem_fail:
-	c->___sched_domains_idx = 0;
-	kfree(c->sd);
-	c->sd = NULL;
-	return -ENOMEM;
-}
-
-static int build_groups(unsigned int cpu, struct Simple_ipa_sched_domain *sd)
-{
-	cpumask_t done;
-	unsigned int cpu_idx, level = 1, i;
-	struct Simple_ipa_core *c = &ipanema_core(cpu);
-
-	/* cleanup current groups if necessary. Should not be the case */
-	if (sd->groups)
-		kfree(sd->groups);
-	sd->groups = NULL;
-	sd->___sched_group_idx = 0;
-
-	cpumask_clear(&done);
-	/* create the group containing cpu (previous domain) */
-	sd->groups = krealloc(sd->groups,
-			      sizeof(struct Simple_ipa_sched_group),
-			      GFP_KERNEL);
-	if (!sd->groups)
-		goto mem_fail;
-	/* if sd is the lowest domain, just add cpu in the group */
-	cpumask_clear(sd->groups[0].cores);
-	if (sd == c->sd) {
-		cpumask_set_cpu(cpu, sd->groups[0].cores);
-		cpumask_set_cpu(cpu, &done);
-	} else {
-		cpumask_copy(sd->groups[0].cores, sd[-1].cores);
-		cpumask_or(&done, &done, sd->groups[0].cores);
-	}
-
-	/*
-	 * for each cpu in the domain, if it is not already in a group,
-	 * build its group and add the cpus in this new group to done.
-	 */
-	for_each_cpu_wrap(cpu_idx, sd->cores, cpu) {
-		/* if already done, continue */
-		if (cpumask_test_cpu(cpu_idx, &done))
-			continue;
-
-		/* add a group to the domain */
-		sd->groups = krealloc(sd->groups,
-				      (level + 1) * sizeof(struct Simple_ipa_sched_group),
-				      GFP_KERNEL);
-		if (!sd->groups)
-			goto mem_fail;
-
-		cpumask_clear(sd->groups[level].cores);
-		/* search for the lowest domain of cpu_idx containing cpu */
-		c = &ipanema_core(cpu_idx);
-		for (i = 0; i < c->___sched_domains_idx; i++) {
-			if (cpumask_test_cpu(cpu, c->sd[i].cores)) {
-				/*
-				 * if it's cpu_idx lowest domain, just add
-				 * cpu_idx, else, add the previous domain
-				 */
-				if (i == 0)
-					cpumask_set_cpu(cpu_idx,
-							sd->groups[level].cores);
-				else
-					cpumask_andnot(sd->groups[level].cores,
-						       c->sd[i - 1].cores,
-						       &done);
+		/* if cpu is present in current level */
+		seen = false;
+		list_for_each_entry(sd, Simple_ipa_topology + level, siblings) {
+			if (cpumask_test_cpu(cpu, &sd->cores)) {
+				seen = true;
 				break;
 			}
 		}
-		if (i == c->___sched_domains_idx)
-			pr_info("%s: from %d point of view, %d is nowhere\n",
-				__FUNCTION__, cpu_idx, cpu);
+		if (!seen) {
+			sd = kzalloc(sd_size, GFP_KERNEL);
+			if (!sd)
+				goto err;
+			INIT_LIST_HEAD(&sd->siblings);
+			sd->parent = NULL;
+			sd->___sched_group_idx = 0;
+			sd->groups = NULL;
+			cpumask_copy(&sd->cores, &t->cores);
+			sd->flags = t->flags;
+			sd->next_balance = 0;
+			sd->periodic_count = 0;
+			sd->idle_count = 0;
+			spin_lock_init(&sd->lock);
+			list_add_tail(&sd->siblings, Simple_ipa_topology + level);
+		}
+		if (lower_sd)
+			lower_sd->parent = sd;
 		else
-			cpumask_or(&done, &done, sd->groups[level].cores);
+			c->sd = sd;
+
+		if (seen)
+			break;
+
+		lower_sd = sd;
+		t = t->next;
 		level++;
 	}
 
-	sd->___sched_group_idx = level;
+	return 0;
+
+err:
+	destroy_scheduling_domains();
+	return -ENOMEM;
+}
+
+static int build_groups(struct Simple_ipa_sched_domain *sd,
+			unsigned int lvl)
+{
+	struct Simple_ipa_sched_domain *sdl;
+	struct Simple_ipa_sched_group *sg = NULL;
+	int n = 0;
+
+	list_for_each_entry(sdl, &Simple_ipa_topology[lvl - 1], siblings) {
+		if (cpumask_subset(&sdl->cores, &sd->cores)) {
+			n++;
+			sg = krealloc(sg,
+				      n * sizeof(struct Simple_ipa_sched_group),
+				      GFP_KERNEL);
+			if (!sg)
+				goto err;
+
+			cpumask_copy(&sg[n - 1].cores, &sdl->cores);
+		}
+	}
+
+	sd->___sched_group_idx = n;
+	sd->groups = sg;
 
 	return 0;
 
-mem_fail:
-	sd->___sched_group_idx = 0;
-	kfree(sd->groups);
-	sd->groups = NULL;
+err:
+	destroy_scheduling_domains();
+	return -ENOMEM;
+}
+
+static int build_lower_groups(struct Simple_ipa_sched_domain *sd)
+{
+	int cpu, n, i = 0;
+
+	n = cpumask_weight(&sd->cores);
+	sd->groups = kzalloc(n * sizeof(struct Simple_ipa_sched_group),
+			     GFP_KERNEL);
+	if (!sd->groups)
+		goto fail;
+	sd->___sched_group_idx = n;
+
+	for_each_cpu(cpu, &sd->cores) {
+		cpumask_clear(&sd->groups[i].cores);
+		cpumask_set_cpu(cpu, &sd->groups[i].cores);
+		i++;
+	}
+
+	return 0;
+
+fail:
+	destroy_scheduling_domains();
 	return -ENOMEM;
 }
 
 /* Scheduling domains must be up to date for all CPUs */
-static int create_scheduling_groups(unsigned int cpu)
+static int create_scheduling_groups(void)
 {
-	struct Simple_ipa_core *c = &ipanema_core(cpu);
-	int i, ret = 0;
+	struct Simple_ipa_sched_domain *sd = NULL;
+	int i, ret;
 
-	/*
-	 * for each domain (starting from the bigger one), we must build a list
-	 * of groups. These groups are domains from a lower level in the
-	 * hierarchy
-	 */
-	for (i = 0; i < c->___sched_domains_idx; i++) {
-		ret = build_groups(cpu, &c->sd[i]);
-		if (ret != 0) {
-			pr_info("%s: failed on cpu%d, domain%d\n",
-				__FUNCTION__, cpu, i);
-			break;
+	for (i = Simple_ipa_nr_topology_levels - 1; i > 0; i--) {
+		list_for_each_entry(sd, &Simple_ipa_topology[i], siblings) {
+			ret = build_groups(sd, i);
+			if (ret)
+				goto fail;
 		}
 	}
 
-	return ret;
+	list_for_each_entry(sd, Simple_ipa_topology, siblings) {
+		ret = build_lower_groups(sd);
+		if (ret)
+			goto fail;
+	}
+
+	return 0;
+
+fail:
+	destroy_scheduling_domains();
+	return -ENOMEM;
 }
 
 static void build_hierarchy(void)
 {
 	int cpu;
 
-	/* Update hierarchy for all cpus handled by the policy */
+	init_topology();
+
+	/* if unicore, don't build hierarchy */
+	if (!Simple_ipa_nr_topology_levels)
+		return;
+
+	/* create hierarchy for all cpus */
 	for_each_possible_cpu(cpu) {
 		create_scheduling_domains(cpu);
 	}
-	for_each_possible_cpu(cpu) {
-		create_scheduling_groups(cpu);
-	}
+	create_scheduling_groups();
 }
-
 
 static int proc_show(struct seq_file *s, void *p)
 {
@@ -738,8 +782,9 @@ static int proc_open(struct inode *inode, struct file *file)
 {
 	long cpu;
 
-	kstrtol(file->f_path.dentry->d_iname, 10, &cpu);
-	return single_open(file, proc_show, (void *)cpu);
+	if (!kstrtol(file->f_path.dentry->d_iname, 10, &cpu))
+		return single_open(file, proc_show, (void *)cpu);
+	return -ENOENT;
 }
 
 static struct file_operations proc_fops = {
@@ -764,13 +809,13 @@ static int proc_topo_show(struct seq_file *s, void *p)
 		for (level = 0; level < c->___sched_domains_idx; level++) {
 			sd = &c->sd[level];
 			seq_printf(s, "  +--> domain%d: %*pbl  [size=%d] (idle_count=%u, periodic_count=%u)\n",
-				   level, cpumask_pr_args(sd->cores),
-				   cpumask_weight(sd->cores),
+				   level, cpumask_pr_args(&sd->cores),
+				   cpumask_weight(&sd->cores),
 				   sd->idle_count, sd->periodic_count);
 			for (sd_lvl = 0; sd_lvl < sd->___sched_group_idx; sd_lvl++) {
 				sg = &sd->groups[sd_lvl];
 				seq_printf(s, "         +--> group%d: %*pbl\n",
-					   sd_lvl, cpumask_pr_args(sg->cores));
+					   sd_lvl, cpumask_pr_args(&sg->cores));
 			}
 		}
 	}
@@ -800,22 +845,17 @@ int init_module(void)
 	/* Initialize scheduler variables with non-const value (function call) */
 	for_each_possible_cpu(cpu) {
 		ipanema_core(cpu).id = cpu;
+		ipanema_core(cpu).cload = 0;
 		/* READY rq */
 		init_ipanema_rq(&ipanema_state(cpu).ready, RBTREE, cpu,
 				IPANEMA_READY, ipanema_Simple_order_process);
-	}
-
-	/* allocation of every cpumask_var_t of struct core_state_info */
-	if (!zalloc_cpumask_var(&(cstate_info.active_cores), GFP_KERNEL)) {
-		res = -ENOMEM;
-		goto clean_cpumask_var;
 	}
 
 	/* Allocate & setup the ipanema_module */
 	module = kzalloc(sizeof(struct ipanema_module), GFP_KERNEL);
 	if (!module) {
 		res = -ENOMEM;
-		goto clean_cpumask_var;
+		goto end;
 	}
 
 	/* build hierarchy with topology */
@@ -850,10 +890,7 @@ int init_module(void)
 
  clean_module:
 	kfree(module);
- clean_cpumask_var:
-	/* deallocation of every cpumask_var_t of struct core_state_info */
-	free_cpumask_var(cstate_info.active_cores);
-
+ end:
 	return res;
 
 }
@@ -862,17 +899,15 @@ void cleanup_module(void)
 {
 	int res;
 
-        remove_proc_subtree(name, ipa_procdir);
+	remove_proc_subtree(name, ipa_procdir);
 
-        res = ipanema_remove_module(module);
+	res = ipanema_remove_module(module);
 	if (res) {
 		pr_err("Cleanup failed (%d)\n", res);
 		return;
 	}
 
-        kfree(module);
-        /* deallocation of every cpumask_var_t of struct core_state_info */
-        free_cpumask_var(cstate_info.active_cores);
+	kfree(module);
 }
 
 MODULE_AUTHOR("Ipanema Compiler");
