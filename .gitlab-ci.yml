@@ -13,23 +13,25 @@ build-kernel:
     - make -j48
   cache:
     untracked: true
-    key: kbuild-cache
+    key: modules-cache
     paths:
-      - .
       - .config
+      - Module.symvers
 
 build-ipanema-policies:
   stage: build-ipanema
   tags:
     - ipanema
   script:
+    - make prepare
+    - make modules_prepare
     - cd ipanema/modules && make -j48 && cd ../..
   cache:
     untracked: true
-    key: kbuild-cache
+    key: modules-cache
     paths:
-      - .
       - .config
+      - Module.symvers
 
 build-ipanema-ipastart:
   stage: build-ipanema
