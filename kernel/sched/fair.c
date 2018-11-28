@@ -1851,11 +1851,17 @@ static int task_numa_migrate(struct task_struct *p)
 
 	best_rq = cpu_rq(env.best_cpu);
 	if (env.best_task == NULL) {
+fuckoff_cfs:
 		ret = migrate_task_to(p, env.best_cpu);
 		WRITE_ONCE(best_rq->numa_migrate_on, 0);
 		if (ret != 0)
 			trace_sched_stick_numa(p, env.src_cpu, env.best_cpu);
 		return ret;
+	}
+
+	if (env.best_task->sched_class == &ipanema_sched_class) {
+		put_task_struct(env.best_task);
+		goto fuckoff_cfs;
 	}
 
 	ret = migrate_swap(p, env.best_task, env.best_cpu, env.src_cpu);
