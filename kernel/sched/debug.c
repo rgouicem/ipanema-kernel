@@ -656,6 +656,8 @@ do {									\
 		   rq->load.weight);
 	P(nr_switches);
 	P(nr_migrations);
+	P(nr_sleep);
+	P(nr_wakeup);
 	P(nr_load_updates);
 	P(nr_uninterruptible);
 	PN(next_balance);
