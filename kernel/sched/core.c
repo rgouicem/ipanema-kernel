@@ -5131,7 +5131,7 @@ static void do_sched_yield(void)
 	struct rq_flags rf;
 	struct rq *rq;
 
-	sched_monitor_start(&sys_sched_yield);
+	sched_monitor_start(&do_sched_yield);
 
 	local_irq_disable();
 	rq = this_rq();
@@ -5149,7 +5149,7 @@ static void do_sched_yield(void)
 	sched_preempt_enable_no_resched();
 
 	schedule();
-	sched_monitor_stop(&sys_sched_yield);
+	sched_monitor_stop(&do_sched_yield);
 }
 
 SYSCALL_DEFINE0(sched_yield)
