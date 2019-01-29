@@ -297,9 +297,13 @@ ssize_t sched_monitor_sched_class_stats_read(struct file *file,
 
 end:
 	n = min(n, count);
-	copy_to_user(user_buf, buf, n);
+	if (copy_to_user(user_buf, buf, n)) {
+		n = -EFAULT;
+		goto memfree;
+	}
 	*ppos += n;
 
+memfree:
 	kfree(buf);
 
 	return n;
