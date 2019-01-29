@@ -18,6 +18,17 @@ build-kernel:
       - .config
       - Module.symvers
 
+build-kernel-sched-monitor:
+  stage: build
+  tags:
+    - ipanema
+  script:
+    - make defconfig
+    - make localmodconfig
+    - make ipanema.config
+    - make sched_monitor.config
+    - make -j48
+
 build-ipanema-policies:
   stage: build-ipanema
   tags:
