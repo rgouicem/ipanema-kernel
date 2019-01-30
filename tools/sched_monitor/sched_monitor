@@ -20,7 +20,8 @@ function usage {
     exit 0
 }
 
-P=/sys/kernel/debug/sched_monitor
+DEBUGFS=/sys/kernel/debug
+P=${DEBUGFS}/sched_monitor
 
 function check_subsys {
     for v in "$@" ;  do
@@ -74,12 +75,12 @@ function status {
 ################################################################################
 
 # Check permissions on debugfs interface
-if [ ! -d $P ] ; then
-    echo "[ERROR] sched_monitor is not supported on this system"
+if [ ! -r ${DEBUGFS} -o ! -x ${DEBUGFS} ] ; then
+    echo "[ERROR] You do not have rx permissions on ${DEBUGFS}. Ask your sysadmin for help!"
     exit 5
 fi
-if [ ! -r $P -o ! -x $P ] ; then
-    echo "[ERROR] You do not have rx permissions on sched_monitor directory. Ask your sysadmin for help!"
+if [ ! -d $P ] ; then
+    echo "[ERROR] sched_monitor is not supported on this system"
     exit 5
 fi
 
