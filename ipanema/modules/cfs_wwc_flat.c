@@ -704,8 +704,9 @@ static void ipanema_cfs_schedule(struct ipanema_policy *policy,
 static void ipanema_cfs_core_entry(struct ipanema_policy *policy,
 				    struct core_event *e)
 {
-	struct cfs_ipa_core * tgt = &per_cpu(core, e->target);
+	struct cfs_ipa_core *tgt = &per_cpu(core, e->target);
 
+	tgt->min_vruntime = 0;
 	set_active_core(tgt, &cstate_info.active_cores, ACTIVE_CORES_STATE);
 }
 
@@ -714,7 +715,6 @@ static void ipanema_cfs_core_exit(struct ipanema_policy *policy,
 {
 	struct cfs_ipa_core *tgt = &per_cpu(core, e->target);
 
-	tgt->min_vruntime = 0;
 	set_sleeping_core(tgt, &cstate_info.idle_cores, IDLE_CORES_STATE);
 }
 
@@ -771,9 +771,9 @@ static void ipanema_cfs_balancing(struct ipanema_policy *policy,
 			thief = &ipanema_core(cpu);
 			steal_for_cpu(policy, thief);
 		}
+		sd->count++;
+		sd->next_balance = ktime_add(ktime_get(), interval);
 	}
-	sd->count++;
-	sd->next_balance = ktime_add(ktime_get(), interval);
 
 	/* Generated if synchronized keyword is used */
 	spin_unlock_irqrestore(&lb_lock, flags);
