@@ -289,7 +289,7 @@ static int migrate_from_to(struct cfs_ipa_core *busiest,
 		if (!cpumask_test_cpu(thief->id, &pos->cpus_allowed))
 			continue;
 
-		if (busiest->cload - thief_cload >= t->load) {
+		if (busiest->cload - thief_cload >= 2 * t->load) {
 			list_add(&pos->ipanema.ipa_tasks, &tasks);
 			t->vruntime -= busiest->min_vruntime;
 			ipa_change_queue_and_core(t, NULL, MIGRATING_STATE,
