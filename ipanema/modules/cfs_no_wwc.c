@@ -149,12 +149,8 @@ inline static void update_thread(struct cfs_ipa_process *p)
 {
 	ktime_t now = ktime_get();
 	ktime_t delta = ktime_sub(now, p->last_sched);
-	int cpu = task_cpu(p->task);
-	struct cfs_ipa_core *c = &ipanema_core(cpu);
 
 	p->vruntime = ktime_add(p->vruntime, delta);
-	if (p->vruntime > c->min_vruntime)
-		c->min_vruntime = p->vruntime;
 }
 
 /*
@@ -777,6 +773,7 @@ static void ipanema_cfs_schedule(struct ipanema_policy *policy,
 {
 	struct task_struct *task_20 = NULL;
 	struct cfs_ipa_process *p;
+	struct cfs_ipa_core *c = &ipanema_core(cpu);
 
 	task_20 = ipanema_first_task(&ipanema_state(cpu).ready);
 	if (!task_20)
@@ -784,6 +781,7 @@ static void ipanema_cfs_schedule(struct ipanema_policy *policy,
 
 	p = policy_metadata(task_20);
 	p->last_sched = ktime_get();
+	c->min_vruntime = p->vruntime;
 
 	ipa_change_proc(p, &ipanema_state(cpu).current_0, CURRENT_0_STATE);
 }
