@@ -21,7 +21,7 @@
 
 #define ipanema_assert(x) do{if(!(x)) panic("Error in " #x "\n");} while(0)
 
-static char *name = "batch_blocked";
+static char *name = KBUILD_MODNAME;
 static struct ipanema_module *module;
 
 struct batch_ipa_process;
@@ -946,6 +946,6 @@ void cleanup_module(void)
 	kfree(module);
 }
 
-MODULE_AUTHOR("Ipanema Compiler");
-MODULE_DESCRIPTION("batch scheduling policy");
+MODULE_AUTHOR("RedhaCC");
+MODULE_DESCRIPTION(KBUILD_MODNAME" scheduling policy");
 MODULE_LICENSE("GPL");

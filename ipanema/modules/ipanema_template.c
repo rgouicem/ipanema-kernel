@@ -21,7 +21,7 @@
 #define ticks_to_time(x) (ns_to_ktime(x * 1000000000 / HZ))
 
 /* policy name */
-static char *name = "ipanema_template";
+static char *name = KBUILD_MODNAME;
 static struct ipanema_module *module;
 
 /* Helper macros */
@@ -596,6 +596,6 @@ void cleanup_module(void)
 	kfree(module);
 }
 
-MODULE_AUTHOR("Redha Gouicem");
-MODULE_DESCRIPTION("Ipanema scheduler template");
+MODULE_AUTHOR("RedhaCC");
+MODULE_DESCRIPTION(KBUILD_MODNAME" scheduling policy");
 MODULE_LICENSE("GPL");

@@ -21,7 +21,7 @@
 
 #define ipanema_assert(x) do{if(!(x)) panic("Error in " #x "\n");} while(0)
 
-static char *name = "oltp";
+static char *name = KBUILD_MODNAME;
 static struct ipanema_module *module;
 
 
@@ -1112,6 +1112,6 @@ void cleanup_module(void)
 	kfree(module);
 }
 
-MODULE_AUTHOR("Ipanema Compiler");
-MODULE_DESCRIPTION("oltp scheduling policy");
+MODULE_AUTHOR("RedhaCC");
+MODULE_DESCRIPTION(KBUILD_MODNAME" scheduling policy");
 MODULE_LICENSE("GPL");
