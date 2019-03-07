@@ -24,7 +24,7 @@
 #define time_to_ticks(x) ktime_to_ns(x)
 #define ticks_to_time(x) ns_to_ktime(x)
 
-static char *name = "Simple";
+static char *name = KBUILD_MODNAME;
 static struct ipanema_module *module;
 
 #define	 CURRENT_0_STATE  1 << 0 /* File "compiler/compiler/compile_misc.ml", line 67, characters 43-50 */
@@ -910,6 +910,6 @@ void cleanup_module(void)
 	kfree(module);
 }
 
-MODULE_AUTHOR("Ipanema Compiler");
-MODULE_DESCRIPTION("Simple scheduling policy");
+MODULE_AUTHOR("RedhaCC");
+MODULE_DESCRIPTION(KBUILD_MODNAME" scheduling policy");
 MODULE_LICENSE("GPL");

@@ -29,7 +29,7 @@
 #define time_to_ticks(x) (ktime_to_ms(x) * HZ / 1000000)
 #define ticks_to_time(x) (ms_to_ktime(x * 1000000 / HZ))
 
-static char *name = "ule_wwc";
+static char *name = KBUILD_MODNAME;
 static struct ipanema_module *module;
 
 #define SCHED_SLICE 200
@@ -1209,6 +1209,6 @@ void cleanup_module(void)
 	kfree(module);
 }
 
-MODULE_AUTHOR("Ipanema Compiler");
-MODULE_DESCRIPTION("ULE-WWC scheduling policy");
+MODULE_AUTHOR("RedhaCC");
+MODULE_DESCRIPTION(KBUILD_MODNAME" scheduling policy");
 MODULE_LICENSE("GPL");

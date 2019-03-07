@@ -29,7 +29,7 @@
 #define time_to_ticks(x) ktime_to_ns(x) * HZ / 1000000000
 #define ticks_to_time(x) ns_to_ktime(x * 1000000000 / HZ)
 
-static char *name = "cfs_no_wwc";
+static char *name = KBUILD_MODNAME;
 static struct ipanema_module *module;
 
 static const int max_quanta_ms = 100;
@@ -1286,6 +1286,6 @@ void cleanup_module(void)
 	kfree(module);
 }
 
-MODULE_AUTHOR("Ipanema Compiler");
-MODULE_DESCRIPTION("cfs scheduling policy");
+MODULE_AUTHOR("RedhaCC");
+MODULE_DESCRIPTION(KBUILD_MODNAME" scheduling policy");
 MODULE_LICENSE("GPL");

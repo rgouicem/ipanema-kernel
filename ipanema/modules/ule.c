@@ -1109,6 +1109,6 @@ void cleanup_module(void)
 	kfree(module);
 }
 
-MODULE_AUTHOR("Ipanema Compiler");
-MODULE_DESCRIPTION("ULE-WWC scheduling policy");
+MODULE_AUTHOR("RedhaCC");
+MODULE_DESCRIPTION(KBUILD_MODNAME" scheduling policy");
 MODULE_LICENSE("GPL");
