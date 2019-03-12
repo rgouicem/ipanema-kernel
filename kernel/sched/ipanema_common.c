@@ -70,6 +70,10 @@ wrong_transition:
 		__func__, p->pid,
 		ipanema_state_to_str(prev_state), prev_cpu,
 		ipanema_state_to_str(next_state), next_cpu);
+
+#ifdef CONFIG_IPANEMA_PANIC_ON_BAD_TRANSITION
+	BUG();
+#endif
 }
 
 /*
@@ -151,6 +155,10 @@ void change_state(struct task_struct *p, enum ipanema_state next_state,
 				ipanema_state_to_str(next_state),
 				next_cpu, next_rq->cpu,
 				ipanema_state_to_str(next_rq->state));
+
+#ifdef CONFIG_IPANEMA_PANIC_ON_BAD_TRANSITION
+			BUG();
+#endif
 			next_cpu = next_rq->cpu;
 			next_state = next_rq->state;
 		}
@@ -1090,12 +1098,6 @@ static void task_change_group_ipanema(struct task_struct *p, int type)
 	if (unlikely(ipanema_sched_class_log))
 		pr_info("In %s [pid=%d]\n",
 			__func__, p->pid);
-
-	/* switch (type) { */
-	/* case TASK_SET_GROUP: */
-	/* case TASK_MOVE_GROUP: */
-	/* 	break; */
-	/* } */
 }
 #endif
 
