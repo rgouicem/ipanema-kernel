@@ -2,3 +2,7 @@
 config IPANEMA_DEBUG_TOPOLOGY
         def_bool n
 	prompt "Print topology during boot"
+
+config IPANEMA_PANIC_ON_BAD_TRANSITION
+        def_bool n
+	prompt "Panic when a bad transition in the ipanema finite state machine is detected. Use for debug only."
