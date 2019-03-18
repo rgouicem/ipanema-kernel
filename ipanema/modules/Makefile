@@ -11,7 +11,7 @@ obj-m += batch.o
 obj-m += batch_blocked.o
 obj-m += oltp.o
 
-KERNEL=../../
+KERNEL?=../../
 
 # UBSAN_SANITIZE := y
 # ccflags-y := -O0
