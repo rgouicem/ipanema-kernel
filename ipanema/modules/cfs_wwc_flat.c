@@ -36,7 +36,7 @@
 static char *name = KBUILD_MODNAME;
 static struct ipanema_module *module;
 
-static const int max_quanta_ms = 100;
+static const int max_quanta_ms = 10;
 static ktime_t max_quanta;
 #define  CURRENT_0_STATE  (1 << 0)
 #define  READY_STATE  (1 << 1)
@@ -147,9 +147,9 @@ DEFINE_PER_CPU(struct cfs_ipa_core, core);
 static inline void update_thread(struct cfs_ipa_process *p)
 {
 	ktime_t now = ktime_get();
-	ktime_t delta = ktime_sub(now, p->last_sched);
+	ktime_t used_time = ktime_sub(now, p->last_sched);
 
-	p->vruntime = ktime_add(p->vruntime, delta);
+	p->vruntime = ktime_add(p->vruntime, used_time);
 }
 
 /*
@@ -291,7 +291,7 @@ static int migrate_from_to(struct cfs_ipa_core *busiest,
 		if (!cpumask_test_cpu(thief->id, &pos->cpus_allowed))
 			continue;
 
-		if (busiest->cload - thief_cload >= 2 * t->load) {
+		if (busiest->cload - thief_cload > t->load) {
 			list_add(&pos->ipanema.ipa_tasks, &tasks);
 			t->vruntime -= busiest->min_vruntime;
 			ipa_change_queue_and_core(t, NULL, MIGRATING_STATE,
@@ -354,14 +354,19 @@ find_busiest_cpu(struct ipanema_policy *policy, cpumask_t *stealable_cores)
 	return busiest;
 }
 
-static bool can_steal_core(struct cfs_ipa_core *tgt, struct cfs_ipa_core *thief)
+static inline int runnable(struct cfs_ipa_core *c)
 {
 	int nr_threads = 0;
 
-	nr_threads += ipanema_state(tgt->id).ready.nr_tasks;
-	nr_threads += ipanema_state(tgt->id).current_0 ? 1 : 0;
+	nr_threads += ipanema_state(c->id).ready.nr_tasks;
+	nr_threads += ipanema_state(c->id).current_0 ? 1 : 0;
 
-	return nr_threads > 1;
+	return nr_threads;
+}
+
+static bool can_steal_core(struct cfs_ipa_core *tgt, struct cfs_ipa_core *thief)
+{
+	return runnable(tgt) > 1;
 }
 
 static struct cfs_ipa_core *select_core(struct ipanema_policy *policy,
@@ -391,21 +396,23 @@ static void steal_for_cpu(struct ipanema_policy *policy,
 			cpumask_set_cpu(cpu, &stealable_cores);
 	}
 
-	/* Step 2: select_core() */
-	selected = select_core(policy, &stealable_cores);
-	if (!selected)
-		return;
+	do {
+		/* Step 2: select_core() */
+		selected = select_core(policy, &stealable_cores);
+		if (!selected)
+			return;
 
-	/* Step 5: steal_thread() */
-	migrate_from_to(selected, c);
+		/* Step 3: steal_thread() */
+		migrate_from_to(selected, c);
+
+		cpumask_clear_cpu(selected->id, &stealable_cores);
+	} while (runnable(c) == 0 && cpumask_weight(&stealable_cores) > 0);
 }
 
 static int ipanema_cfs_new_prepare(struct ipanema_policy *policy,
 				   struct process_event *e)
 {
 	struct cfs_ipa_process *tgt;
-	/* struct cfs_ipa_sched_domain *sd; */
-	/* struct cfs_ipa_sched_group *sg; */
 	struct cfs_ipa_core *c, *idlest;
 	struct task_struct *task_15;
 	int cpu;
@@ -429,6 +436,8 @@ static int ipanema_cfs_new_prepare(struct ipanema_policy *policy,
 
 	tgt->vruntime = idlest->min_vruntime;
 	tgt->load = 1024;
+	tgt->last_sched = ktime_get();
+
 	return idlest->id;
 }
 
@@ -473,15 +482,17 @@ static void ipanema_cfs_tick(struct ipanema_policy *policy,
 	struct cfs_ipa_process *tgt = policy_metadata(e->target);
 	struct cfs_ipa_core *c = &ipanema_core(task_cpu(e->target));
 	ktime_t now = ktime_get();
-	ktime_t curr_runtime = ktime_sub(now, tgt->last_sched);
+	ktime_t delta = ktime_sub(now, tgt->last_sched);
 	int old_load = tgt->load;
 
-	if (ktime_after(curr_runtime, max_quanta)) {
+	if (ktime_after(delta, max_quanta)) {
 		update_thread(tgt);
 		update_load(tgt);
 		ipa_change_queue(tgt,
 				 &ipanema_state(task_cpu(tgt->task)).ready,
 				 READY_TICK_STATE);
+		/* Memory barrier for proofs */
+		smp_wmb();
 		c->cload += (tgt->load - old_load);
 	}
 }
@@ -1091,5 +1102,5 @@ void cleanup_module(void)
 }
 
 MODULE_AUTHOR("RedhaCC");
-MODULE_DESCRIPTION(KBUILD_MODNAME" scheduling policy");
+MODULE_DESCRIPTION(KBUILD_MODNAME"_v2 scheduling policy");
 MODULE_LICENSE("GPL");
