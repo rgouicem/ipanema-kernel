@@ -450,14 +450,19 @@ static int ipanema_ule_wwc_new_prepare(struct ipanema_policy *policy,
 	cpumask_clear(&mask);
 	c = &ipanema_core(task_cpu(task_15));
 	idlest = c;
+	cnt = 0;
 	for_each_cpu_and(cpu, &policy->allowed_cores, &task_15->cpus_allowed) {
 		c = &ipanema_core(cpu);
-		if (c->cload <= idlest->cload)
+		if (c->cload <= idlest->cload) {
 			cpumask_set_cpu(cpu, &mask);
+			cnt++;
+		}
 	}
 	/* draw a random core in mask */
-	cnt = sched_random() % cpumask_weight(&mask);
-	cpu = cpumask_next_wrap(cnt, &mask, cnt, true);
+	cnt = sched_random() % cnt;
+	for_each_cpu(cpu, &mask)
+		if(cnt--<=0)
+			break;
 	idlest = &ipanema_core(cpu);
 
 	tgt->load = 1;
