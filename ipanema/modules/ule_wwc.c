@@ -555,13 +555,14 @@ static void ipanema_ule_wwc_block(struct ipanema_policy *policy,
 static struct ule_wwc_ipa_core *pickup_core(struct ipanema_policy *policy,
 					    struct ule_wwc_ipa_process *t)
 {
-	struct ule_wwc_ipa_core *c = &ipanema_core(task_cpu(t->task)), *idlest;
+	struct ule_wwc_ipa_core *c = &ipanema_core(task_cpu(t->task));
+	struct ule_wwc_ipa_core *idlest = &ipanema_core(t->last_core);
 	struct ule_wwc_ipa_sched_domain *sd = c->sd;
-	int cpu, min_cload = INT_MAX;
+	int cpu;
 
 	/* Run interrupt threads on their core */
 	if (t->prio == INTERRUPT)
-		return &ipanema_core(t->last_core);
+		return idlest;
 
 	/* Pick up an idle cpu that shares a L2 */
 	while (sd) {
@@ -579,10 +580,8 @@ static struct ule_wwc_ipa_core *pickup_core(struct ipanema_policy *policy,
 	/* default */
 	for_each_cpu(cpu, &policy->allowed_cores) {
 		c = &ipanema_core(cpu);
-		if (c->cload < min_cload) {
+		if (c->cload < idlest->cload)
 			idlest = c;
-			min_cload = c->cload;
-		}
 	}
 
 	return idlest;
