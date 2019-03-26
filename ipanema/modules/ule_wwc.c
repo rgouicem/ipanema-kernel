@@ -429,9 +429,8 @@ static int ipanema_ule_wwc_new_prepare(struct ipanema_policy *policy,
 	struct ule_wwc_ipa_process *tgt, *parent;
 	struct ule_wwc_ipa_core *c, *idlest = NULL;
 	struct task_struct *task_15;
-	int cpu, cnt;
+	int cpu;
 	/* static int next_cpu = 0; */
-	cpumask_t mask;
 
 	task_15 = e->target;
 	tgt = kzalloc(sizeof(struct ule_wwc_ipa_process), GFP_ATOMIC);
@@ -446,19 +445,14 @@ static int ipanema_ule_wwc_new_prepare(struct ipanema_policy *policy,
 		tgt->parent = task_15->parent;
 	tgt->rq = NULL;
 
-	/* find idlest cores on machine */
-	cpumask_clear(&mask);
+	/* find idlest core on machine */
 	c = &ipanema_core(task_cpu(task_15));
 	idlest = c;
 	for_each_cpu_and(cpu, &policy->allowed_cores, &task_15->cpus_allowed) {
 		c = &ipanema_core(cpu);
-		if (c->cload <= idlest->cload)
-			cpumask_set_cpu(cpu, &mask);
+		if (c->cload < idlest->cload)
+			idlest = c;
 	}
-	/* draw a random core in mask */
-	cnt = sched_random() % cpumask_weight(&mask);
-	cpu = cpumask_next_wrap(cnt, &mask, cnt, true);
-	idlest = &ipanema_core(cpu);
 
 	tgt->load = 1;
 	if (tgt->parent) {
@@ -563,8 +557,7 @@ static struct ule_wwc_ipa_core *pickup_core(struct ipanema_policy *policy,
 {
 	struct ule_wwc_ipa_core *c = &ipanema_core(task_cpu(t->task)), *idlest;
 	struct ule_wwc_ipa_sched_domain *sd = c->sd;
-	int cpu, cnt, min_cload = INT_MAX;
-	cpumask_t mask;
+	int cpu, min_cload = INT_MAX;
 
 	/* Run interrupt threads on their core */
 	if (t->prio == INTERRUPT)
@@ -584,15 +577,13 @@ static struct ule_wwc_ipa_core *pickup_core(struct ipanema_policy *policy,
 	}
 
 	/* default */
-	cpumask_clear(&mask);
 	for_each_cpu(cpu, &policy->allowed_cores) {
 		c = &ipanema_core(cpu);
-		if (c->cload < min_cload)
-			cpumask_set_cpu(cpu, &mask);
+		if (c->cload < min_cload) {
+			idlest = c;
+			min_cload = c->cload;
+		}
 	}
-	cnt = sched_random() % cpumask_weight(&mask);
-	cpu = cpumask_next_wrap(cnt, &mask, cnt, true);
-	idlest = &ipanema_core(cpu);
 
 	return idlest;
 }
