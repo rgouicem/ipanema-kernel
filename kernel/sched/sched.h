@@ -827,6 +827,7 @@ struct rq {
 	unsigned long		nr_load_updates;
 	u64			nr_switches;
 	u64                     nr_migrations;   /* number of migrations */
+	u64                     nr_migrations_wc; /* number of migrations making a core idle -> non-idle */
 	u64                     nr_sleep;        /* number of sleeps */
 	u64                     nr_wakeup;	 /* number of wakeups */
 
