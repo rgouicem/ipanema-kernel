@@ -1097,5 +1097,5 @@ void cleanup_module(void)
 }
 
 MODULE_AUTHOR("RedhaCC");
-MODULE_DESCRIPTION(KBUILD_MODNAME"_v2 scheduling policy");
+MODULE_DESCRIPTION(KBUILD_MODNAME" scheduling policy");
 MODULE_LICENSE("GPL");
