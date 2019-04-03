@@ -448,6 +448,8 @@ static void ipanema_ule_detach(struct ipanema_policy *policy,
 	/* Memory barrier for proofs */
 	smp_wmb();
 	c->cload--;
+	/* Memory barrier for proofs */
+	smp_wmb();
 	kfree(tgt);
 }
 
@@ -491,6 +493,8 @@ static void ipanema_ule_block(struct ipanema_policy *policy,
 	/* Memory barrier for proofs */
 	smp_wmb();
 	c->cload--;
+	/* Memory barrier for proofs */
+	smp_wmb();
 }
 
 static bool update_realtime(struct ule_ipa_process *t)

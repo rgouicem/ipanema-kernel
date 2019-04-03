@@ -473,6 +473,8 @@ static void ipanema_cfs_detach(struct ipanema_policy *policy,
 	/* Memory barrier for proofs */
 	smp_wmb();
 	c->cload -= tgt->load;
+	/* Memory barrier for proofs */
+	smp_wmb();
 	kfree(tgt);
 }
 
@@ -526,6 +528,8 @@ static void ipanema_cfs_block(struct ipanema_policy *policy,
 	/* Memory barrier for proofs */
 	smp_wmb();
 	c->cload -= old_load;
+	/* Memory barrier for proofs */
+	smp_wmb();
 }
 
 static int ipanema_cfs_unblock_prepare(struct ipanema_policy *policy,

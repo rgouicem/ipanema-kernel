@@ -501,6 +501,8 @@ static void ipanema_ule_wwc_detach(struct ipanema_policy *policy,
 	/* Memory barrier for proofs */
 	smp_wmb();
 	c->cload -= tgt->load;
+	/* Memory barrier for proofs */
+	smp_wmb();
 	kfree(tgt);
 }
 
@@ -557,6 +559,8 @@ static void ipanema_ule_wwc_block(struct ipanema_policy *policy,
 	/* Memory barrier for proofs */
 	smp_wmb();
 	c->cload -= old_load;
+	/* Memory barrier for proofs */
+	smp_wmb();
 }
 
 static struct ule_wwc_ipa_core *pickup_core(struct ipanema_policy *policy,
