@@ -676,6 +676,7 @@ static void ipanema_cfs_new_place(struct ipanema_policy *policy,
 	struct cfs_ipa_core *c = &ipanema_core(idlecore_10);
 
 	c->cload += tgt->load;
+	/* Memory barrier for proofs */
 	smp_wmb();
 	ipa_change_queue_and_core(tgt,
 				  &ipanema_state(task_cpu(tgt->task)).ready,
@@ -696,6 +697,7 @@ static void ipanema_cfs_detach(struct ipanema_policy *policy,
 	struct cfs_ipa_core *c = &ipanema_core(task_cpu(tgt->task));
 
 	ipa_change_queue(tgt, NULL, IPANEMA_TERMINATED);
+	/* Memory barrier for proofs */
 	smp_wmb();
 	c->cload -= tgt->load;
 	kfree(tgt);
@@ -713,10 +715,12 @@ static void ipanema_cfs_tick(struct ipanema_policy *policy,
 	if (ktime_after(curr_runtime, max_quanta)) {
 		update_thread(tgt);
 		update_load(tgt);
+		c->cload += (tgt->load - old_load);
+		/* Memory barrier for proofs */
+		smp_wmb();
 		ipa_change_queue(tgt,
 				 &ipanema_state(task_cpu(tgt->task)).ready,
 				 IPANEMA_READY_TICK);
-		c->cload += (tgt->load - old_load);
 	}
 }
 
@@ -729,9 +733,11 @@ static void ipanema_cfs_yield(struct ipanema_policy *policy,
 
 	update_thread(tgt);
 	update_load(tgt);
+	c->cload += (tgt->load - old_load);
+	/* Memory barrier for proofs */
+	smp_wmb();
 	ipa_change_queue(tgt, &ipanema_state(task_cpu(tgt->task)).ready,
 			 IPANEMA_READY);
-	c->cload += (tgt->load - old_load);
 }
 
 static void ipanema_cfs_block(struct ipanema_policy *policy,
@@ -744,6 +750,7 @@ static void ipanema_cfs_block(struct ipanema_policy *policy,
 	update_thread((struct cfs_ipa_process *)tgt);
 	update_load((struct cfs_ipa_process *)tgt);
 	ipa_change_queue(tgt, &ipanema_state(c->id).blocked, IPANEMA_BLOCKED);
+	/* Memory barrier for proofs */
 	smp_wmb();
 	c->cload -= old_load;
 	/* pr_info("%s(%d): rq_size = %u\n", */
@@ -827,6 +834,7 @@ static void ipanema_cfs_unblock_place(struct ipanema_policy *policy,
 	struct cfs_ipa_core *c = &ipanema_core(idlecore_11);
 
 	c->cload += tgt->load;
+	/* Memory barrier for proofs */
 	smp_wmb();
 	ipa_change_queue_and_core(tgt, &ipanema_state(idlecore_11).ready,
 				  IPANEMA_READY, &per_cpu(core, idlecore_11));

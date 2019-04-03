@@ -418,6 +418,7 @@ static void ipanema_ule_new_place(struct ipanema_policy *policy,
 	struct ule_ipa_core *c = &ipanema_core(idlecore_10);
 
 	c->cload++;
+	/* Memory barrier for proofs */
 	smp_wmb();
 	if (tgt->prio == REGULAR)
 		ipa_change_queue_and_core(tgt,
@@ -444,6 +445,7 @@ static void ipanema_ule_detach(struct ipanema_policy *policy,
 	struct ule_ipa_core *c = &ipanema_core(task_cpu(tgt->task));
 
 	ipa_change_queue(tgt, NULL, IPANEMA_TERMINATED);
+	/* Memory barrier for proofs */
 	smp_wmb();
 	c->cload--;
 	kfree(tgt);
@@ -486,6 +488,7 @@ static void ipanema_ule_block(struct ipanema_policy *policy,
 
 	tgt->last_blocked = ktime_get();
 	ipa_change_queue(tgt, NULL, IPANEMA_BLOCKED);
+	/* Memory barrier for proofs */
 	smp_wmb();
 	c->cload--;
 }
@@ -522,6 +525,7 @@ static void ipanema_ule_unblock_place(struct ipanema_policy *policy,
 	struct ule_ipa_core *c = &ipanema_core(idlecore_11);
 
 	c->cload++;
+	/* Memory barrier for proofs */
 	smp_wmb();
 	if (update_realtime(tgt))
 		ipa_change_queue_and_core(tgt,
