@@ -473,6 +473,8 @@ static void ipanema_cfs_detach(struct ipanema_policy *policy,
 	/* Memory barrier for proofs */
 	smp_wmb();
 	c->cload -= tgt->load;
+	/* Memory barrier for proofs */
+	smp_wmb();
 	kfree(tgt);
 }
 
@@ -488,12 +490,12 @@ static void ipanema_cfs_tick(struct ipanema_policy *policy,
 	if (ktime_after(delta, max_quanta)) {
 		update_thread(tgt);
 		update_load(tgt);
+		c->cload += (tgt->load - old_load);
+		/* Memory barrier for proofs */
+		smp_wmb();
 		ipa_change_queue(tgt,
 				 &ipanema_state(task_cpu(tgt->task)).ready,
 				 READY_TICK_STATE);
-		/* Memory barrier for proofs */
-		smp_wmb();
-		c->cload += (tgt->load - old_load);
 	}
 }
 
@@ -506,9 +508,11 @@ static void ipanema_cfs_yield(struct ipanema_policy *policy,
 
 	update_thread(tgt);
 	update_load(tgt);
+	c->cload += (tgt->load - old_load);
+	/* Memory barrier for proofs */
+	smp_wmb();
 	ipa_change_queue(tgt, &ipanema_state(task_cpu(tgt->task)).ready,
 			 READY_STATE);
-	c->cload += (tgt->load - old_load);
 }
 
 static void ipanema_cfs_block(struct ipanema_policy *policy,
@@ -524,6 +528,8 @@ static void ipanema_cfs_block(struct ipanema_policy *policy,
 	/* Memory barrier for proofs */
 	smp_wmb();
 	c->cload -= old_load;
+	/* Memory barrier for proofs */
+	smp_wmb();
 }
 
 static int ipanema_cfs_unblock_prepare(struct ipanema_policy *policy,

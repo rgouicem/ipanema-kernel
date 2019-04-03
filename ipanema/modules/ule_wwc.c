@@ -476,6 +476,7 @@ static void ipanema_ule_wwc_new_place(struct ipanema_policy *policy,
 
 	c->cload += tgt->load;
 	tgt->order = c->order++;
+	/* Memory barrier for proofs */
 	smp_wmb();
 	ipa_change_queue_and_core(tgt,
 				  &ipanema_state(c->id).timeshare,
@@ -497,8 +498,11 @@ static void ipanema_ule_wwc_detach(struct ipanema_policy *policy,
 	struct ule_wwc_ipa_core *c = &ipanema_core(task_cpu(tgt->task));
 
 	ipa_change_queue(tgt, NULL, TERMINATED_STATE);
+	/* Memory barrier for proofs */
 	smp_wmb();
 	c->cload -= tgt->load;
+	/* Memory barrier for proofs */
+	smp_wmb();
 	kfree(tgt);
 }
 
@@ -518,10 +522,12 @@ static void ipanema_ule_wwc_tick(struct ipanema_policy *policy,
 	if (tgt->slice <= 0) {
 		update_rtime(tgt);
 		tgt->order = c->order++;
+		c->cload += (tgt->load - old_load);
+		/* Memory barrier for proofs */
+		smp_wmb();
 		ipa_change_queue(tgt,
 				 &ipanema_state(task_cpu(tgt->task)).timeshare,
 				 READY_TICK_STATE);
-		c->cload += (tgt->load - old_load);
 	}
 }
 
@@ -534,9 +540,11 @@ static void ipanema_ule_wwc_yield(struct ipanema_policy *policy,
 
 	update_rtime(tgt);
 	tgt->order = c->order++;
+	c->cload += (tgt->load - old_load);
+	/* Memory barrier for proofs */
+	smp_wmb();
 	ipa_change_queue(tgt, &ipanema_state(task_cpu(tgt->task)).timeshare,
 			 READY_STATE);
-	c->cload += (tgt->load - old_load);
 }
 
 static void ipanema_ule_wwc_block(struct ipanema_policy *policy,
@@ -548,8 +556,11 @@ static void ipanema_ule_wwc_block(struct ipanema_policy *policy,
 
 	tgt->last_blocked = ktime_get();
 	ipa_change_queue(tgt, NULL, BLOCKED_STATE);
+	/* Memory barrier for proofs */
 	smp_wmb();
 	c->cload -= old_load;
+	/* Memory barrier for proofs */
+	smp_wmb();
 }
 
 static struct ule_wwc_ipa_core *pickup_core(struct ipanema_policy *policy,
@@ -629,6 +640,7 @@ static void ipanema_ule_wwc_unblock_place(struct ipanema_policy *policy,
 
 	c->cload += tgt->load;
 	tgt->order = c->order++;
+	/* Memory barrier for proofs */
 	smp_wmb();
 	if (update_realtime(tgt))
 		ipa_change_queue_and_core(tgt,
