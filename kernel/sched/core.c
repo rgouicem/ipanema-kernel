@@ -1220,9 +1220,6 @@ void set_task_cpu(struct task_struct *p, unsigned int new_cpu)
 		if (p->sched_class->migrate_task_rq)
 			p->sched_class->migrate_task_rq(p, new_cpu);
 		p->se.nr_migrations++;
-		cpu_rq(new_cpu)->nr_migrations++;
-		if (cpu_rq(new_cpu)->nr_running == 0)
-			cpu_rq(new_cpu)->nr_migrations_wc++;
 		rseq_migrate(p);
 		perf_event_task_migrate(p);
 		sched_monitor_trace(MIGRATE_EVT, task_cpu(p), p, task_cpu(p),
