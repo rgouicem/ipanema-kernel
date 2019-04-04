@@ -739,7 +739,7 @@ static void set_load_weight(struct task_struct *p, bool update_load)
 
 static inline void enqueue_task(struct rq *rq, struct task_struct *p, int flags)
 {
-	enum enqueue_task_reason_type = reason = p->enqueue_task_reason;
+	enum enqueue_task_reason_type reason = p->enqueue_task_reason;
 
 	if (!(flags & ENQUEUE_NOCLOCK))
 		update_rq_clock(rq);

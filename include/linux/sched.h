@@ -600,24 +600,10 @@ enum enqueue_task_reason_type {
 	ENQUEUE_NR_REASONS,
 };
 
-const char enqueue_task_reason_type_name = {
-	"no_reason",
-	"new",
-	"wakeup",
-	"wakeup_migration",
-	"idle_load_balance_migration",
-	"periodic_load_balance_migration",
-};
-
 enum dequeue_task_reason_type {
 	DEQUEUE_NO_REASON,
 	DEQUEUE_SLEEP,
 	DEQUEUE_NR_REASONS,
-};
-
-const char dequeue_task_reason_type_name = {
-	"no_reason",
-	"sleep",
 };
 
 enum ipanema_state {
@@ -1303,16 +1289,16 @@ struct task_struct {
 	 */
 };
 
-inline void set_enqueue_task_reason(struct task_struct *task,
-				    enum enqueue_task_reason reason)
+static inline void set_enqueue_task_reason(struct task_struct *task,
+				    enum enqueue_task_reason_type reason)
 {
 	WARN_ON(reason == ENQUEUE_NO_REASON);
 	WARN_ON(task->enqueue_task_reason != ENQUEUE_NO_REASON);
 	task->enqueue_task_reason = reason;
 }
 
-inline void set_dequeue_task_reason(struct task_struct *task,
-				    enum dequeue_task_reason reason)
+static inline void set_dequeue_task_reason(struct task_struct *task,
+				    enum dequeue_task_reason_type reason)
 {
 	WARN_ON(reason == DEQUEUE_NO_REASON);
 	WARN_ON(task->dequeue_task_reason != DEQUEUE_NO_REASON);

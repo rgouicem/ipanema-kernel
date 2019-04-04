@@ -624,10 +624,27 @@ void print_dl_rq(struct seq_file *m, int cpu, struct dl_rq *dl_rq)
 #undef PU
 }
 
+const char *enqueue_task_reason_type_name[] = {
+	"no_reason",
+	"new",
+	"wakeup",
+	"wakeup_migration",
+	"idle_load_balance_migration",
+	"periodic_load_balance_migration",
+};
+
+const char *dequeue_task_reason_type_name[] = {
+	"no_reason",
+	"sleep",
+};
+
 static void print_cpu(struct seq_file *m, int cpu)
 {
 	struct rq *rq = cpu_rq(cpu);
 	unsigned long flags;
+
+	BUILD_BUG_ON(ARRAY_SIZE(enqueue_task_reason_type_name) != ENQUEUE_NR_REASONS);
+	BUILD_BUG_ON(ARRAY_SIZE(dequeue_task_reason_type_name) != DEQUEUE_NR_REASONS);
 
 #ifdef CONFIG_X86
 	{
