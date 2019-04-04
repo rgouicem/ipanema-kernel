@@ -1743,8 +1743,12 @@ ttwu_do_activate(struct rq *rq, struct task_struct *p, int wake_flags,
 	if (p->sched_contributes_to_load)
 		rq->nr_uninterruptible--;
 
-	if (wake_flags & WF_MIGRATED)
+	if (wake_flags & WF_MIGRATED) {
 		en_flags |= ENQUEUE_MIGRATED;
+		set_enqueue_task_reason(p, ENQUEUE_WAKEUP_MIGRATION);
+	} else {
+		set_enqueue_task_reason(p, ENQUEUE_WAKEUP);
+	}
 #endif
 
 	ttwu_activate(rq, p, en_flags);
@@ -2162,6 +2166,7 @@ static void try_to_wake_up_local(struct task_struct *p, struct rq_flags *rf)
 			delayacct_blkio_end(p);
 			atomic_dec(&rq->nr_iowait);
 		}
+		set_enqueue_task_reason(p, ENQUEUE_WAKEUP);
 		ttwu_activate(rq, p, ENQUEUE_WAKEUP | ENQUEUE_NOCLOCK);
 	}
 
@@ -2487,7 +2492,7 @@ void wake_up_new_task(struct task_struct *p)
 	rq = __task_rq_lock(p, &rf);
 	update_rq_clock(rq);
 	post_init_entity_util_avg(&p->se);
-
+	set_enqueue_task_reason(p, ENQUEUE_NEW);
 	activate_task(rq, p, ENQUEUE_NOCLOCK);
 	p->on_rq = TASK_ON_RQ_QUEUED;
 	trace_sched_wakeup_new(p);
@@ -3516,6 +3521,7 @@ static void __sched notrace __schedule(bool preempt)
 		if (unlikely(signal_pending_state(prev->state, prev))) {
 			prev->state = TASK_RUNNING;
 		} else {
+			set_dequeue_task_reason(prev, DEQUEUE_SLEEP);
 			deactivate_task(rq, prev, DEQUEUE_SLEEP | DEQUEUE_NOCLOCK);
 			sched_monitor_trace(BLOCK, cpu, prev, 0, 0);
 			prev->on_rq = 0;
