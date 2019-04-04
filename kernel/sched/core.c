@@ -1233,12 +1233,16 @@ void set_task_cpu(struct task_struct *p, unsigned int new_cpu)
 		perf_event_task_migrate(p);
 		sched_monitor_trace(MIGRATE_EVT, task_cpu(p), p, task_cpu(p),
 				    new_cpu);
-		if (cpu_rq(new_cpu)->idle_balance)
-			set_enqueue_task_reason(p,
-						ENQUEUE_IDLE_LOAD_BALANCE_MIGRATION);
-		else
-			set_enqueue_task_reason(p,
-						ENQUEUE_PERIODIC_LOAD_BALANCE_MIGRATION);
+		if (p->state == TASK_WAKING) {
+			set_enqueue_task_reason(p, ENQUEUE_WAKEUP_MIGRATION);
+		} else {
+			if (cpu_rq(new_cpu)->idle_balance)
+				set_enqueue_task_reason(p,
+							ENQUEUE_IDLE_LOAD_BALANCE_MIGRATION);
+			else
+				set_enqueue_task_reason(p,
+							ENQUEUE_PERIODIC_LOAD_BALANCE_MIGRATION);
+		}
 	}
 
 	__set_task_cpu(p, new_cpu);
@@ -1758,10 +1762,8 @@ ttwu_do_activate(struct rq *rq, struct task_struct *p, int wake_flags,
 	if (p->sched_contributes_to_load)
 		rq->nr_uninterruptible--;
 
-	if (wake_flags & WF_MIGRATED) {
+	if (wake_flags & WF_MIGRATED)
 		en_flags |= ENQUEUE_MIGRATED;
-		set_enqueue_task_reason(p, ENQUEUE_WAKEUP_MIGRATION);
-	}
 #endif
 
 	ttwu_activate(rq, p, en_flags);
