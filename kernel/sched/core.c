@@ -745,9 +745,6 @@ static inline void enqueue_task(struct rq *rq, struct task_struct *p, int flags)
 	if (!(flags & ENQUEUE_RESTORE))
 		sched_info_queued(rq, p);
 
-	if (flags & ENQUEUE_WAKEUP)
-		rq->nr_wakeup++;
-
 	p->sched_class->enqueue_task(rq, p, flags);
 }
 
@@ -758,9 +755,6 @@ static inline void dequeue_task(struct rq *rq, struct task_struct *p, int flags)
 
 	if (!(flags & DEQUEUE_SAVE))
 		sched_info_dequeued(rq, p);
-
-	if (flags & DEQUEUE_SLEEP)
-		rq->nr_sleep++;
 
 	p->sched_class->dequeue_task(rq, p, flags);
 }

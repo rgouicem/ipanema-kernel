@@ -655,12 +655,6 @@ do {									\
 	SEQ_printf(m, "  .%-30s: %lu\n", "load",
 		   rq->load.weight);
 	P(nr_switches);
-	P(nr_migrations);
-	P(nr_migrations_wc);
-	P(nr_migrations_wake_up);
-	P(nr_migrations_wake_up_wc);
-	P(nr_sleep);
-	P(nr_wakeup);
 	P(nr_load_updates);
 	P(nr_uninterruptible);
 	PN(next_balance);

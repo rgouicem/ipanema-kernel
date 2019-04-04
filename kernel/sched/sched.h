@@ -826,12 +826,6 @@ struct rq {
 	struct load_weight	load;
 	unsigned long		nr_load_updates;
 	u64			nr_switches;
-	u64                     nr_migrations;   /* number of migrations */
-	u64                     nr_migrations_wc; /* number of migrations making a core idle -> non-idle */
-	u64                     nr_migrations_wake_up;   /* number of migrations done by try_to_wake_up */
-	u64                     nr_migrations_wake_up_wc;   /* number of migrations done by try_to_wake_up, making a core idle -> non-idle */
-	u64                     nr_sleep;        /* number of sleeps */
-	u64                     nr_wakeup;	 /* number of wakeups */
 
 	struct cfs_rq		cfs;
 	struct rt_rq		rt;
