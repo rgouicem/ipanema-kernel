@@ -2116,6 +2116,8 @@ try_to_wake_up(struct task_struct *p, unsigned int state, int wake_flags)
 	if (task_cpu(p) != cpu) {
 		wake_flags |= WF_MIGRATED;
 		set_task_cpu(p, cpu);
+	} else {
+		set_enqueue_task_reason(p, ENQUEUE_WAKEUP);
 	}
 
 #else /* CONFIG_SMP */
