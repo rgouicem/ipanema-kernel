@@ -745,6 +745,9 @@ static inline void enqueue_task(struct rq *rq, struct task_struct *p, int flags)
 	if (!(flags & ENQUEUE_RESTORE))
 		sched_info_queued(rq, p);
 
+	rq->nr_enqueue_task[p->enqueue_task_reason]++;
+	p->enqueue_task_reason = ENQUEUE_NO_REASON;
+
 	p->sched_class->enqueue_task(rq, p, flags);
 }
 
@@ -755,6 +758,9 @@ static inline void dequeue_task(struct rq *rq, struct task_struct *p, int flags)
 
 	if (!(flags & DEQUEUE_SAVE))
 		sched_info_dequeued(rq, p);
+
+	rq->nr_dequeue_task[p->dequeue_task_reason]++;
+	p->dequeue_task_reason = DEQUEUE_NO_REASON;
 
 	p->sched_class->dequeue_task(rq, p, flags);
 }
