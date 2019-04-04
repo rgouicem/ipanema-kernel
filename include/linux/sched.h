@@ -590,6 +590,36 @@ struct wake_q_node {
 	struct wake_q_node *next;
 };
 
+enum enqueue_task_reason_type {
+	ENQUEUE_NO_REASON,
+	ENQUEUE_NEW,
+	ENQUEUE_WAKEUP,
+	ENQUEUE_WAKEUP_MIGRATION,
+	ENQUEUE_IDLE_LOAD_BALANCE_MIGRATION,
+	ENQUEUE_PERIODIC_LOAD_BALANCE_MIGRATION,
+	ENQUEUE_NR_REASONS,
+};
+
+const char enqueue_task_reason_type_name = {
+	"no_reason",
+	"new",
+	"wakeup",
+	"wakeup_migration",
+	"idle_load_balance_migration",
+	"periodic_load_balance_migration",
+};
+
+enum dequeue_task_reason_type {
+	DEQUEUE_NO_REASON,
+	DEQUEUE_SLEEP,
+	DEQUEUE_NR_REASONS,
+};
+
+const char dequeue_task_reason_type_name = {
+	"no_reason",
+	"sleep",
+};
+
 enum ipanema_state {
 	IPANEMA_NOT_QUEUED,
 	IPANEMA_MIGRATING,
@@ -709,6 +739,8 @@ struct task_struct {
 #endif
 	struct sched_dl_entity		dl;
 	struct sched_ipanema_entity     ipanema;
+	enum enqueue_task_reason_type   enqueue_task_reason;
+	enum dequeue_task_reason_type   dequeue_task_reason;
 
 #ifdef CONFIG_PREEMPT_NOTIFIERS
 	/* List of struct preempt_notifier: */

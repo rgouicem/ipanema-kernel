@@ -826,6 +826,8 @@ struct rq {
 	struct load_weight	load;
 	unsigned long		nr_load_updates;
 	u64			nr_switches;
+	u64                     nr_enqueue_task[ENQUEUE_NR_REASONS];
+	u64                     nr_dequeue_task[DEQUEUE_NR_REASONS];
 
 	struct cfs_rq		cfs;
 	struct rt_rq		rt;

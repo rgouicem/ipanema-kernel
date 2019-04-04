@@ -667,6 +667,20 @@ do {									\
 	P(cpu_load[3]);
 	P(cpu_load[4]);
 #undef P
+	{
+		enum enqueue_task_reason_type i;
+		for(i=0; i<ENQUEUE_NR_REASONS; i++)
+			SEQ_printf(m, "  .%-30s: %Ld\n",
+				   enqueue_task_reason_type_name[i],
+				   (long long)(rq->nr_enqueue_task[i]));
+	}
+	{
+		enum dequeue_task_reason_type i;
+		for(i=0; i<DEQUEUE_NR_REASONS; i++)
+			SEQ_printf(m, "  .%-30s: %Ld\n",
+				   dequeue_task_reason_type_name[i],
+				   (long long)(rq->nr_dequeue_task[i]));
+	}
 #undef PN
 
 #ifdef CONFIG_SMP
