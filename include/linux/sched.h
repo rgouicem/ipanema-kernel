@@ -1303,6 +1303,22 @@ struct task_struct {
 	 */
 };
 
+inline void set_enqueue_task_reason(struct task_struct *task,
+				    enum enqueue_task_reason reason)
+{
+	WARN_ON(reason == ENQUEUE_NO_REASON);
+	WARN_ON(task->enqueue_task_reason != ENQUEUE_NO_REASON);
+	task->enqueue_task_reason = reason;
+}
+
+inline void set_dequeue_task_reason(struct task_struct *task,
+				    enum dequeue_task_reason reason)
+{
+	WARN_ON(reason == DEQUEUE_NO_REASON);
+	WARN_ON(task->dequeue_task_reason != DEQUEUE_NO_REASON);
+	task->dequeue_task_reason = reason;
+}
+
 static inline struct pid *task_pid(struct task_struct *task)
 {
 	return task->thread_pid;
