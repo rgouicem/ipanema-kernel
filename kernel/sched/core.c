@@ -739,13 +739,17 @@ static void set_load_weight(struct task_struct *p, bool update_load)
 
 static inline void enqueue_task(struct rq *rq, struct task_struct *p, int flags)
 {
+	enum enqueue_task_reason_type = reason = p->enqueue_task_reason;
+
 	if (!(flags & ENQUEUE_NOCLOCK))
 		update_rq_clock(rq);
 
 	if (!(flags & ENQUEUE_RESTORE))
 		sched_info_queued(rq, p);
 
-	rq->nr_enqueue_task[p->enqueue_task_reason]++;
+	rq->nr_enqueue_task[reason]++;
+	if(idle_cpu(rq->cpu))
+		rq->nr_enqueue_task_wc[reason]++;
 	p->enqueue_task_reason = ENQUEUE_NO_REASON;
 
 	p->sched_class->enqueue_task(rq, p, flags);
@@ -753,16 +757,21 @@ static inline void enqueue_task(struct rq *rq, struct task_struct *p, int flags)
 
 static inline void dequeue_task(struct rq *rq, struct task_struct *p, int flags)
 {
+	enum dequeue_task_reason_type reason = p->dequeue_task_reason;
+
 	if (!(flags & DEQUEUE_NOCLOCK))
 		update_rq_clock(rq);
 
 	if (!(flags & DEQUEUE_SAVE))
 		sched_info_dequeued(rq, p);
 
-	rq->nr_dequeue_task[p->dequeue_task_reason]++;
+	rq->nr_dequeue_task[reason]++;
 	p->dequeue_task_reason = DEQUEUE_NO_REASON;
 
 	p->sched_class->dequeue_task(rq, p, flags);
+
+	if(idle_cpu(rq->cpu))
+		rq->nr_dequeue_task_wc[reason]++;
 }
 
 void activate_task(struct rq *rq, struct task_struct *p, int flags)
