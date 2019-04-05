@@ -1233,16 +1233,10 @@ void set_task_cpu(struct task_struct *p, unsigned int new_cpu)
 		perf_event_task_migrate(p);
 		sched_monitor_trace(MIGRATE_EVT, task_cpu(p), p, task_cpu(p),
 				    new_cpu);
-		if (p->state == TASK_WAKING) {
+		if (p->state == TASK_WAKING)
 			set_enqueue_task_reason(p, EN_Q_WAKEUP_MIGRATION);
-		} else {
-			if (cpu_rq(new_cpu)->idle_balance)
-				set_enqueue_task_reason(p,
-							EN_Q_IDLE_LOAD_BALANCE_MIGRATION);
-			else
-				set_enqueue_task_reason(p,
-							EN_Q_PERIODIC_LOAD_BALANCE_MIGRATION);
-		}
+		else
+			set_enqueue_task_reason(p, EN_Q_LOAD_BALANCE_MIGRATION);
 	}
 
 	__set_task_cpu(p, new_cpu);

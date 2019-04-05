@@ -629,8 +629,7 @@ const char *enqueue_task_reason_type_name[] = {
 	"new",
 	"wakeup",
 	"wakeup_mig",
-	"idle_lb_mig",
-	"periodic_lb_mig",
+	"lb_mig",
 };
 
 const char *dequeue_task_reason_type_name[] = {
