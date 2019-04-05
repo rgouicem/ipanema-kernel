@@ -591,19 +591,19 @@ struct wake_q_node {
 };
 
 enum enqueue_task_reason_type {
-	ENQUEUE_NO_REASON,
-	ENQUEUE_NEW,
-	ENQUEUE_WAKEUP,
-	ENQUEUE_WAKEUP_MIGRATION,
-	ENQUEUE_IDLE_LOAD_BALANCE_MIGRATION,
-	ENQUEUE_PERIODIC_LOAD_BALANCE_MIGRATION,
-	ENQUEUE_NR_REASONS,
+	EN_Q_NO_REASON,
+	EN_Q_NEW,
+	EN_Q_WAKEUP,
+	EN_Q_WAKEUP_MIGRATION,
+	EN_Q_IDLE_LOAD_BALANCE_MIGRATION,
+	EN_Q_PERIODIC_LOAD_BALANCE_MIGRATION,
+	EN_Q_NR_REASONS,
 };
 
 enum dequeue_task_reason_type {
-	DEQUEUE_NO_REASON,
-	DEQUEUE_SLEEP,
-	DEQUEUE_NR_REASONS,
+	DE_Q_NO_REASON,
+	DE_Q_SLEEP,
+	DE_Q_NR_REASONS,
 };
 
 enum ipanema_state {
@@ -1292,16 +1292,16 @@ struct task_struct {
 static inline void set_enqueue_task_reason(struct task_struct *task,
 				    enum enqueue_task_reason_type reason)
 {
-	WARN_ON(reason == ENQUEUE_NO_REASON);
-	WARN_ON(task->enqueue_task_reason != ENQUEUE_NO_REASON);
+	WARN_ON(reason == EN_Q_NO_REASON);
+	WARN_ON(task->enqueue_task_reason != EN_Q_NO_REASON);
 	task->enqueue_task_reason = reason;
 }
 
 static inline void set_dequeue_task_reason(struct task_struct *task,
 				    enum dequeue_task_reason_type reason)
 {
-	WARN_ON(reason == DEQUEUE_NO_REASON);
-	WARN_ON(task->dequeue_task_reason != DEQUEUE_NO_REASON);
+	WARN_ON(reason == DE_Q_NO_REASON);
+	WARN_ON(task->dequeue_task_reason != DE_Q_NO_REASON);
 	task->dequeue_task_reason = reason;
 }
 

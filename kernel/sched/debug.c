@@ -643,8 +643,8 @@ static void print_cpu(struct seq_file *m, int cpu)
 	struct rq *rq = cpu_rq(cpu);
 	unsigned long flags;
 
-	BUILD_BUG_ON(ARRAY_SIZE(enqueue_task_reason_type_name) != ENQUEUE_NR_REASONS);
-	BUILD_BUG_ON(ARRAY_SIZE(dequeue_task_reason_type_name) != DEQUEUE_NR_REASONS);
+	BUILD_BUG_ON(ARRAY_SIZE(enqueue_task_reason_type_name) != EN_Q_NR_REASONS);
+	BUILD_BUG_ON(ARRAY_SIZE(dequeue_task_reason_type_name) != DE_Q_NR_REASONS);
 
 #ifdef CONFIG_X86
 	{
@@ -686,14 +686,14 @@ do {									\
 #undef P
 	{
 		enum enqueue_task_reason_type i;
-		for (i = 0; i < ENQUEUE_NR_REASONS; i++)
+		for (i = 0; i < EN_Q_NR_REASONS; i++)
 			SEQ_printf(m, "  .enQ.%-26s: %Ld\n",
 				   enqueue_task_reason_type_name[i],
 				   (long long)(rq->nr_enqueue_task[i]));
 	}
 	{
 		enum dequeue_task_reason_type i;
-		for (i = 0; i < DEQUEUE_NR_REASONS; i++)
+		for (i = 0; i < DE_Q_NR_REASONS; i++)
 			SEQ_printf(m, "  .deQ.%-26s: %Ld\n",
 				   dequeue_task_reason_type_name[i],
 				   (long long)(rq->nr_dequeue_task[i]));
