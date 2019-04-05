@@ -1,6 +1,8 @@
 obj-m += Simple.o
 obj-m += cfs.o
 obj-m += cfs_wwc.o
+obj-m += cfs_wwc_lookalike.o
+obj-m += cfs_wwc_dumb_new_unblock.o
 obj-m += cfs_wwc_blocked.o
 obj-m += cfs_no_wwc.o
 obj-m += cfs_wwc_flat.o
