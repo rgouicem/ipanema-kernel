@@ -628,9 +628,9 @@ const char *enqueue_task_reason_type_name[] = {
 	"no_reason",
 	"new",
 	"wakeup",
-	"wakeup_migration",
-	"idle_load_balance_migration",
-	"periodic_load_balance_migration",
+	"wakeup_mig",
+	"idle_lb_mig",
+	"periodic_lb_mig",
 };
 
 const char *dequeue_task_reason_type_name[] = {
@@ -686,15 +686,15 @@ do {									\
 #undef P
 	{
 		enum enqueue_task_reason_type i;
-		for(i=0; i<ENQUEUE_NR_REASONS; i++)
-			SEQ_printf(m, "  .%-30s: %Ld\n",
+		for (i = 0; i < ENQUEUE_NR_REASONS; i++)
+			SEQ_printf(m, "  .enQ.%-26s: %Ld\n",
 				   enqueue_task_reason_type_name[i],
 				   (long long)(rq->nr_enqueue_task[i]));
 	}
 	{
 		enum dequeue_task_reason_type i;
-		for(i=0; i<DEQUEUE_NR_REASONS; i++)
-			SEQ_printf(m, "  .%-30s: %Ld\n",
+		for (i = 0; i < DEQUEUE_NR_REASONS; i++)
+			SEQ_printf(m, "  .deQ.%-26s: %Ld\n",
 				   dequeue_task_reason_type_name[i],
 				   (long long)(rq->nr_dequeue_task[i]));
 	}
