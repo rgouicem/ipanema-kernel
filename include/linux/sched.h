@@ -590,6 +590,21 @@ struct wake_q_node {
 	struct wake_q_node *next;
 };
 
+enum enqueue_task_reason_type {
+	EN_Q_NO_REASON,
+	EN_Q_NEW,
+	EN_Q_WAKEUP,
+	EN_Q_WAKEUP_MIGRATION,
+	EN_Q_LOAD_BALANCE_MIGRATION,
+	EN_Q_NR_REASONS,
+};
+
+enum dequeue_task_reason_type {
+	DE_Q_NO_REASON,
+	DE_Q_SLEEP,
+	DE_Q_NR_REASONS,
+};
+
 enum ipanema_state {
 	IPANEMA_NOT_QUEUED,
 	IPANEMA_MIGRATING,
@@ -709,6 +724,8 @@ struct task_struct {
 #endif
 	struct sched_dl_entity		dl;
 	struct sched_ipanema_entity     ipanema;
+	enum enqueue_task_reason_type   enqueue_task_reason;
+	enum dequeue_task_reason_type   dequeue_task_reason;
 
 #ifdef CONFIG_PREEMPT_NOTIFIERS
 	/* List of struct preempt_notifier: */
@@ -1270,6 +1287,22 @@ struct task_struct {
 	 * Do not put anything below here!
 	 */
 };
+
+static inline void set_enqueue_task_reason(struct task_struct *task,
+				    enum enqueue_task_reason_type reason)
+{
+	WARN_ON(reason == EN_Q_NO_REASON);
+	WARN_ON(task->enqueue_task_reason != EN_Q_NO_REASON);
+	task->enqueue_task_reason = reason;
+}
+
+static inline void set_dequeue_task_reason(struct task_struct *task,
+				    enum dequeue_task_reason_type reason)
+{
+	WARN_ON(reason == DE_Q_NO_REASON);
+	WARN_ON(task->dequeue_task_reason != DE_Q_NO_REASON);
+	task->dequeue_task_reason = reason;
+}
 
 static inline struct pid *task_pid(struct task_struct *task)
 {

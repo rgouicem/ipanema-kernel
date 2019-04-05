@@ -739,30 +739,39 @@ static void set_load_weight(struct task_struct *p, bool update_load)
 
 static inline void enqueue_task(struct rq *rq, struct task_struct *p, int flags)
 {
+	enum enqueue_task_reason_type reason = p->enqueue_task_reason;
+
 	if (!(flags & ENQUEUE_NOCLOCK))
 		update_rq_clock(rq);
 
 	if (!(flags & ENQUEUE_RESTORE))
 		sched_info_queued(rq, p);
 
-	if (flags & ENQUEUE_WAKEUP)
-		rq->nr_wakeup++;
+	rq->nr_enqueue_task[reason]++;
+	if(idle_cpu(rq->cpu))
+		rq->nr_enqueue_task_wc[reason]++;
+	p->enqueue_task_reason = EN_Q_NO_REASON;
 
 	p->sched_class->enqueue_task(rq, p, flags);
 }
 
 static inline void dequeue_task(struct rq *rq, struct task_struct *p, int flags)
 {
+	enum dequeue_task_reason_type reason = p->dequeue_task_reason;
+
 	if (!(flags & DEQUEUE_NOCLOCK))
 		update_rq_clock(rq);
 
 	if (!(flags & DEQUEUE_SAVE))
 		sched_info_dequeued(rq, p);
 
-	if (flags & DEQUEUE_SLEEP)
-		rq->nr_sleep++;
+	rq->nr_dequeue_task[reason]++;
+	p->dequeue_task_reason = DE_Q_NO_REASON;
 
 	p->sched_class->dequeue_task(rq, p, flags);
+
+	if(idle_cpu(rq->cpu))
+		rq->nr_dequeue_task_wc[reason]++;
 }
 
 void activate_task(struct rq *rq, struct task_struct *p, int flags)
@@ -1220,13 +1229,14 @@ void set_task_cpu(struct task_struct *p, unsigned int new_cpu)
 		if (p->sched_class->migrate_task_rq)
 			p->sched_class->migrate_task_rq(p, new_cpu);
 		p->se.nr_migrations++;
-		cpu_rq(new_cpu)->nr_migrations++;
-		if (cpu_rq(new_cpu)->nr_running == 0)
-			cpu_rq(new_cpu)->nr_migrations_wc++;
 		rseq_migrate(p);
 		perf_event_task_migrate(p);
 		sched_monitor_trace(MIGRATE_EVT, task_cpu(p), p, task_cpu(p),
 				    new_cpu);
+		if (p->state == TASK_WAKING)
+			set_enqueue_task_reason(p, EN_Q_WAKEUP_MIGRATION);
+		else
+			set_enqueue_task_reason(p, EN_Q_LOAD_BALANCE_MIGRATION);
 	}
 
 	__set_task_cpu(p, new_cpu);
@@ -2098,11 +2108,10 @@ try_to_wake_up(struct task_struct *p, unsigned int state, int wake_flags)
 
 	cpu = select_task_rq(p, p->wake_cpu, SD_BALANCE_WAKE, wake_flags);
 	if (task_cpu(p) != cpu) {
-		cpu_rq(cpu)->nr_migrations_wake_up++;
-		if (cpu_rq(cpu)->nr_running == 0)
-		    cpu_rq(cpu)->nr_migrations_wake_up_wc++;
 		wake_flags |= WF_MIGRATED;
 		set_task_cpu(p, cpu);
+	} else {
+		set_enqueue_task_reason(p, EN_Q_WAKEUP);
 	}
 
 #else /* CONFIG_SMP */
@@ -2168,6 +2177,7 @@ static void try_to_wake_up_local(struct task_struct *p, struct rq_flags *rf)
 			delayacct_blkio_end(p);
 			atomic_dec(&rq->nr_iowait);
 		}
+		set_enqueue_task_reason(p, EN_Q_WAKEUP);
 		ttwu_activate(rq, p, ENQUEUE_WAKEUP | ENQUEUE_NOCLOCK);
 	}
 
@@ -2493,7 +2503,7 @@ void wake_up_new_task(struct task_struct *p)
 	rq = __task_rq_lock(p, &rf);
 	update_rq_clock(rq);
 	post_init_entity_util_avg(&p->se);
-
+	set_enqueue_task_reason(p, EN_Q_NEW);
 	activate_task(rq, p, ENQUEUE_NOCLOCK);
 	p->on_rq = TASK_ON_RQ_QUEUED;
 	trace_sched_wakeup_new(p);
@@ -3522,6 +3532,7 @@ static void __sched notrace __schedule(bool preempt)
 		if (unlikely(signal_pending_state(prev->state, prev))) {
 			prev->state = TASK_RUNNING;
 		} else {
+			set_dequeue_task_reason(prev, DE_Q_SLEEP);
 			deactivate_task(rq, prev, DEQUEUE_SLEEP | DEQUEUE_NOCLOCK);
 			sched_monitor_trace(BLOCK, cpu, prev, 0, 0);
 			prev->on_rq = 0;
