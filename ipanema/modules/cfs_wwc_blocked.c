@@ -389,7 +389,7 @@ find_busiest_group(struct ipanema_policy *policy,
 			continue;
 		avg_load = 0;
 		nr_cpus = 0;
-		for_each_cpu_and(cpu, &sd->cores, &policy->allowed_cores) {
+		for_each_cpu_and(cpu, &sg->cores, &policy->allowed_cores) {
 			avg_load += (&ipanema_core(cpu))->cload;
 			nr_cpus++;
 		}
