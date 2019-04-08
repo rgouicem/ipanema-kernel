@@ -697,6 +697,20 @@ do {									\
 				   dequeue_task_reason_type_name[i],
 				   (long long)(rq->nr_dequeue_task[i]));
 	}
+	{
+		enum enqueue_task_reason_type i;
+		for (i = 0; i < EN_Q_NR_REASONS; i++)
+			SEQ_printf(m, "  .enQ.wc.%-23s: %Ld\n",
+				   enqueue_task_reason_type_name[i],
+				   (long long)(rq->nr_enqueue_task_wc[i]));
+	}
+	{
+		enum dequeue_task_reason_type i;
+		for (i = 0; i < DE_Q_NR_REASONS; i++)
+			SEQ_printf(m, "  .deQ.wc.%-23s: %Ld\n",
+				   dequeue_task_reason_type_name[i],
+				   (long long)(rq->nr_dequeue_task_wc[i]));
+	}
 #undef PN
 
 #ifdef CONFIG_SMP
