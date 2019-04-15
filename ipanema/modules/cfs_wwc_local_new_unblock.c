@@ -21,7 +21,6 @@
 #include <linux/slab.h>
 #include <linux/sort.h>
 #include <linux/threads.h>
-#include <linux/kgdb.h>
 
 #include "../kernel/sched/monitor.h"
 
@@ -392,26 +391,13 @@ find_busiest_group(struct ipanema_policy *policy,
 			nr_cpus++;
 		}
 		avg_load = avg_load / nr_cpus;
-		if (avg_load >= max_avg_load) {
+		if (avg_load > max_avg_load) {
 			max_avg_load = avg_load;
 			busiest = sg;
 		}
 	}
 
 	return busiest;
-}
-
-static struct cfs_ipa_sched_group *
-find_busiest_group_domain(struct ipanema_policy *policy,
-			  struct cfs_ipa_sched_domain *sd)
-{
-	DECLARE_BITMAP(stealable_groups, sd->___sched_group_idx);
-	int i;
-
-	for (i = 0; i < sd->___sched_group_idx; i++)
-		set_bit(i, stealable_groups);
-
-	return find_busiest_group(policy, sd, stealable_groups);
 }
 
 static struct cfs_ipa_core *
@@ -428,20 +414,13 @@ find_busiest_cpu_group(struct ipanema_policy *policy,
 
 	for_each_cpu_and(cpu, &sg->cores, &mask) {
 		c = &ipanema_core(cpu);
-		if (c->cload >= max_load) {
+		if (c->cload > max_load) {
 			max_load = c->cload;
 			busiest = c;
 		}
 	}
 
 	return busiest;
-}
-
-static struct cfs_ipa_core *
-find_busiest_cpu_group_all(struct ipanema_policy *policy,
-			   struct cfs_ipa_sched_group *sg)
-{
-	return find_busiest_cpu_group(policy, sg, &sg->cores);
 }
 
 static bool can_steal_group(struct ipanema_policy *policy,
@@ -586,12 +565,10 @@ forward_next_balance:
 }
 
 static int ipanema_cfs_new_prepare(struct ipanema_policy *policy,
-				   struct process_event *e)
+				    struct process_event *e)
 {
 	struct cfs_ipa_process *tgt;
-	struct cfs_ipa_sched_domain *sd;
-	struct cfs_ipa_sched_group *sg;
-	struct cfs_ipa_core *c, *busiest = NULL;
+	struct cfs_ipa_core *c, *idlest = NULL;
 	struct task_struct *task_15;
 
 	task_15 = e->target;
@@ -603,29 +580,21 @@ static int ipanema_cfs_new_prepare(struct ipanema_policy *policy,
 	tgt->task = task_15;
 	tgt->rq = NULL;
 
-	/*
-	 * find busiest group in highest domain, then busiest core in this group
-	 */
+	/* get parent's cpu */
 	c = &ipanema_core(task_cpu(task_15));
-	sd = c->sd;
-	while (sd) {
-		if (!sd->parent)
-			break;
-		sd = sd->parent;
-	}
-	sg = find_busiest_group_domain(policy, sd);
-	busiest = find_busiest_cpu_group_all(policy, sg);
+	idlest = c;
 
 	/* if thread cannot be on this cpu, choose any good cpu */
-	if (!cpumask_test_cpu(busiest->id, &task_15->cpus_allowed))
-		busiest = &ipanema_core(cpumask_any_and(&task_15->cpus_allowed,
-							&policy->allowed_cores));
+	if (!cpumask_test_cpu(idlest->id, &task_15->cpus_allowed))
+		idlest = &ipanema_core(cpumask_any_and(&task_15->cpus_allowed,
+						       &policy->allowed_cores));
 	/* should never happen ? */
-	if (!busiest)
-		busiest = c;
-	tgt->vruntime = busiest->min_vruntime;
+	if (!idlest)
+		idlest = c;
+	tgt->vruntime = idlest->min_vruntime;
 	tgt->load = 1024;
-	return busiest->id;
+
+	return idlest->id;
 }
 
 static void ipanema_cfs_new_place(struct ipanema_policy *policy,
@@ -723,56 +692,21 @@ static int ipanema_cfs_unblock_prepare(struct ipanema_policy *policy,
 {
 	struct task_struct *task_15 = e->target;
 	struct cfs_ipa_process *p = policy_metadata(task_15);
-	struct cfs_ipa_sched_domain *sd = NULL, *highest = NULL;
-	struct cfs_ipa_sched_group *sg = NULL;
-	struct cfs_ipa_core *c, *busiest = NULL;
-	int flags = 0;
+	struct cfs_ipa_core *idlest = NULL;
 
 	/* remove min_vruntime from previous cpu */
-	c = &ipanema_core(task_cpu(task_15));
-	p->vruntime -= c->min_vruntime;
-
-	/* /\* if c is idle, choose it *\/ */
-	/* if (cpumask_test_cpu(c->id, &cstate_info.idle_cores)) { */
-	/* 	idlest = c; */
-	/* 	goto end; */
-	/* } */
-
-	/* domains where fork placement is allowed */
-	flags |= DOMAIN_SMT | DOMAIN_CACHE;
-
-	/* Search for the highest domain sharing cache */
-	sd = c->sd;
-	while (sd) {
-		if (sd->flags & flags) {
-			highest = sd;
-			/* idlest = find_idle_cpu(policy, sd); */
-			/* if (idlest) */
-			/* 	goto end; */
-		}
-		sd = sd->parent;
-	}
-
-	/*
-	 * no core sharing cache is idle, use idlest core in highest domain
-	 * sharing cache
-	 */
-	sg = find_busiest_group_domain(policy, highest);
-	busiest = find_busiest_cpu_group_all(policy, sg);
-
-	/* if no core found, wake up on previous core */
-	if (!busiest)
-		busiest = c;
+	idlest = &ipanema_core(task_cpu(task_15));
+	p->vruntime -= idlest->min_vruntime;
 
 	/* if thread cannot be on this cpu, choose any good cpu */
-	if (!cpumask_test_cpu(busiest->id, &task_15->cpus_allowed))
-		busiest = &ipanema_core(cpumask_any_and(&task_15->cpus_allowed,
-							&policy->allowed_cores));
+	if (!cpumask_test_cpu(idlest->id, &task_15->cpus_allowed))
+		idlest = &ipanema_core(cpumask_any_and(&task_15->cpus_allowed,
+						       &policy->allowed_cores));
 
 	/* add min_vruntime from new cpu */
-	p->vruntime += busiest->min_vruntime;
+	p->vruntime += idlest->min_vruntime;
 
-	return busiest->id;
+	return idlest->id;
 }
 
 static void ipanema_cfs_unblock_place(struct ipanema_policy *policy,
