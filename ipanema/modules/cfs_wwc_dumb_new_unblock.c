@@ -585,65 +585,6 @@ forward_next_balance:
 
 }
 
-static struct cfs_ipa_core *
-find_idlest_cpu_group(struct ipanema_policy *policy,
-		      struct cfs_ipa_sched_group *sg)
-{
-	int cpu;
-	unsigned int min_load = UINT_MAX;
-	struct cfs_ipa_core *c = NULL, *idlest = NULL;
-
-	if (unlikely(!sg))
-		return NULL;
-
-	for_each_cpu_and(cpu, &sg->cores, &policy->allowed_cores) {
-		c = &ipanema_core(cpu);
-		/* if cpu is idle, choose it immediately */
-		if (cpumask_test_cpu(cpu, &cstate_info.idle_cores)) {
-			idlest = c;
-			goto end;
-		}
-		/* else, continue to search for idlest cpu */
-		if (c->cload < min_load) {
-			idlest = c;
-			min_load = c->cload;
-		}
-	}
-
-end:
-	return idlest;
-}
-
-static struct cfs_ipa_sched_group *
-find_idlest_group(struct ipanema_policy *policy,
-		  struct cfs_ipa_sched_domain *sd)
-{
-	struct cfs_ipa_sched_group *sg = sd->groups, *idlest = NULL;
-	int i, cpu, nr_cpus;
-	unsigned int min_avg_load = UINT_MAX;
-	unsigned int avg_load;
-
-	if (unlikely(!sd))
-		return NULL;
-
-	/* for each group, compute average load, and find min */
-	for (i = 0; i < sd->___sched_group_idx; sg++, i++) {
-		avg_load = 0;
-		nr_cpus = 0;
-		for_each_cpu_and(cpu, &sg->cores, &policy->allowed_cores) {
-			avg_load += (&ipanema_core(cpu))->cload;
-			nr_cpus++;
-		}
-		avg_load = avg_load / nr_cpus;
-		if (avg_load < min_avg_load) {
-			min_avg_load = avg_load;
-			idlest = sg;
-		}
-	}
-
-	return idlest;
-}
-
 static int ipanema_cfs_new_prepare(struct ipanema_policy *policy,
 				   struct process_event *e)
 {
@@ -777,19 +718,6 @@ static void ipanema_cfs_block(struct ipanema_policy *policy,
 	smp_wmb();
 }
 
-static struct cfs_ipa_core *find_idle_cpu(struct ipanema_policy *policy,
-					  struct cfs_ipa_sched_domain *sd)
-{
-	int cpu;
-
-	for_each_cpu_and(cpu, &sd->cores, &policy->allowed_cores) {
-		if (cpumask_test_cpu(cpu, &cstate_info.idle_cores))
-			return &ipanema_core(cpu);
-	}
-
-	return NULL;
-}
-
 static int ipanema_cfs_unblock_prepare(struct ipanema_policy *policy,
 				       struct process_event *e)
 {
@@ -836,7 +764,6 @@ static int ipanema_cfs_unblock_prepare(struct ipanema_policy *policy,
 	if (!busiest)
 		busiest = c;
 
-end:
 	/* if thread cannot be on this cpu, choose any good cpu */
 	if (!cpumask_test_cpu(busiest->id, &task_15->cpus_allowed))
 		busiest = &ipanema_core(cpumask_any_and(&task_15->cpus_allowed,
