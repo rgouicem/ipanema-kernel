@@ -256,8 +256,6 @@ static inline void __sched_monitor_trace(enum sched_tracer_events evt, int cpu,
 		if (unlikely(log->consumer >= log->size))
 			log->consumer = 0;
 		log->dropped++;
-		pr_err("sched_monitor: tracer: dropping event on cpu%d\n",
-		       cpu);
 	}
 
 	spin_unlock_irqrestore(&log->lock, flags);
