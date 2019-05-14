@@ -108,7 +108,6 @@ struct ule_wwc_ipa_core {
 	int id; // System
 	int cload;
 	struct ule_wwc_ipa_sched_domain *sd;
-	bool balanced;
 	u64 order;
 };
 
@@ -276,8 +275,6 @@ static int migrate_from_to(struct ule_wwc_ipa_core *busiest,
 		if (!cpumask_test_cpu(thief->id, &pos->cpus_allowed))
 			continue;
 
-		thief->balanced = true;
-		busiest->balanced = true;
 		if (busiest->cload - thief_cload >= 2) {
 			list_add(&pos->ipanema.ipa_tasks, &tasks);
 			ipa_change_queue_and_core(t, NULL, MIGRATING_STATE,
@@ -285,10 +282,9 @@ static int migrate_from_to(struct ule_wwc_ipa_core *busiest,
 			dbg_cpt = dbg_cpt + 1;
 			busiest->cload -= t->load;
 			thief_cload += t->load;
+
+			goto unlock_busiest;
 		}
-		/* Ensure migration cond. and stop cond. use the same ids ! */
-		/* if (busiest->cload == thief_cload) */
-		goto unlock_busiest;
 	}
 	// go through timeshare rq
 	rbtree_postorder_for_each_entry_safe(pos, n,
@@ -301,8 +297,6 @@ static int migrate_from_to(struct ule_wwc_ipa_core *busiest,
 		if (!cpumask_test_cpu(thief->id, &pos->cpus_allowed))
 			continue;
 
-		thief->balanced = true;
-		busiest->balanced = true;
 		if (busiest->cload - thief_cload >= 2) {
 			list_add(&pos->ipanema.ipa_tasks, &tasks);
 			ipa_change_queue_and_core(t, NULL, MIGRATING_STATE,
@@ -310,9 +304,9 @@ static int migrate_from_to(struct ule_wwc_ipa_core *busiest,
 			dbg_cpt = dbg_cpt + 1;
 			busiest->cload -= t->load;
 			thief_cload += t->load;
+
+			break;
 		}
-		/* if (busiest->cload == thief_cload) */
-		break;
 	}
 
 unlock_busiest:
@@ -350,9 +344,7 @@ unlock_busiest:
 static bool can_steal_core(struct ule_wwc_ipa_core *tgt,
 			   struct ule_wwc_ipa_core *thief)
 {
-	return !tgt->balanced &&
-		!thief->balanced &&
-		tgt->cload - thief->cload >= 2;
+	return tgt->cload - thief->cload >= 2;
 }
 
 static struct ule_wwc_ipa_core *select_core(struct ipanema_policy *policy,
@@ -399,12 +391,14 @@ static void steal_for_dom(struct ipanema_policy *policy,
 		return;
 
 	/* Step 2: select_core() */
-	selected = select_core(policy, NULL, &stealable_cores);
-	if (!selected)
-		return;
+	do {
+		selected = select_core(policy, NULL, &stealable_cores);
+		if (!selected)
+			return;
 
-	/* Step 3: steal_thread() */
-	migrate_from_to(selected, core_31);
+		/* Step 3: steal_thread() */
+		migrate_from_to(selected, core_31);
+	} while (core_31->cload == 0);
 }
 
 DEFINE_PER_CPU(uint32_t, randomval);
@@ -478,9 +472,14 @@ static void ipanema_ule_wwc_new_place(struct ipanema_policy *policy,
 	tgt->order = c->order++;
 	/* Memory barrier for proofs */
 	smp_wmb();
-	ipa_change_queue_and_core(tgt,
-				  &ipanema_state(c->id).timeshare,
-				  READY_STATE, c);
+	if (tgt->prio == REGULAR)
+		ipa_change_queue_and_core(tgt,
+					  &ipanema_state(c->id).timeshare,
+					  READY_STATE, c);
+	else
+		ipa_change_queue_and_core(tgt,
+					  &ipanema_state(c->id).realtime,
+					  READY_STATE, c);
 }
 
 static void ipanema_ule_wwc_new_end(struct ipanema_policy *policy,
@@ -525,9 +524,14 @@ static void ipanema_ule_wwc_tick(struct ipanema_policy *policy,
 		c->cload += (tgt->load - old_load);
 		/* Memory barrier for proofs */
 		smp_wmb();
-		ipa_change_queue(tgt,
-				 &ipanema_state(task_cpu(tgt->task)).timeshare,
-				 READY_TICK_STATE);
+		if (tgt->prio == REGULAR)
+			ipa_change_queue(tgt,
+					 &ipanema_state(task_cpu(tgt->task)).timeshare,
+					 READY_TICK_STATE);
+		else
+			ipa_change_queue(tgt,
+					 &ipanema_state(task_cpu(tgt->task)).realtime,
+					 READY_TICK_STATE);
 	}
 }
 
@@ -543,8 +547,14 @@ static void ipanema_ule_wwc_yield(struct ipanema_policy *policy,
 	c->cload += (tgt->load - old_load);
 	/* Memory barrier for proofs */
 	smp_wmb();
-	ipa_change_queue(tgt, &ipanema_state(task_cpu(tgt->task)).timeshare,
-			 READY_STATE);
+	if (tgt->prio == REGULAR)
+		ipa_change_queue(tgt,
+				 &ipanema_state(task_cpu(tgt->task)).timeshare,
+				 READY_STATE);
+	else
+		ipa_change_queue(tgt,
+				 &ipanema_state(task_cpu(tgt->task)).realtime,
+				 READY_TICK_STATE);
 }
 
 static void ipanema_ule_wwc_block(struct ipanema_policy *policy,
@@ -705,7 +715,6 @@ static void ipanema_ule_wwc_core_entry(struct ipanema_policy *policy,
 {
 	struct ule_wwc_ipa_core *tgt = &per_cpu(core, e->target);
 
-	tgt->balanced = false;
 	set_active_core(tgt, &cstate_info.active_cores, ACTIVE_CORES_STATE);
 }
 
@@ -733,7 +742,8 @@ static void ipanema_ule_wwc_enter_idle(struct ipanema_policy *policy,
 static void ipanema_ule_wwc_exit_idle(struct ipanema_policy *policy,
 				      struct core_event *e)
 {
-	struct ule_wwc_ipa_core * tgt = &per_cpu(core, e->target);
+	struct ule_wwc_ipa_core *tgt = &per_cpu(core, e->target);
+
 	set_active_core(tgt, &cstate_info.active_cores, ACTIVE_CORES_STATE);
 }
 
@@ -748,14 +758,6 @@ static void ipanema_ule_wwc_balancing(struct ipanema_policy *policy,
 	if (!spin_trylock_irqsave(&lb_lock, flags))
 		return;
 
-	sched_monitor_trace(PERIODIC_BALANCE_BEG, e->target,
-			    current, 0, 0);
-
-	for_each_cpu(cpu, &policy->allowed_cores) {
-		c = &ipanema_core(cpu);
-		c->balanced = false;
-	}
-
 	for_each_cpu(cpu, &policy->allowed_cores) {
 		c = &ipanema_core(cpu);
 		steal_for_dom(policy, c, NULL);
@@ -763,12 +765,9 @@ static void ipanema_ule_wwc_balancing(struct ipanema_policy *policy,
 
 	/* Generated if synchronized keyword is used */
 	spin_unlock_irqrestore(&lb_lock, flags);
-
-	sched_monitor_trace(PERIODIC_BALANCE_END, e->target,
-			    current, 0, 0);
 }
 
-static int ipanema_ule_wwc_init(struct ipanema_policy * policy)
+static int ipanema_ule_wwc_init(struct ipanema_policy *policy)
 {
 	return 0;
 }
@@ -790,8 +789,7 @@ int ipanema_ule_wwc_can_be_default(struct ipanema_policy *policy)
 	return 1;
 }
 
-struct ipanema_module_routines ipanema_ule_wwc_routines =
-{
+struct ipanema_module_routines ipanema_ule_wwc_routines = {
 	.get_core_state = ipanema_ule_wwc_get_core_state,
 	.new_prepare = ipanema_ule_wwc_new_prepare,
 	.new_place = ipanema_ule_wwc_new_place,
@@ -807,7 +805,7 @@ struct ipanema_module_routines ipanema_ule_wwc_routines =
 		 = ipanema_ule_wwc_unblock_end,
 	.terminate
 		 = ipanema_ule_wwc_detach,
-	.schedule= ipanema_ule_wwc_schedule,
+	.schedule = ipanema_ule_wwc_schedule,
 	.newly_idle
 		 = ipanema_ule_wwc_newly_idle,
 	.enter_idle
