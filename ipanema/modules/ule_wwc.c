@@ -395,10 +395,11 @@ static void steal_for_dom(struct ipanema_policy *policy,
 		selected = select_core(policy, NULL, &stealable_cores);
 		if (!selected)
 			return;
+		cpumask_clear_cpu(selected->id, &stealable_cores);
 
 		/* Step 3: steal_thread() */
 		migrate_from_to(selected, core_31);
-	} while (core_31->cload == 0);
+	} while (core_31->cload == 0 && cpumask_weight(&stealable_cores));
 }
 
 DEFINE_PER_CPU(uint32_t, randomval);
