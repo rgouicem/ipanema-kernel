@@ -1226,6 +1226,9 @@ void set_task_cpu(struct task_struct *p, unsigned int new_cpu)
 	trace_sched_migrate_task(p, new_cpu);
 
 	if (task_cpu(p) != new_cpu) {
+		enum enqueue_task_reason_type enqueue_task_reason = EN_Q_NO_REASON;
+		struct topology_level *l = per_cpu(topology_levels, task_cpu(p));
+		int flags = 0;
 		if (p->sched_class->migrate_task_rq)
 			p->sched_class->migrate_task_rq(p, new_cpu);
 		p->se.nr_migrations++;
@@ -1233,10 +1236,30 @@ void set_task_cpu(struct task_struct *p, unsigned int new_cpu)
 		perf_event_task_migrate(p);
 		sched_monitor_trace(MIGRATE_EVT, task_cpu(p), p, task_cpu(p),
 				    new_cpu);
+		while (l) {
+			if (cpumask_test_cpu(new_cpu, &l->cores))
+				flags |= l->flags;
+			l = l->next;
+		}
 		if (p->state == TASK_WAKING)
-			set_enqueue_task_reason(p, EN_Q_WAKEUP_MIGRATION);
+			if (DOMAIN_SMT & flags)
+				enqueue_task_reason = EN_Q_WAKEUP_MIGRATION_SMT;
+			else if (DOMAIN_CACHE & flags)
+				enqueue_task_reason = EN_Q_WAKEUP_MIGRATION_CACHE;
+			else if (DOMAIN_NUMA & flags)
+				enqueue_task_reason = EN_Q_WAKEUP_MIGRATION_NUMA;
+			else
+				enqueue_task_reason = EN_Q_WAKEUP_MIGRATION;
 		else
-			set_enqueue_task_reason(p, EN_Q_LOAD_BALANCE_MIGRATION);
+			if (DOMAIN_SMT & flags)
+				enqueue_task_reason = EN_Q_LOAD_BALANCE_MIGRATION_SMT;
+			else if (DOMAIN_CACHE & flags)
+				enqueue_task_reason = EN_Q_LOAD_BALANCE_MIGRATION_CACHE;
+			else if (DOMAIN_NUMA & flags)
+				enqueue_task_reason = EN_Q_LOAD_BALANCE_MIGRATION_NUMA;
+			else
+				enqueue_task_reason = EN_Q_LOAD_BALANCE_MIGRATION;
+		set_enqueue_task_reason(p, enqueue_task_reason);
 	}
 
 	__set_task_cpu(p, new_cpu);
