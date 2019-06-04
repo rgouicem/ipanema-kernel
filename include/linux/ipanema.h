@@ -35,6 +35,7 @@ extern DEFINE_PER_CPU(struct task_struct *, ipanema_current);
 
 extern int nb_topology_levels;
 extern DEFINE_PER_CPU(struct topology_level*, topology_levels);
+int common_topology_level(int cpu_a, int cpu_b);
 
 struct ipanema_runtime_metadata;
 
