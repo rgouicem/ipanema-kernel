@@ -1213,10 +1213,6 @@ int common_topology_level(int cpu_a, int cpu_b) {
 		l = l->next;
 		lvl++;
 	}
-	if (unlikely(lvl > EN_Q_WAKEUP_MIGRATION_LAST - EN_Q_WAKEUP_MIGRATION_L0)) {
-		WARN_ON(lvl > EN_Q_WAKEUP_MIGRATION_LAST - EN_Q_WAKEUP_MIGRATION_L0);
-		return 0;
-	}
 	return lvl;
 }
 
