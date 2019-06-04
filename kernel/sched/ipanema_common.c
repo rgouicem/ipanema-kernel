@@ -1204,6 +1204,22 @@ static int create_topology(void)
 	return 0;
 }
 
+int common_topology_level(int cpu_a, int cpu_b) {
+	struct topology_level *l = per_cpu(topology_levels, cpu_a);
+	int lvl = 0;
+	while (l) {
+		if (cpumask_test_cpu(cpu_b, &l->cores))
+			break;
+		l = l->next;
+		lvl++;
+	}
+	if (unlikely(lvl > EN_Q_WAKEUP_MIGRATION_LAST - EN_Q_WAKEUP_MIGRATION_L0)) {
+		WARN_ON(lvl > EN_Q_WAKEUP_MIGRATION_LAST - EN_Q_WAKEUP_MIGRATION_L0);
+		return 0;
+	}
+	return lvl;
+}
+
 #ifdef CONFIG_IPANEMA_DEBUG_TOPOLOGY
 static void print_topology(void)
 {
