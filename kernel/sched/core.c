@@ -3045,7 +3045,9 @@ void sched_exec(void)
 	int dest_cpu;
 
 	sched_monitor_start(&sched_exec);
-	sched_monitor_trace(EXEC_EVT, task_cpu(p), p, 0, 0);
+	sched_monitor_trace(EXEC_EVT, task_cpu(p), p,
+			    ((u64*)p->comm)[0] >> 32,
+			    ((u64*)p->comm)[0] & 0x00000000ffffffff);
 
 	raw_spin_lock_irqsave(&p->pi_lock, flags);
 	dest_cpu = p->sched_class->select_task_rq(p, task_cpu(p), SD_BALANCE_EXEC, 0);
