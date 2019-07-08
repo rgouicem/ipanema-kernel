@@ -1228,7 +1228,7 @@ void set_task_cpu(struct task_struct *p, unsigned int new_cpu)
 	if (task_cpu(p) != new_cpu) {
 		int lvl = common_topology_level(task_cpu(p), new_cpu);
 		if (unlikely(lvl > EN_Q_WAKEUP_MIGRATION_LAST - EN_Q_WAKEUP_MIGRATION_L0)) {
-			WARN_ON(lvl > EN_Q_WAKEUP_MIGRATION_LAST - EN_Q_WAKEUP_MIGRATION_L0);
+			WARN_ON_ONCE(lvl > EN_Q_WAKEUP_MIGRATION_LAST - EN_Q_WAKEUP_MIGRATION_L0);
 			lvl = EN_Q_WAKEUP_MIGRATION_LAST - EN_Q_WAKEUP_MIGRATION_L0;
 		}
 		if (p->sched_class->migrate_task_rq)
