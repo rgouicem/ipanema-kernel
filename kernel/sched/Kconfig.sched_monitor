@@ -57,3 +57,11 @@ config SCHED_MONITOR_DOMAINS
         def_bool n
 	depends on SCHED_MONITOR
 	prompt "Print sched domains and groups at scheduler init"
+
+config SCHED_MONITOR_ENQ_DEQ_REASON
+        def_bool n
+	depends on SCHED_MONITOR
+	prompt "Record enqueue/dequeue reasons"
+	---help---
+	  Record the reason leading to an enqueue or a dequeue and log it in
+	  /proc/sched_debug

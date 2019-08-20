@@ -1,7 +1,7 @@
 #define pr_fmt(fmt) "ipanema: " fmt
 
 #include "sched.h"
-#include "ipanema_common.h"
+#include "ipanema.h"
 
 /*
  * Rbtree manipulation

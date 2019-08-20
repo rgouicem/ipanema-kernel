@@ -4,7 +4,7 @@
 #include <linux/debugfs.h>
 
 #include "sched.h"
-#include "ipanema_common.h"
+#include "ipanema.h"
 #include "monitor.h"
 
 #define F_DENTRY(filp) ((filp)->f_path.dentry)

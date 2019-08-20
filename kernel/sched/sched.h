@@ -826,10 +826,12 @@ struct rq {
 	struct load_weight	load;
 	unsigned long		nr_load_updates;
 	u64			nr_switches;
+#ifdef CONFIG_SCHED_MONITOR_ENQ_DEQ_REASON
 	u64                     nr_enqueue_task[EN_Q_NR_REASONS];
 	u64                     nr_enqueue_task_wc[EN_Q_NR_REASONS];
 	u64                     nr_dequeue_task[DE_Q_NR_REASONS];
 	u64                     nr_dequeue_task_wc[DE_Q_NR_REASONS];
+#endif	/* CONFIG_SCHED_MONITOR_ENQ_DEQ_REASON */
 
 	struct cfs_rq		cfs;
 	struct rt_rq		rt;

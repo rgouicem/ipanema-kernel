@@ -590,6 +590,7 @@ struct wake_q_node {
 	struct wake_q_node *next;
 };
 
+#ifdef CONFIG_SCHED_MONITOR_ENQ_DEQ_REASON
 enum enqueue_task_reason_type {
 	EN_Q_NO_REASON,
 	EN_Q_NEW,
@@ -612,6 +613,7 @@ enum dequeue_task_reason_type {
 	DE_Q_SLEEP,
 	DE_Q_NR_REASONS,
 };
+#endif	/* CONFIG_SCHED_MONITOR_ENQ_DEQ_REASON */
 
 enum ipanema_state {
 	IPANEMA_NOT_QUEUED,
@@ -732,8 +734,10 @@ struct task_struct {
 #endif
 	struct sched_dl_entity		dl;
 	struct sched_ipanema_entity     ipanema;
+#ifdef CONFIG_SCHED_MONITOR_ENQ_DEQ_REASON
 	enum enqueue_task_reason_type   enqueue_task_reason;
 	enum dequeue_task_reason_type   dequeue_task_reason;
+#endif
 
 #ifdef CONFIG_PREEMPT_NOTIFIERS
 	/* List of struct preempt_notifier: */
@@ -1296,6 +1300,7 @@ struct task_struct {
 	 */
 };
 
+#ifdef CONFIG_SCHED_MONITOR_ENQ_DEQ_REASON
 static inline void set_enqueue_task_reason(struct task_struct *task,
 				    enum enqueue_task_reason_type reason)
 {
@@ -1311,6 +1316,7 @@ static inline void set_dequeue_task_reason(struct task_struct *task,
 	WARN_ON(task->dequeue_task_reason != DE_Q_NO_REASON);
 	task->dequeue_task_reason = reason;
 }
+#endif	/* CONFIG_SCHED_MONITOR_ENQ_DEQ_REASON */
 
 static inline struct pid *task_pid(struct task_struct *task)
 {
