@@ -8,7 +8,7 @@
 #include <linux/vmalloc.h>
 
 #include "sched.h"
-#include "ipanema_common.h"
+#include "ipanema.h"
 #include "monitor.h"
 
 #define IPANEMA_ATTR_RO(_name) \

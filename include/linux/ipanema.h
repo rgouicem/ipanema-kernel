@@ -23,19 +23,18 @@ struct ipanema_rq {
 	unsigned int cpu;
 	enum ipanema_state state;
 	unsigned int nr_tasks;
-	int (*order_fn) (struct task_struct *a, struct task_struct *b);
+	int (*order_fn)(struct task_struct *a, struct task_struct *b);
 };
 
 void init_ipanema_rq(struct ipanema_rq *rq, enum ipanema_rq_type type,
 		     unsigned int cpu, enum ipanema_state state,
-		     int (*order_fn) (struct task_struct *a,
-				      struct task_struct *b));
+		     int (*order_fn)(struct task_struct *a,
+				     struct task_struct *b));
 
-extern DEFINE_PER_CPU(struct task_struct *, ipanema_current);
+struct task_struct *get_ipanema_current(int cpu);
 
 extern int nb_topology_levels;
-extern DEFINE_PER_CPU(struct topology_level*, topology_levels);
-int common_topology_level(int cpu_a, int cpu_b);
+DECLARE_PER_CPU(struct topology_level*, topology_levels);
 
 struct ipanema_runtime_metadata;
 
@@ -48,16 +47,13 @@ struct core_event {
 	unsigned int target; // Ipanema core
 };
 
-struct ipanema_module;
-
 struct ipanema_policy {
-	cpumask_t allowed_cores;
-	__u32 id;
-	char name[MAX_POLICY_NAME_LEN];
-	struct ipanema_module *module;
+	struct module *kmodule;
 	struct list_head list;
+	struct ipanema_module_routines *routines;
 	void *data;
-	struct kref refcount;
+	s64 id;
+	char name[MAX_POLICY_NAME_LEN];
 };
 
 struct ipanema_module_routines {
@@ -70,7 +66,7 @@ struct ipanema_module_routines {
 			  struct process_event *e);
 	void (*new_end)(struct ipanema_policy *policy,
 			struct process_event *e);
-	
+
 	void (*tick)(struct ipanema_policy *policy, struct process_event *e);
 	void (*yield)(struct ipanema_policy *policy, struct process_event *e);
 	void (*block)(struct ipanema_policy *policy, struct process_event *e);
@@ -113,13 +109,6 @@ struct ipanema_module_routines {
 		       char *command);
 };
 
-struct ipanema_module {
-	char name[MAX_POLICY_NAME_LEN];
-	struct ipanema_module_routines *routines;
-	struct module *kmodule;
-	struct list_head list;
-};
-
 extern struct proc_dir_entry *ipa_procdir;
 
 /* topology level types, used as flags in struct topology_level */
@@ -140,8 +129,8 @@ struct task_struct *ipanema_first_of_state(enum ipanema_state state,
 
 struct task_struct *ipanema_get_task_of(void *proc);
 
-int ipanema_add_module(struct ipanema_module *module);
-int ipanema_remove_module(struct ipanema_module *module);
+int ipanema_add_policy(struct ipanema_policy *policy);
+int ipanema_remove_policy(struct ipanema_policy *policy);
 
 int count(enum ipanema_state state, unsigned int cpu);
 

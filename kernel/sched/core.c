@@ -14,7 +14,7 @@
 #include <asm/switch_to.h>
 #include <asm/tlb.h>
 
-#include "ipanema_common.h"
+#include "ipanema.h"
 #include "monitor.h"
 #include "../workqueue_internal.h"
 #include "../smpboot.h"
@@ -739,7 +739,9 @@ static void set_load_weight(struct task_struct *p, bool update_load)
 
 static inline void enqueue_task(struct rq *rq, struct task_struct *p, int flags)
 {
+#ifdef CONFIG_SCHED_MONITOR_ENQ_DEQ_REASON
 	enum enqueue_task_reason_type reason = p->enqueue_task_reason;
+#endif
 
 	if (!(flags & ENQUEUE_NOCLOCK))
 		update_rq_clock(rq);
@@ -747,17 +749,21 @@ static inline void enqueue_task(struct rq *rq, struct task_struct *p, int flags)
 	if (!(flags & ENQUEUE_RESTORE))
 		sched_info_queued(rq, p);
 
+#ifdef CONFIG_SCHED_MONITOR_ENQ_DEQ_REASON
 	rq->nr_enqueue_task[reason]++;
-	if(idle_cpu(rq->cpu))
+	if (idle_cpu(rq->cpu))
 		rq->nr_enqueue_task_wc[reason]++;
 	p->enqueue_task_reason = EN_Q_NO_REASON;
+#endif
 
 	p->sched_class->enqueue_task(rq, p, flags);
 }
 
 static inline void dequeue_task(struct rq *rq, struct task_struct *p, int flags)
 {
+#ifdef CONFIG_SCHED_MONITOR_ENQ_DEQ_REASON
 	enum dequeue_task_reason_type reason = p->dequeue_task_reason;
+#endif
 
 	if (!(flags & DEQUEUE_NOCLOCK))
 		update_rq_clock(rq);
@@ -765,13 +771,17 @@ static inline void dequeue_task(struct rq *rq, struct task_struct *p, int flags)
 	if (!(flags & DEQUEUE_SAVE))
 		sched_info_dequeued(rq, p);
 
+#ifdef CONFIG_SCHED_MONITOR_ENQ_DEQ_REASON
 	rq->nr_dequeue_task[reason]++;
 	p->dequeue_task_reason = DE_Q_NO_REASON;
+#endif
 
 	p->sched_class->dequeue_task(rq, p, flags);
 
-	if(idle_cpu(rq->cpu))
+#ifdef CONFIG_SCHED_MONITOR_ENQ_DEQ_REASON
+	if (idle_cpu(rq->cpu))
 		rq->nr_dequeue_task_wc[reason]++;
+#endif
 }
 
 void activate_task(struct rq *rq, struct task_struct *p, int flags)
@@ -1093,7 +1103,6 @@ static int __set_cpus_allowed_ptr(struct task_struct *p,
 				  const struct cpumask *new_mask, bool check)
 {
 	const struct cpumask *cpu_valid_mask = cpu_active_mask;
-	struct cpumask mask;
 	unsigned int dest_cpu;
 	struct rq_flags rf;
 	struct rq *rq;
@@ -1126,21 +1135,6 @@ static int __set_cpus_allowed_ptr(struct task_struct *p,
 		goto out;
 	}
 
-	cpumask_copy(&mask, cpu_valid_mask);
-	/*
-	 * If p is running an ipanema policy, new_mask and the policy's allowed
-	 * cpumask must intersect. We also update the cpu_valid_mask accordingly
-	 */
-	if (task_has_ipanema_policy(p)) {
-		cpumask_and(&mask, cpu_valid_mask,
-			    &p->ipanema.policy->allowed_cores);
-		if (!cpumask_intersects(new_mask,
-					&p->ipanema.policy->allowed_cores)) {
-			ret = -EINVAL;
-			goto out;
-		}
-	}
-
 	do_set_cpus_allowed(p, new_mask);
 
 	if (p->flags & PF_KTHREAD) {
@@ -1157,7 +1151,7 @@ static int __set_cpus_allowed_ptr(struct task_struct *p,
 	if (cpumask_test_cpu(task_cpu(p), new_mask))
 		goto out;
 
-	dest_cpu = cpumask_any_and(&mask, new_mask);
+	dest_cpu = cpumask_any_and(cpu_valid_mask, new_mask);
 	if (task_running(rq, p) || p->state == TASK_WAKING) {
 		struct migration_arg arg = { p, dest_cpu };
 		/* Need help from migration thread: drop lock and wait. */
@@ -1183,6 +1177,22 @@ int set_cpus_allowed_ptr(struct task_struct *p, const struct cpumask *new_mask)
 	return __set_cpus_allowed_ptr(p, new_mask, false);
 }
 EXPORT_SYMBOL_GPL(set_cpus_allowed_ptr);
+
+#ifdef CONFIG_SCHED_MONITOR_ENQ_DEQ_REASON
+static int common_topology_level(int cpu_a, int cpu_b)
+{
+	struct topology_level *l = per_cpu(topology_levels, cpu_a);
+	int lvl = 0;
+
+	while (l) {
+		if (cpumask_test_cpu(cpu_b, &l->cores))
+			break;
+		l = l->next;
+		lvl++;
+	}
+	return lvl;
+}
+#endif	/* CONFIG_SCHED_MONITOR_ENQ_DEQ_REASON */
 
 void set_task_cpu(struct task_struct *p, unsigned int new_cpu)
 {
@@ -1226,11 +1236,13 @@ void set_task_cpu(struct task_struct *p, unsigned int new_cpu)
 	trace_sched_migrate_task(p, new_cpu);
 
 	if (task_cpu(p) != new_cpu) {
+#ifdef CONFIG_SCHED_MONITOR_ENQ_DEQ_REASON
 		int lvl = common_topology_level(task_cpu(p), new_cpu);
 		if (unlikely(lvl > EN_Q_WAKEUP_MIGRATION_LAST - EN_Q_WAKEUP_MIGRATION_L0)) {
 			WARN_ON_ONCE(lvl > EN_Q_WAKEUP_MIGRATION_LAST - EN_Q_WAKEUP_MIGRATION_L0);
 			lvl = EN_Q_WAKEUP_MIGRATION_LAST - EN_Q_WAKEUP_MIGRATION_L0;
 		}
+#endif	/* CONFIG_SCHED_MONITOR_ENQ_DEQ_REASON */
 		if (p->sched_class->migrate_task_rq)
 			p->sched_class->migrate_task_rq(p, new_cpu);
 		p->se.nr_migrations++;
@@ -1238,10 +1250,12 @@ void set_task_cpu(struct task_struct *p, unsigned int new_cpu)
 		perf_event_task_migrate(p);
 		sched_monitor_trace(MIGRATE_EVT, task_cpu(p), p, task_cpu(p),
 				    new_cpu);
+#ifdef CONFIG_SCHED_MONITOR_ENQ_DEQ_REASON
 		if (p->state == TASK_WAKING)
 			set_enqueue_task_reason(p, EN_Q_WAKEUP_MIGRATION+lvl);
 		else
 			set_enqueue_task_reason(p, EN_Q_LOAD_BALANCE_MIGRATION+lvl);
+#endif	/* CONFIG_SCHED_MONITOR_ENQ_DEQ_REASON */
 	}
 
 	__set_task_cpu(p, new_cpu);
@@ -1598,8 +1612,9 @@ int select_task_rq(struct task_struct *p, int cpu, int sd_flags, int wake_flags)
 {
 	lockdep_assert_held(&p->pi_lock);
 
-	if (p->nr_cpus_allowed > 1)
-		cpu = p->sched_class->select_task_rq(p, cpu, sd_flags, wake_flags);
+	if (p->nr_cpus_allowed > 1 || p->sched_class == &ipanema_sched_class)
+		cpu = p->sched_class->select_task_rq(p, cpu, sd_flags,
+						     wake_flags);
 	else
 		cpu = cpumask_any(&p->cpus_allowed);
 
@@ -2115,8 +2130,10 @@ try_to_wake_up(struct task_struct *p, unsigned int state, int wake_flags)
 	if (task_cpu(p) != cpu) {
 		wake_flags |= WF_MIGRATED;
 		set_task_cpu(p, cpu);
+#ifdef CONFIG_SCHED_MONITOR_ENQ_DEQ_REASON
 	} else {
 		set_enqueue_task_reason(p, EN_Q_WAKEUP);
+#endif
 	}
 
 #else /* CONFIG_SMP */
@@ -2182,7 +2199,9 @@ static void try_to_wake_up_local(struct task_struct *p, struct rq_flags *rf)
 			delayacct_blkio_end(p);
 			atomic_dec(&rq->nr_iowait);
 		}
+#ifdef CONFIG_SCHED_MONITOR_ENQ_DEQ_REASON
 		set_enqueue_task_reason(p, EN_Q_WAKEUP);
+#endif
 		ttwu_activate(rq, p, ENQUEUE_WAKEUP | ENQUEUE_NOCLOCK);
 	}
 
@@ -2508,7 +2527,9 @@ void wake_up_new_task(struct task_struct *p)
 	rq = __task_rq_lock(p, &rf);
 	update_rq_clock(rq);
 	post_init_entity_util_avg(&p->se);
+#ifdef CONFIG_SCHED_MONITOR_ENQ_DEQ_REASON
 	set_enqueue_task_reason(p, EN_Q_NEW);
+#endif
 	activate_task(rq, p, ENQUEUE_NOCLOCK);
 	p->on_rq = TASK_ON_RQ_QUEUED;
 	trace_sched_wakeup_new(p);
@@ -3148,7 +3169,7 @@ void scheduler_tick(void)
 	struct rq *rq = cpu_rq(cpu);
 	struct task_struct *curr = rq->curr;
 	struct rq_flags rf;
-	int need_resched;
+	int need_resched = 0;
 
 	sched_monitor_start(&scheduler_tick);
 
@@ -3159,8 +3180,11 @@ void scheduler_tick(void)
 	update_rq_clock(rq);
 
 	curr->sched_class->task_tick(rq, curr, 0);
+
+#ifdef CONFIG_SCHED_MONITOR_TRACER
 	need_resched = curr->thread_info.flags & _TIF_NEED_RESCHED;
 	need_resched = need_resched >> TIF_NEED_RESCHED;
+#endif
 	sched_monitor_trace(TICK_EVT, cpu, curr, need_resched, 0);
 
 	cpu_load_update_active(rq);
@@ -3539,8 +3563,11 @@ static void __sched notrace __schedule(bool preempt)
 		if (unlikely(signal_pending_state(prev->state, prev))) {
 			prev->state = TASK_RUNNING;
 		} else {
+#ifdef CONFIG_SCHED_MONITOR_ENQ_DEQ_REASON
 			set_dequeue_task_reason(prev, DE_Q_SLEEP);
-			deactivate_task(rq, prev, DEQUEUE_SLEEP | DEQUEUE_NOCLOCK);
+#endif
+			deactivate_task(rq, prev,
+					DEQUEUE_SLEEP | DEQUEUE_NOCLOCK);
 			sched_monitor_trace(BLOCK, cpu, prev, 0, 0);
 			prev->on_rq = 0;
 
@@ -4381,20 +4408,43 @@ recheck:
 
 	/*
 	 * If switching to SCHED_IPANEMA, check that the ipanema policy exists
+	 * and check cgroups to see if it's ok
 	 */
 	ipa_policy = attr->sched_ipa_policy;
 	if (ipanema_policy(policy)) {
 		struct ipanema_policy *cur_policy = NULL;
 		int found = 0;
+#ifdef CONFIG_CGROUP_IPANEMA
+		struct cgroup_subsys_state *css;
+		struct ipanema_group *ipa_grp;
+		struct ipanema_policy *cgrp_policy;
+#endif	/* CONFIG_CGROUP_IPANEMA */
 
 		if (attr->sched_ipa_policy == -1 && ipanema_task_policy(p))
 			ipa_policy = ipanema_task_policy(p)->id;
 
+#ifdef CONFIG_CGROUP_IPANEMA
+		/*
+		 * If process is in an ipanema cgroup, check that it is not
+		 * moving to another ipanema policy
+		 */
+		css = p->cgroups->subsys[ipanema_cgrp_id];
+		ipa_grp = ipanema_group_of(css);
+		cgrp_policy = ipa_grp->policy;
+		if (cgrp_policy) {
+			if (ipa_policy != cgrp_policy->id) {
+				task_rq_unlock(rq, p, &rf);
+				sched_monitor_stop(&__sched_setscheduler);
+				return -EINVAL;
+			}
+		}
+#endif	/* CONFIG_CGROUP_IPANEMA */
+
 		read_lock(&ipanema_rwlock);
 		list_for_each_entry(cur_policy, &ipanema_policies, list) {
 			if (cur_policy->id == ipa_policy) {
-				ipanema_task_policy(p) = cur_policy;
 				found = 1;
+				ipanema_task_policy(p) = cur_policy;
 				break;
 			}
 		}
@@ -4417,16 +4467,14 @@ recheck:
 			goto change;
 		if (dl_policy(policy) && dl_param_changed(p, attr))
 			goto change;
-		if (ipanema_policy(policy) && ipanema_task_policy(p) &&
-		    ipa_policy != ipanema_task_policy(p)->id) {
-		        queue_flags |= SWITCHING_CLASS;
-			goto change;
-		}
-		if (ipanema_policy(policy) && ipanema_task_policy(p) &&
-		    ipa_policy == ipanema_task_policy(p)->id &&
-		    ipanema_attr_changed(p, attr)) {
-			queue_flags |= ATTR_CHANGE;
-			goto change;
+		if (ipanema_policy(policy) && ipanema_task_policy(p)) {
+			if (ipa_policy != ipanema_task_policy(p)->id) {
+				queue_flags |= SWITCHING_CLASS;
+				goto change;
+			} else if (ipanema_attr_changed(p, attr)) {
+				queue_flags |= ATTR_CHANGE;
+				goto change;
+			}
 		}
 
 		p->sched_reset_on_fork = reset_on_fork;
@@ -4435,6 +4483,24 @@ recheck:
 		sched_monitor_stop(&__sched_setscheduler);
 		return 0;
 	}
+
+	/* If moving out from ipanema, set the SWITCHING_CLASS flag */
+	if (ipanema_policy(p->policy)) {
+#ifdef CONFIG_CGROUP_IPANEMA
+		struct cgroup_subsys_state *css;
+		struct ipanema_group *ipa_grp;
+
+		css = p->cgroups->subsys[ipanema_cgrp_id];
+		ipa_grp = ipanema_group_of(css);
+		if (ipa_grp->policy) {
+			task_rq_unlock(rq, p, &rf);
+			return -EINVAL;
+		}
+#endif	/* CONFIG_CGROUP_IPANEMA */
+
+		queue_flags |= SWITCHING_CLASS;
+	}
+
 change:
 
 	if (user) {
@@ -4510,7 +4576,14 @@ change:
 
 	queued = task_on_rq_queued(p);
 	running = task_current(rq, p);
-	if (queued)
+	/*
+	 * We also call dequeu_task() on tasks that use the ipanema sched class
+	 * if they are switching class to force the call to the terminate()
+	 * handler, and decrease the refcnt of the ipanema policy module. It is
+	 * kind of hacky, but it works.
+	 */
+	if (queued || (ipanema_policy(p->policy) &&
+		       queue_flags & SWITCHING_CLASS))
 		dequeue_task(rq, p, queue_flags);
 	if (running) {
 		p->ipanema.nopreempt = 1;

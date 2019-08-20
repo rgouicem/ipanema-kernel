@@ -624,6 +624,7 @@ void print_dl_rq(struct seq_file *m, int cpu, struct dl_rq *dl_rq)
 #undef PU
 }
 
+#ifdef CONFIG_SCHED_MONITOR_ENQ_DEQ_REASON
 const char *enqueue_task_reason_type_name[] = {
 	"no_reason",
 	"new",
@@ -640,14 +641,17 @@ const char *dequeue_task_reason_type_name[] = {
 	"no_reason",
 	"sleep",
 };
+#endif	/* CONFIG_SCHED_MONITOR_ENQ_DEQ_REASON */
 
 static void print_cpu(struct seq_file *m, int cpu)
 {
 	struct rq *rq = cpu_rq(cpu);
 	unsigned long flags;
 
+#ifdef CONFIG_SCHED_MONITOR_ENQ_DEQ_REASON
 	BUILD_BUG_ON(ARRAY_SIZE(enqueue_task_reason_type_name) != EN_Q_NR_REASONS);
 	BUILD_BUG_ON(ARRAY_SIZE(dequeue_task_reason_type_name) != DE_Q_NR_REASONS);
+#endif
 
 #ifdef CONFIG_X86
 	{
@@ -678,7 +682,8 @@ do {									\
 	P(nr_load_updates);
 	P(nr_uninterruptible);
 	PN(next_balance);
-	SEQ_printf(m, "  .%-30s: %ld\n", "curr->pid", (long)(task_pid_nr(rq->curr)));
+	SEQ_printf(m, "  .%-30s: %ld\n", "curr->pid",
+		   (long)(task_pid_nr(rq->curr)));
 	PN(clock);
 	PN(clock_task);
 	P(cpu_load[0]);
@@ -687,8 +692,11 @@ do {									\
 	P(cpu_load[3]);
 	P(cpu_load[4]);
 #undef P
+
+#ifdef CONFIG_SCHED_MONITOR_ENQ_DEQ_REASON
 	{
 		enum enqueue_task_reason_type i;
+
 		for (i = 0; i < EN_Q_NR_REASONS; i++)
 			SEQ_printf(m, "  .enQ.%-26s: %Ld\n",
 				   enqueue_task_reason_type_name[i],
@@ -696,6 +704,7 @@ do {									\
 	}
 	{
 		enum dequeue_task_reason_type i;
+
 		for (i = 0; i < DE_Q_NR_REASONS; i++)
 			SEQ_printf(m, "  .deQ.%-26s: %Ld\n",
 				   dequeue_task_reason_type_name[i],
@@ -703,6 +712,7 @@ do {									\
 	}
 	{
 		enum enqueue_task_reason_type i;
+
 		for (i = 0; i < EN_Q_NR_REASONS; i++)
 			SEQ_printf(m, "  .enQ.wc.%-23s: %Ld\n",
 				   enqueue_task_reason_type_name[i],
@@ -710,11 +720,13 @@ do {									\
 	}
 	{
 		enum dequeue_task_reason_type i;
+
 		for (i = 0; i < DE_Q_NR_REASONS; i++)
 			SEQ_printf(m, "  .deQ.wc.%-23s: %Ld\n",
 				   dequeue_task_reason_type_name[i],
 				   (long long)(rq->nr_dequeue_task_wc[i]));
 	}
+#endif	/* CONFIG_SCHED_MONITOR_ENQ_DEQ_REASON */
 #undef PN
 
 #ifdef CONFIG_SMP

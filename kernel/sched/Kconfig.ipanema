@@ -6,3 +6,8 @@ config IPANEMA_DEBUG_TOPOLOGY
 config IPANEMA_PANIC_ON_BAD_TRANSITION
         def_bool n
 	prompt "Panic when a bad transition in the ipanema finite state machine is detected. Use for debug only."
+
+config CGROUP_IPANEMA
+       def_bool y
+       prompt "Ipanema controller"
+       depends on CGROUPS
