@@ -8658,11 +8658,11 @@ static int load_balance(int this_cpu, struct rq *this_rq,
 	};
 
 	if (idle == CPU_NOT_IDLE)
-		sched_monitor_trace(PERIODIC_BALANCE_BEG, this_cpu,
+		sched_monitor_trace(PER_BLN_FAIR_BEG, this_cpu,
 				    this_rq->curr,
 				    (long) sd, ((long) sd) >> 32);
 	else
-		sched_monitor_trace(IDLE_BALANCE_BEG, this_cpu, this_rq->curr,
+		sched_monitor_trace(IDL_BLN_FAIR_BEG, this_cpu, this_rq->curr,
 				    (long) sd, ((long) sd) >> 32);
 
 	cpumask_and(cpus, sched_domain_span(sd), cpu_active_mask);
@@ -8905,11 +8905,11 @@ out_one_pinned:
 out:
 
 	if (idle == CPU_NOT_IDLE)
-		sched_monitor_trace(PERIODIC_BALANCE_END, this_cpu,
+		sched_monitor_trace(PER_BLN_FAIR_END, this_cpu,
 				    this_rq->curr,
 				    (long) group, ((long) group) >> 32);
 	else
-		sched_monitor_trace(IDLE_BALANCE_END, this_cpu, this_rq->curr,
+		sched_monitor_trace(IDL_BLN_FAIR_END, this_cpu, this_rq->curr,
 				    (long) group, ((long) group) >> 32);
 
 	return ld_moved;

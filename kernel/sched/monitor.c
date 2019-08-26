@@ -380,10 +380,14 @@ static char *sched_tracer_events_str[] = {
 	"CTX_SWITCH", /* timestamp CTX_SWITCH pid next */
 	"MIGRATE",    /* timestamp MIGRATE pid old_cpu new_cpu */
 	"RQ_SIZE",    /* timestamp RQ_SIZE current size count */
-	"IDL_BLN_BEG", /* timestamp IDL_BLN_BEG pid sched_domain_addr */
-	"IDL_BLN_END", /* timestamp IDL_BLN_END pid sched_group_addr */
-	"PER_BLN_BEG", /* timestamp PER_BLN_BEG pid sched_domain_addr */
-	"PER_BLN_END", /* timestamp PER_BLN_END pid sched_group_addr */
+	"IDL_BLN_FAIR_BEG", /* timestamp IDL_BLN_FAIR_BEG pid sched_domain_addr */
+	"IDL_BLN_FAIR_END", /* timestamp IDL_BLN_FAIR_END pid sched_group_addr */
+	"PER_BLN_FAIR_BEG", /* timestamp PER_BLN_FAIR_BEG pid sched_domain_addr */
+	"PER_BLN_FAIR_END", /* timestamp PER_BLN_FAIR_END pid sched_group_addr */
+	"IDL_BLN_IPA_BEG", /* timestamp IDL_BLN_BEG pid sched_domain_addr */
+	"IDL_BLN_IPA_END", /* timestamp IDL_BLN_END pid sched_group_addr */
+	"PER_BLN_IPA_BEG", /* timestamp PER_BLN_BEG pid sched_domain_addr */
+	"PER_BLN_IPA_END", /* timestamp PER_BLN_END pid sched_group_addr */
 };
 
 static int tracer_seq_show(struct seq_file *s, void *v)
@@ -407,10 +411,14 @@ static int tracer_seq_show(struct seq_file *s, void *v)
 	case BLOCK_LOCK:
 	case WAKEUP_LOCK:
 	case WAKER_LOCK:
-	case IDLE_BALANCE_BEG:
-	case IDLE_BALANCE_END:
-	case PERIODIC_BALANCE_BEG:
-	case PERIODIC_BALANCE_END:
+	case IDL_BLN_FAIR_BEG:
+	case IDL_BLN_FAIR_END:
+	case PER_BLN_FAIR_BEG:
+	case PER_BLN_FAIR_END:
+	case IDL_BLN_IPA_BEG:
+	case IDL_BLN_IPA_END:
+	case PER_BLN_IPA_BEG:
+	case PER_BLN_IPA_END:
 		seq_printf(s, "%llu %s %d 0x%p\n",
 			   evt->timestamp, sched_tracer_events_str[evt->event],
 			   evt->pid, (void *)evt->addr);

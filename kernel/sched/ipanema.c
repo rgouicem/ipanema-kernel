@@ -1074,14 +1074,10 @@ static struct task_struct *pick_next_task_ipanema(struct rq *rq,
 				continue;
 
 			sched_monitor_ipanema_start(start_lb);
-			sched_monitor_trace(IDLE_BALANCE_BEG, rq->cpu, rq->curr,
-					    0, 0);
 
 			ipanema_newly_idle(policy, rq->cpu, rf);
 
 			sched_monitor_ipanema_stop(LB_IDLE, start_lb);
-			sched_monitor_trace(IDLE_BALANCE_END, rq->cpu, rq->curr,
-					    0, 0);
 
 			ipanema_schedule(policy, rq->cpu);
 			result = per_cpu(ipanema_current, rq->cpu);
