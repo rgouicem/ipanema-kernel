@@ -31,6 +31,12 @@ void init_ipanema_rq(struct ipanema_rq *rq, enum ipanema_rq_type type,
 		     int (*order_fn)(struct task_struct *a,
 				     struct task_struct *b));
 
+int ipanema_add_task(struct ipanema_rq *rq, struct task_struct *data);
+struct task_struct *ipanema_remove_task(struct ipanema_rq *rq,
+					struct task_struct *data);
+struct task_struct *ipanema_first_task(struct ipanema_rq *rq);
+
+
 struct task_struct *get_ipanema_current(int cpu);
 
 extern int nb_topology_levels;

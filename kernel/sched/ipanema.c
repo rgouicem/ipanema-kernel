@@ -1812,7 +1812,320 @@ struct cgroup_subsys ipanema_cgrp_subsys = {
 };
 #endif	/* CONFIG_CGROUP_IPANEMA */
 
-void __init init_sched_ipanema_class(void)
+/*
+ * Rbtree manipulation
+ */
+static inline int ipanema_add_task_rbtree(struct rb_root *root,
+					  struct task_struct *data,
+					  int (*cmp_fn)(struct task_struct *,
+							struct task_struct *))
+{
+	struct rb_node **new = &(root->rb_node), *parent = NULL;
+
+	while (*new) {
+		struct task_struct *t = container_of(*new, struct task_struct,
+						     ipanema.node_runqueue);
+		int res = cmp_fn(data, t);
+
+		parent = *new;
+
+		/*
+		 * We compare with the provided function, but if both threads
+		 * are equal, we use the task_struct's address to differenciate.
+		 * If the node is already in the rbtree, we stop here.
+		 */
+		if (res < 0)
+			new = &((*new)->rb_left);
+		else if (res > 0)
+			new = &((*new)->rb_right);
+		else if (data < t)
+			new = &((*new)->rb_left);
+		else if (data > t)
+			new = &((*new)->rb_right);
+		else
+			return -EINVAL;
+	}
+
+	rb_link_node(&data->ipanema.node_runqueue, parent, new);
+	rb_insert_color(&data->ipanema.node_runqueue, root);
+
+	return 0;
+}
+
+static inline struct task_struct *
+ipanema_remove_task_rbtree(struct rb_root *root, struct task_struct *data)
+{
+	rb_erase(&data->ipanema.node_runqueue, root);
+	memset(&data->ipanema.node_runqueue, 0,
+	       sizeof(data->ipanema.node_runqueue));
+	return data;
+}
+
+static inline struct task_struct *
+ipanema_first_task_rbtree(struct rb_root *root)
+{
+	struct rb_node *first;
+
+	first = rb_first(root);
+	if (!first)
+		return NULL;
+
+	return container_of(first, struct task_struct, ipanema.node_runqueue);
+}
+
+/*
+ * LIST manipulation
+ */
+static inline int ipanema_add_task_list(struct list_head *head,
+					struct task_struct *data,
+					int (*cmp_fn)(struct task_struct *,
+						      struct task_struct *))
+{
+	struct task_struct *ts;
+
+	list_for_each_entry(ts, head, ipanema.node_list) {
+		if (cmp_fn(data, ts) < 0) {
+			list_add_tail(&data->ipanema.node_list,
+				      &ts->ipanema.node_list);
+			return 0;
+		}
+	}
+	list_add_tail(&data->ipanema.node_list, head);
+	return 0;
+}
+
+static inline struct task_struct *
+ipanema_remove_task_list(struct list_head *head, struct task_struct *data)
+{
+	list_del_init(&data->ipanema.node_list);
+
+	return data;
+}
+
+static inline struct task_struct *
+ipanema_first_task_list(struct list_head *head)
+{
+	return list_first_entry_or_null(head, struct task_struct,
+					ipanema.node_list);
+}
+
+/*
+ * FIFO manipulation
+ */
+static inline int ipanema_add_task_fifo(struct list_head *head,
+					struct task_struct *data,
+					int (*cmp_fn)(struct task_struct *,
+						      struct task_struct *))
+{
+	list_add_tail(&data->ipanema.node_list, head);
+	return 0;
+}
+
+/*
+ * Generic ipanema_rq API
+ */
+int ipanema_add_task(struct ipanema_rq *rq, struct task_struct *data)
+{
+	switch (rq->type) {
+	case RBTREE:
+		return ipanema_add_task_rbtree(&rq->root, data, rq->order_fn);
+	case LIST:
+		return ipanema_add_task_list(&rq->head, data, rq->order_fn);
+	case FIFO:
+		return ipanema_add_task_fifo(&rq->head, data, rq->order_fn);
+	default:
+		return -EINVAL;
+	}
+}
+
+struct task_struct *ipanema_remove_task(struct ipanema_rq *rq,
+					struct task_struct *data)
+{
+	switch (rq->type) {
+	case RBTREE:
+		return ipanema_remove_task_rbtree(&rq->root, data);
+	case LIST:
+	case FIFO:
+		return ipanema_remove_task_list(&rq->head, data);
+	default:
+		return NULL;
+	}
+}
+
+struct task_struct *ipanema_first_task(struct ipanema_rq *rq)
+{
+	switch (rq->type) {
+	case RBTREE:
+		return ipanema_first_task_rbtree(&rq->root);
+	case LIST:
+	case FIFO:
+		return ipanema_first_task_list(&rq->head);
+	default:
+		return NULL;
+	}
+}
+EXPORT_SYMBOL(ipanema_first_task);
+
+void init_ipanema_rq(struct ipanema_rq *rq, enum ipanema_rq_type type,
+		     unsigned int cpu, enum ipanema_state state,
+		     int (*order_fn)(struct task_struct *a,
+				     struct task_struct *b))
+{
+	rq->type = type;
+	switch (type) {
+	case RBTREE:
+		rq->root.rb_node = NULL;
+		break;
+	case LIST:
+	case FIFO:
+		INIT_LIST_HEAD(&rq->head);
+		break;
+	}
+	rq->cpu = cpu;
+	rq->state = state;
+	rq->nr_tasks = 0;
+	rq->order_fn = order_fn;
+}
+EXPORT_SYMBOL(init_ipanema_rq);
+
+/*
+ * procfs interface: located in /proc/ipanema
+ */
+static void *ipanema_policies_start(struct seq_file *f, loff_t *pos)
+{
+	read_lock(&ipanema_rwlock);
+	return seq_list_start(&ipanema_policies, *pos);
+}
+
+static void *ipanema_policies_next(struct seq_file *f, void *v, loff_t *pos)
+{
+	return seq_list_next(v, &ipanema_policies, pos);
+}
+
+static void ipanema_policies_stop(struct seq_file *f, void *v)
+{
+	read_unlock(&ipanema_rwlock);
+}
+
+static int ipanema_policies_show(struct seq_file *f, void *v)
+{
+	struct ipanema_policy *policy = list_entry(v, struct ipanema_policy,
+						   list);
+	seq_printf(f, "%llu %s %d\n",
+		   policy->id, policy->name, module_refcount(policy->kmodule));
+	return 0;
+}
+
+static const struct seq_operations ipanema_policies_ops = {
+	.start = ipanema_policies_start,
+	.next  = ipanema_policies_next,
+	.show  = ipanema_policies_show,
+	.stop  = ipanema_policies_stop
+};
+
+static int ipanema_policies_open(struct inode *inode, struct file *file)
+{
+	return seq_open(file, &ipanema_policies_ops);
+}
+
+static const struct file_operations ipanema_policies_fops = {
+	.open    = ipanema_policies_open,
+	.read    = seq_read,
+	.llseek  = seq_lseek,
+	.release = seq_release,
+};
+
+struct proc_dir_entry *ipa_procdir;
+EXPORT_SYMBOL(ipa_procdir);
+
+/*
+ * sysfs interface: located at /sys/kernel/ipanema/
+ */
+
+#define IPANEMA_ATTR_RO(_name) \
+static struct kobj_attribute _name##_attr = __ATTR_RO(_name)
+
+#define IPANEMA_ATTR_RW(_name) \
+static struct kobj_attribute _name##_attr = \
+	__ATTR(_name, 0644, _name##_show, _name##_store)
+
+
+/*
+ * Check that transitions do not violate the Ipanema finite state machine
+ * Prints errors in dmesg if it does
+ */
+int ipanema_fsm_check;
+static ssize_t ipanema_fsm_check_show(struct kobject *kobj,
+				      struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", READ_ONCE(ipanema_fsm_check));
+}
+static ssize_t ipanema_fsm_check_store(struct kobject *kobj,
+				       struct kobj_attribute *attr,
+				       const char *buf, size_t count)
+{
+	if (kstrtoint(buf, 0, &ipanema_fsm_check))
+		return -EINVAL;
+
+	return count;
+}
+IPANEMA_ATTR_RW(ipanema_fsm_check);
+
+/*
+ * Log all transitions in the Ipanema finite state machine
+ */
+int ipanema_fsm_log;
+static ssize_t ipanema_fsm_log_show(struct kobject *kobj,
+				    struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", READ_ONCE(ipanema_fsm_log));
+}
+static ssize_t ipanema_fsm_log_store(struct kobject *kobj,
+				     struct kobj_attribute *attr,
+				     const char *buf, size_t count)
+{
+	if (kstrtoint(buf, 0, &ipanema_fsm_log))
+		return -EINVAL;
+
+	return count;
+}
+IPANEMA_ATTR_RW(ipanema_fsm_log);
+
+/*
+ * Log calls to the ipanema scheduling class functions
+ */
+int ipanema_sched_class_log;
+static ssize_t ipanema_sched_class_log_show(struct kobject *kobj,
+					    struct kobj_attribute *attr,
+					    char *buf)
+{
+	return sprintf(buf, "%d\n", READ_ONCE(ipanema_sched_class_log));
+}
+static ssize_t ipanema_sched_class_log_store(struct kobject *kobj,
+					     struct kobj_attribute *attr,
+					     const char *buf, size_t count)
+{
+	if (kstrtoint(buf, 0, &ipanema_sched_class_log))
+		return -EINVAL;
+
+	return count;
+}
+IPANEMA_ATTR_RW(ipanema_sched_class_log);
+
+struct kobject *ipanema_kobj;
+
+static struct attribute *ipanema_attrs[] = {
+	&ipanema_fsm_check_attr.attr,
+	&ipanema_fsm_log_attr.attr,
+	&ipanema_sched_class_log_attr.attr,
+	NULL
+};
+
+static struct attribute_group ipanema_attr_group = {
+	.attrs = ipanema_attrs,
+};
+
+__init void init_sched_ipanema_class(void)
 {
 	rwlock_init(&ipanema_rwlock);
 	open_softirq(SCHED_SOFTIRQ_IPANEMA, run_rebalance_domains);
@@ -1820,18 +2133,48 @@ void __init init_sched_ipanema_class(void)
 	pr_info("sched_class initialized\n");
 }
 
-int __init init_sched_ipanema_late(void)
+__init int init_sched_ipanema_late(void)
 {
 	int ret;
 
 	ret = create_topology();
-	if (ret)
+	if (ret) {
 		pr_err("create_topology() failed\n");
+		goto exit;
+	}
 
 #ifdef CONFIG_IPANEMA_DEBUG_TOPOLOGY
 	print_topology();
 #endif
 
+	ipa_procdir = proc_mkdir("ipanema", NULL);
+	if (!ipa_procdir) {
+		pr_err("procfs creation failed\n");
+		ret = -ENOMEM;
+		goto exit;
+	}
+	if (!proc_create("policies", 0444, ipa_procdir,
+			 &ipanema_policies_fops)) {
+		pr_err("procfs creation failed\n");
+		ret = -ENOMEM;
+		goto exit;
+	}
+	pr_info("/proc/ipanema/ directory created\n");
+
+	/* Create /sys/kernel/ipanema */
+	ipanema_kobj = kobject_create_and_add("ipanema", kernel_kobj);
+	if (!ipanema_kobj) {
+		ret = -ENOMEM;
+		goto exit;
+	}
+	ret = sysfs_create_group(ipanema_kobj, &ipanema_attr_group);
+	if (ret)
+		goto exit;
+	pr_info("/sys/kernel/ipanema/ directory created\n");
+
 	return 0;
+
+exit:
+	return ret;
 }
 late_initcall(init_sched_ipanema_late);
