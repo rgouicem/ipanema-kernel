@@ -4,7 +4,6 @@
 
 #include <linux/delay.h>
 #include <linux/ipanema.h>
-#include <linux/ipanema_rq.h>
 #include <linux/ktime.h>
 #include <linux/lockdep.h>
 #include <linux/module.h>

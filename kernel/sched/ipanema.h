@@ -2,7 +2,6 @@
 #define IPANEMA_H
 
 #include <linux/ipanema.h>
-#include <linux/ipanema_rq.h>
 #include <linux/latencytop.h>
 #include <linux/sched.h>
 #include <linux/cpumask.h>
