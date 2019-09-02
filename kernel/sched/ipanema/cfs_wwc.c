@@ -21,7 +21,7 @@
 			panic("Error in " #x "\n");	\
 	} while (0)
 #define time_to_ticks(x) (ktime_to_ns(x) * HZ / 1000000000)
-#define ticks_to_time(x) (ns_to_ktime(x * 1000000000 / HZ))
+#define ticks_to_time(x) ns_to_ktime(x * 1000000000 / HZ)
 
 static char *name = KBUILD_MODNAME;
 static struct ipanema_policy *policy;
@@ -30,6 +30,7 @@ static const int max_quanta_ms = 100;
 static ktime_t max_quanta;
 
 struct cfs_ipa_sched_domain;
+struct cfs_ipa_sched_group;
 
 struct cfs_ipa_process {
 	struct task_struct *task; // Internal
@@ -283,7 +284,7 @@ static int migrate_from_to(struct cfs_ipa_core *busiest,
 
 	if (dbg_cpt != 0)
 		pr_info("Some tasks (%d) were lost on a migration from %d to %d\n",
-			       dbg_cpt, busiest->id, self_38->id);
+			dbg_cpt, busiest->id, self_38->id);
 
 	return ret;
 }
@@ -419,34 +420,54 @@ static void steal_for_dom(struct ipanema_policy *policy,
 	if (bitmap_empty(stealable_groups, sd->___sched_group_idx))
 		goto forward_next_balance;
 
-	/* Step 2: select_group() */
-	target_group = select_group(policy, sd, stealable_groups);
-	if (!target_group)
-		goto forward_next_balance;
-	env.busiest_grp_cload = grp_load(target_group);
-	env.busiest_grp_runnable = runnable(target_group);
+	/* Iterate on steps 2-5 until all groups were tried */
+	while (!bitmap_empty(stealable_groups, sd->___sched_group_idx) &&
+	       env.thief_grp_runnable < cpumask_weight(&thief_group->cores)) {
+		/* Step 2: select_group() */
+		target_group = select_group(policy, sd, stealable_groups);
+		if (!target_group)
+			goto forward_next_balance;
+		env.busiest_grp_cload = grp_load(target_group);
+		env.busiest_grp_runnable = runnable(target_group);
 
-	/* Step 3: can_steal_core() */
-	for_each_cpu(i, &target_group->cores) {
-		c = &ipanema_core(i);
-		if (c == core_31)
-			continue;
-		if (can_steal_core(c, core_31))
-			cpumask_set_cpu(i, &stealable_cores);
+		/* Step 3: can_steal_core() */
+		for_each_cpu(i, &target_group->cores) {
+			c = &ipanema_core(i);
+			if (c == core_31)
+				continue;
+			if (can_steal_core(c, core_31))
+				cpumask_set_cpu(i, &stealable_cores);
+		}
+		if (cpumask_empty(&stealable_cores))
+			goto forward_next_balance;
+
+		/* Iterate on steps 4-5 until all cores were tried */
+		while (!cpumask_empty(&stealable_cores) &&
+		       env.thief_grp_runnable < cpumask_weight(&thief_group->cores)) {
+			/* Step 4: select_core() */
+			selected = select_core(policy, target_group,
+					       &stealable_cores);
+			if (!selected)
+				goto forward_next_balance;
+
+			/* Step 5: steal_thread() */
+			migrate_from_to(selected, target_group,
+					core_31, thief_group,
+					&env);
+
+			/* remove cpu from stealable_cores */
+			cpumask_clear_cpu(selected->id, &stealable_cores);
+		}
+
+		/* remove group from stealable_groups */
+		for (i = 0; i < sd->___sched_group_idx; i++) {
+			sg = sd->groups + i;
+			if (sg == target_group) {
+				bitmap_clear(stealable_groups, i, 1);
+				break;
+			}
+		}
 	}
-	if (cpumask_empty(&stealable_cores))
-		goto forward_next_balance;
-
-	/* Step 4: select_core() */
-	selected = select_core(policy, target_group,
-			       &stealable_cores);
-	if (!selected)
-		goto forward_next_balance;
-
-	/* Step 5: steal_thread() */
-	migrate_from_to(selected, target_group,
-			core_31, thief_group,
-			&env);
 
 forward_next_balance:
 	spin_lock(&sd->lock);
@@ -517,7 +538,7 @@ find_idlest_group(struct ipanema_policy *policy,
 }
 
 static int ipanema_cfs_new_prepare(struct ipanema_policy *policy,
-				   struct process_event *e)
+				    struct process_event *e)
 {
 	struct cfs_ipa_process *tgt;
 	struct cfs_ipa_sched_domain *sd;
@@ -557,7 +578,7 @@ static int ipanema_cfs_new_prepare(struct ipanema_policy *policy,
 }
 
 static void ipanema_cfs_new_place(struct ipanema_policy *policy,
-				  struct process_event *e)
+				   struct process_event *e)
 {
 	struct cfs_ipa_process *tgt = policy_metadata(e->target);
 	int idlecore_10 = task_cpu(e->target);
@@ -567,18 +588,17 @@ static void ipanema_cfs_new_place(struct ipanema_policy *policy,
 	/* Memory barrier for proofs */
 	smp_wmb();
 	ipa_change_queue(tgt, &ipanema_state(task_cpu(tgt->task)).ready,
-			 IPANEMA_READY, task_cpu(tgt->task));
+			 IPANEMA_READY, c->id);
 }
 
 static void ipanema_cfs_new_end(struct ipanema_policy *policy,
-				struct process_event *e)
+				 struct process_event *e)
 {
 	pr_info("[%d] post new on core %d\n", e->target->pid, e->target->cpu);
 }
 
 static void ipanema_cfs_detach(struct ipanema_policy *policy,
 			       struct process_event *e)
-/* need to free the process metadata memory */
 {
 	struct cfs_ipa_process *tgt = policy_metadata(e->target);
 	struct cfs_ipa_core *c = &ipanema_core(task_cpu(tgt->task));
@@ -587,6 +607,8 @@ static void ipanema_cfs_detach(struct ipanema_policy *policy,
 	/* Memory barrier for proofs */
 	smp_wmb();
 	c->cload -= tgt->load;
+	/* Memory barrier for proofs */
+	smp_wmb();
 	kfree(tgt);
 }
 
@@ -602,12 +624,11 @@ static void ipanema_cfs_tick(struct ipanema_policy *policy,
 	if (ktime_after(curr_runtime, max_quanta)) {
 		update_thread(tgt);
 		update_load(tgt);
-		ipa_change_queue(tgt,
-				 &ipanema_state(task_cpu(tgt->task)).ready,
-				 IPANEMA_READY_TICK, task_cpu(tgt->task));
+		c->cload += (tgt->load - old_load);
 		/* Memory barrier for proofs */
 		smp_wmb();
-		c->cload += (tgt->load - old_load);
+		ipa_change_queue(tgt, &ipanema_state(task_cpu(tgt->task)).ready,
+				 IPANEMA_READY_TICK, c->id);
 	}
 }
 
@@ -620,11 +641,11 @@ static void ipanema_cfs_yield(struct ipanema_policy *policy,
 
 	update_thread(tgt);
 	update_load(tgt);
-	ipa_change_queue(tgt, &ipanema_state(task_cpu(tgt->task)).ready,
-			 IPANEMA_READY, task_cpu(tgt->task));
+	c->cload += (tgt->load - old_load);
 	/* Memory barrier for proofs */
 	smp_wmb();
-	c->cload += (tgt->load - old_load);
+	ipa_change_queue(tgt, &ipanema_state(task_cpu(tgt->task)).ready,
+			 IPANEMA_READY, c->id);
 }
 
 static void ipanema_cfs_block(struct ipanema_policy *policy,
@@ -636,10 +657,12 @@ static void ipanema_cfs_block(struct ipanema_policy *policy,
 
 	update_thread((struct cfs_ipa_process *)tgt);
 	update_load((struct cfs_ipa_process *)tgt);
-	ipa_change_queue(tgt, NULL, IPANEMA_BLOCKED, task_cpu(tgt->task));
+	ipa_change_queue(tgt, NULL, IPANEMA_BLOCKED, c->id);
 	/* Memory barrier for proofs */
 	smp_wmb();
 	c->cload -= old_load;
+	/* Memory barrier for proofs */
+	smp_wmb();
 }
 
 static struct cfs_ipa_core *find_idle_cpu(struct ipanema_policy *policy,
@@ -713,7 +736,7 @@ end:
 }
 
 static void ipanema_cfs_unblock_place(struct ipanema_policy *policy,
-				      struct process_event *e)
+				       struct process_event *e)
 {
 	struct cfs_ipa_process *tgt = policy_metadata(e->target);
 	int idlecore_11 = task_cpu(e->target);
@@ -723,11 +746,11 @@ static void ipanema_cfs_unblock_place(struct ipanema_policy *policy,
 	/* Memory barrier for proofs */
 	smp_wmb();
 	ipa_change_queue(tgt, &ipanema_state(idlecore_11).ready,
-			 IPANEMA_READY, task_cpu(tgt->task));
+			 IPANEMA_READY, c->id);
 }
 
 static void ipanema_cfs_unblock_end(struct ipanema_policy *policy,
-				    struct process_event *e)
+				     struct process_event *e)
 {
 	pr_info("[%d] post unblock on core %d\n", e->target->pid,
 		       e->target->cpu);
@@ -752,7 +775,7 @@ static void ipanema_cfs_schedule(struct ipanema_policy *policy,
 }
 
 static void ipanema_cfs_core_entry(struct ipanema_policy *policy,
-				   struct core_event *e)
+				    struct core_event *e)
 {
 	struct cfs_ipa_core *tgt = &per_cpu(core, e->target);
 
@@ -773,6 +796,11 @@ static void ipanema_cfs_newly_idle(struct ipanema_policy *policy,
 {
 	struct cfs_ipa_core *c = &per_cpu(core, e->target);
 	struct cfs_ipa_sched_domain *sd = c->sd;
+	unsigned long flags;
+
+	/* Generated if synchronized keyword is used */
+	if (!spin_trylock_irqsave(&lb_lock, flags))
+		return;
 
 	while (sd) {
 		steal_for_dom(policy, c, sd);
@@ -780,6 +808,9 @@ static void ipanema_cfs_newly_idle(struct ipanema_policy *policy,
 			break;
 		sd = sd->parent;
 	}
+
+	/* Generated if synchronized keyword is used */
+	spin_unlock_irqrestore(&lb_lock, flags);
 }
 
 static void ipanema_cfs_enter_idle(struct ipanema_policy *policy,
@@ -801,16 +832,32 @@ static void ipanema_cfs_exit_idle(struct ipanema_policy *policy,
 static void ipanema_cfs_balancing(struct ipanema_policy *policy,
 				  struct core_event *e)
 {
-	struct cfs_ipa_core *c = &per_cpu(core, e->target);
+	struct cfs_ipa_core *c = &per_cpu(core, e->target), *thief;
 	struct cfs_ipa_sched_domain *sd;
+	struct cfs_ipa_sched_group *sg;
 	ktime_t now = ktime_get();
+	int i;
+	unsigned long flags;
+
+	/* Generated if synchronized keyword is used */
+	if (!spin_trylock_irqsave(&lb_lock, flags))
+		return;
 
 	sd = c->sd;
 	while (sd) {
-		if (ktime_before(sd->next_balance, now))
-			steal_for_dom(policy, c, sd);
+		if (ktime_before(sd->next_balance, now)) {
+			for (i = 0; i < sd->___sched_group_idx; i++) {
+				sg = sd->groups + i;
+				thief = &ipanema_core(cpumask_first(&sg->cores));
+				steal_for_dom(policy, thief, sd);
+			}
+		}
+
 		sd = sd->parent;
 	}
+
+	/* Generated if synchronized keyword is used */
+	spin_unlock_irqrestore(&lb_lock, flags);
 }
 
 static int ipanema_cfs_init(struct ipanema_policy *policy)
@@ -854,9 +901,9 @@ struct ipanema_module_routines ipanema_cfs_routines = {
 	.balancing_select = ipanema_cfs_balancing,
 	.core_entry = ipanema_cfs_core_entry,
 	.core_exit = ipanema_cfs_core_exit,
-	.init    = ipanema_cfs_init,
+	.init = ipanema_cfs_init,
 	.free_metadata = ipanema_cfs_free_metadata,
-	.can_be_default	= ipanema_cfs_can_be_default,
+	.can_be_default = ipanema_cfs_can_be_default,
 	.attach  = ipanema_cfs_attach
 };
 
@@ -993,7 +1040,7 @@ static int build_lower_groups(struct cfs_ipa_sched_domain *sd)
 	int cpu, n, i = 0;
 
 	n = cpumask_weight(&sd->cores);
-	sd->groups = kcalloc(n, sizeof(struct cfs_ipa_sched_group),
+	sd->groups = kzalloc(n * sizeof(struct cfs_ipa_sched_group),
 			     GFP_KERNEL);
 	if (!sd->groups)
 		goto fail;
@@ -1111,7 +1158,7 @@ static int proc_open(struct inode *inode, struct file *file)
 	return -ENOENT;
 }
 
-static const struct file_operations proc_fops = {
+const static struct file_operations proc_fops = {
 	.owner   = THIS_MODULE,
 	.open    = proc_open,
 	.read    = seq_read,
@@ -1140,7 +1187,7 @@ static int proc_topo_open(struct inode *inode, struct file *file)
 	return single_open(file, proc_topo_show, NULL);
 }
 
-static const struct file_operations proc_topo_fops = {
+const static struct file_operations proc_topo_fops = {
 	.owner   = THIS_MODULE,
 	.open    = proc_topo_open,
 	.read    = seq_read,
@@ -1148,7 +1195,7 @@ static const struct file_operations proc_topo_fops = {
 	.release = single_release,
 };
 
-int init_module(void)
+static int __init my_init_module(void)
 {
 	int res, cpu;
 	struct proc_dir_entry *procdir = NULL;
@@ -1156,10 +1203,11 @@ int init_module(void)
 
 	max_quanta = ms_to_ktime(max_quanta_ms);
 
-	/* Initialize scheduler variables with non-const value */
+	/*
+	 *  Initialize scheduler variables with non-const value (function call)
+	 */
 	for_each_possible_cpu(cpu) {
 		ipanema_core(cpu).id = cpu;
-		ipanema_core(cpu).cpuset = &cstate_info.idle_cores;
 		/* FIXME init of core variables of the user */
 		ipanema_core(cpu).cload = 0;
 		/* allocation of ipanema rqs */
@@ -1170,7 +1218,7 @@ int init_module(void)
 	/* build hierarchy with topology */
 	build_hierarchy();
 
-	/* Allocate & setup the ipanema_policy */
+	/* Allocate & setup the ipanema_module */
 	policy = kzalloc(sizeof(struct ipanema_policy), GFP_KERNEL);
 	if (!policy) {
 		res = -ENOMEM;
@@ -1186,31 +1234,32 @@ int init_module(void)
 		goto clean_policy;
 
 	/*
-	 * Create /proc/ipanema/cfs hierarchy.
+	 * Create /proc/ipanema/cfs_wwc hierarchy.
 	 * If file creation fails, module insertion does not
 	 */
 	procdir = proc_mkdir(name, ipa_procdir);
 	if (!procdir)
-		pr_err("/proc/ipanema/%s creation failed\n", name);
+		pr_err("%s: /proc/ipanema/%s creation failed\n", name, name);
 	for_each_possible_cpu(cpu) {
 		scnprintf(procbuf, 10, "%d", cpu);
 		if (!proc_create(procbuf, 0444, procdir, &proc_fops))
-			pr_err("/proc/ipanema/%s/%s creation failed\n",
-			       name, procbuf);
+			pr_err("%s: /proc/ipanema/%s/%s creation failed\n",
+			       name, name, procbuf);
 	}
 	if (!proc_create("topology", 0444, procdir, &proc_topo_fops))
-		pr_err("/proc/ipanema/%s/topology creation failed\n",
-		       name);
+		pr_err("%s: /proc/ipanema/%s/topology creation failed\n",
+		       name, name);
 
 	return 0;
 
 clean_policy:
 	kfree(policy);
+
 end:
 	return res;
 }
 
-void cleanup_module(void)
+static void __exit my_cleanup_module(void)
 {
 	int res;
 
@@ -1225,6 +1274,9 @@ void cleanup_module(void)
 	destroy_scheduling_domains();
 	kfree(policy);
 }
+
+module_init(my_init_module);
+module_exit(my_cleanup_module);
 
 MODULE_AUTHOR("RedhaCC");
 MODULE_DESCRIPTION(KBUILD_MODNAME" scheduling policy");
