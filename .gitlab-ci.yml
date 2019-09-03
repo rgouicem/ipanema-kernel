@@ -29,21 +29,6 @@ build-kernel-sched-monitor:
     - make sched_monitor.config
     - make -j48
 
-build-ipanema-policies:
-  stage: build-ipanema
-  tags:
-    - ipanema
-  script:
-    - make prepare
-    - make modules_prepare
-    - cd ipanema/modules && make -j48 && cd ../..
-  cache:
-    untracked: true
-    key: modules-cache
-    paths:
-      - .config
-      - Module.symvers
-
 build-ipanema-ipastart:
   stage: build-ipanema
   tags:
