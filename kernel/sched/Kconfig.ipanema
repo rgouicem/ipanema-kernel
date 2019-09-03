@@ -11,3 +11,9 @@ config CGROUP_IPANEMA
        def_bool y
        prompt "Ipanema controller"
        depends on CGROUPS
+
+menu "Ipanema policies"
+
+source "kernel/sched/ipanema/Kconfig"
+
+endmenu

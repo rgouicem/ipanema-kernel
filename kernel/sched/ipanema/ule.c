@@ -985,7 +985,7 @@ static const struct file_operations proc_topo_fops = {
 	.release = single_release,
 };
 
-int init_module(void)
+static int __init my_init_module(void)
 {
 	int res, cpu;
 	struct proc_dir_entry *procdir = NULL;
@@ -1046,7 +1046,7 @@ end:
 	return res;
 }
 
-void cleanup_module(void)
+static void __exit my_cleanup_module(void)
 {
 	int res;
 
@@ -1061,6 +1061,9 @@ void cleanup_module(void)
 	destroy_scheduling_domains();
 	kfree(policy);
 }
+
+module_init(my_init_module);
+module_exit(my_cleanup_module);
 
 MODULE_AUTHOR("RedhaCC");
 MODULE_DESCRIPTION(KBUILD_MODNAME" scheduling policy");

@@ -21,7 +21,7 @@
 			panic("Error in " #x "\n");	\
 	} while (0)
 #define time_to_ticks(x) (ktime_to_ns(x) * HZ / 1000000000)
-#define ticks_to_time(x) ns_to_ktime(x * 1000000000 / HZ)
+#define ticks_to_time(x) (ns_to_ktime(x * 1000000000 / HZ))
 
 static char *name = KBUILD_MODNAME;
 static struct ipanema_policy *policy;
@@ -30,7 +30,6 @@ static const int max_quanta_ms = 100;
 static ktime_t max_quanta;
 
 struct cfs_ipa_sched_domain;
-struct cfs_ipa_sched_group;
 
 struct cfs_ipa_process {
 	struct task_struct *task; // Internal
@@ -62,9 +61,14 @@ struct cfs_ipa_core {
 DEFINE_PER_CPU(struct cfs_ipa_core, core);
 
 struct cfs_ipa_sched_group {
+	/* group attributes
+	 *  specified by the scheduling policy
+	 *  in the group = {...} declaration
+	 */
 	cpumask_t cores;
 	int capacity;
 };
+
 
 /*
  * Example of topology:
@@ -478,71 +482,10 @@ forward_next_balance:
 
 }
 
-static struct cfs_ipa_core *
-find_idlest_cpu_group(struct ipanema_policy *policy,
-		      struct cfs_ipa_sched_group *sg)
-{
-	int cpu;
-	unsigned int min_load = UINT_MAX;
-	struct cfs_ipa_core *c = NULL, *idlest = NULL;
-
-	if (unlikely(!sg))
-		return NULL;
-
-	for_each_cpu(cpu, &sg->cores) {
-		c = &ipanema_core(cpu);
-		/* if cpu is idle, choose it immediately */
-		if (cpumask_test_cpu(cpu, &cstate_info.idle_cores)) {
-			idlest = c;
-			goto end;
-		}
-		/* else, continue to search for idlest cpu */
-		if (c->cload < min_load) {
-			idlest = c;
-			min_load = c->cload;
-		}
-	}
-
-end:
-	return idlest;
-}
-
-static struct cfs_ipa_sched_group *
-find_idlest_group(struct ipanema_policy *policy,
-		  struct cfs_ipa_sched_domain *sd)
-{
-	struct cfs_ipa_sched_group *sg = sd->groups, *idlest = NULL;
-	int i, cpu, nr_cpus;
-	unsigned int min_avg_load = UINT_MAX;
-	unsigned int avg_load;
-
-	if (unlikely(!sd))
-		return NULL;
-
-	/* for each group, compute average load, and find min */
-	for (i = 0; i < sd->___sched_group_idx; sg++, i++) {
-		avg_load = 0;
-		nr_cpus = 0;
-		for_each_cpu(cpu, &sg->cores) {
-			avg_load += (&ipanema_core(cpu))->cload;
-			nr_cpus++;
-		}
-		avg_load = avg_load / nr_cpus;
-		if (avg_load < min_avg_load) {
-			min_avg_load = avg_load;
-			idlest = sg;
-		}
-	}
-
-	return idlest;
-}
-
 static int ipanema_cfs_new_prepare(struct ipanema_policy *policy,
 				    struct process_event *e)
 {
 	struct cfs_ipa_process *tgt;
-	struct cfs_ipa_sched_domain *sd;
-	struct cfs_ipa_sched_group *sg;
 	struct cfs_ipa_core *c, *idlest = NULL;
 	struct task_struct *task_15;
 
@@ -554,18 +497,9 @@ static int ipanema_cfs_new_prepare(struct ipanema_policy *policy,
 	policy_metadata(task_15) = tgt;
 	tgt->task = task_15;
 
-	/*
-	 * find idlest group in highest domain, then idlest core in this group
-	 */
+	/* get parent's cpu */
 	c = &ipanema_core(task_cpu(task_15));
-	sd = c->sd;
-	while (sd) {
-		if (!sd->parent)
-			break;
-		sd = sd->parent;
-	}
-	sg = find_idlest_group(policy, sd);
-	idlest = find_idlest_cpu_group(policy, sg);
+	idlest = c;
 
 	/* if thread cannot be on this cpu, choose any good cpu */
 	if (!cpumask_test_cpu(idlest->id, &task_15->cpus_allowed))
@@ -603,7 +537,7 @@ static void ipanema_cfs_detach(struct ipanema_policy *policy,
 	struct cfs_ipa_process *tgt = policy_metadata(e->target);
 	struct cfs_ipa_core *c = &ipanema_core(task_cpu(tgt->task));
 
-	ipa_change_queue(tgt, NULL, IPANEMA_TERMINATED, task_cpu(tgt->task));
+	ipa_change_queue(tgt, NULL, IPANEMA_TERMINATED, c->id);
 	/* Memory barrier for proofs */
 	smp_wmb();
 	c->cload -= tgt->load;
@@ -627,7 +561,8 @@ static void ipanema_cfs_tick(struct ipanema_policy *policy,
 		c->cload += (tgt->load - old_load);
 		/* Memory barrier for proofs */
 		smp_wmb();
-		ipa_change_queue(tgt, &ipanema_state(task_cpu(tgt->task)).ready,
+		ipa_change_queue(tgt,
+				 &ipanema_state(task_cpu(tgt->task)).ready,
 				 IPANEMA_READY_TICK, c->id);
 	}
 }
@@ -665,66 +600,17 @@ static void ipanema_cfs_block(struct ipanema_policy *policy,
 	smp_wmb();
 }
 
-static struct cfs_ipa_core *find_idle_cpu(struct ipanema_policy *policy,
-					  struct cfs_ipa_sched_domain *sd)
-{
-	int cpu;
-
-	for_each_cpu(cpu, &sd->cores) {
-		if (cpumask_test_cpu(cpu, &cstate_info.idle_cores))
-			return &ipanema_core(cpu);
-	}
-
-	return NULL;
-}
-
 static int ipanema_cfs_unblock_prepare(struct ipanema_policy *policy,
 				       struct process_event *e)
 {
 	struct task_struct *task_15 = e->target;
 	struct cfs_ipa_process *p = policy_metadata(task_15);
-	struct cfs_ipa_sched_domain *sd = NULL, *highest = NULL;
-	struct cfs_ipa_sched_group *sg = NULL;
-	struct cfs_ipa_core *c, *idlest = NULL;
-	int flags = 0;
+	struct cfs_ipa_core *idlest = NULL;
 
 	/* remove min_vruntime from previous cpu */
-	c = &ipanema_core(task_cpu(task_15));
-	p->vruntime -= c->min_vruntime;
+	idlest = &ipanema_core(task_cpu(task_15));
+	p->vruntime -= idlest->min_vruntime;
 
-	/* if c is idle, choose it */
-	if (cpumask_test_cpu(c->id, &cstate_info.idle_cores)) {
-		idlest = c;
-		goto end;
-	}
-
-	/* domains where fork placement is allowed */
-	flags |= DOMAIN_SMT | DOMAIN_CACHE;
-
-	/* Search for the closest idle core sharing cache */
-	sd = c->sd;
-	while (sd) {
-		if (sd->flags & flags) {
-			highest = sd;
-			idlest = find_idle_cpu(policy, sd);
-			if (idlest)
-				goto end;
-		}
-		sd = sd->parent;
-	}
-
-	/*
-	 * no core sharing cache is idle, use idlest core in highest domain
-	 * sharing cache
-	 */
-	sg = find_idlest_group(policy, highest);
-	idlest = find_idlest_cpu_group(policy, sg);
-
-	/* if no core found, wake up on previous core */
-	if (!idlest)
-		idlest = c;
-
-end:
 	/* if thread cannot be on this cpu, choose any good cpu */
 	if (!cpumask_test_cpu(idlest->id, &task_15->cpus_allowed))
 		idlest = &ipanema_core(cpumask_any(&task_15->cpus_allowed));
@@ -1195,7 +1081,7 @@ const static struct file_operations proc_topo_fops = {
 	.release = single_release,
 };
 
-int init_module(void)
+static int __init my_init_module(void)
 {
 	int res, cpu;
 	struct proc_dir_entry *procdir = NULL;
@@ -1234,7 +1120,7 @@ int init_module(void)
 		goto clean_policy;
 
 	/*
-	 * Create /proc/ipanema/cfs_wwc hierarchy.
+	 * Create /proc/cfs/<cpu> files and /proc/cfs/topology file
 	 * If file creation fails, module insertion does not
 	 */
 	procdir = proc_mkdir(name, ipa_procdir);
@@ -1259,7 +1145,7 @@ end:
 	return res;
 }
 
-void cleanup_module(void)
+static void __exit my_cleanup_module(void)
 {
 	int res;
 
@@ -1274,6 +1160,9 @@ void cleanup_module(void)
 	destroy_scheduling_domains();
 	kfree(policy);
 }
+
+module_init(my_init_module);
+module_exit(my_cleanup_module);
 
 MODULE_AUTHOR("RedhaCC");
 MODULE_DESCRIPTION(KBUILD_MODNAME" scheduling policy");

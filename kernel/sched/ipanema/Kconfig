@@ -1,0 +1,30 @@
+
+config IPANEMA_POLICY_CFS
+        def_tristate n
+	prompt "cfs"
+	---help---
+	CFS-like policy
+
+config IPANEMA_POLICY_CFS_WWC
+        def_tristate n
+	prompt "cfs_wwc"
+	---help---
+	CFS-like policy ensuring Weak Work-Conservation
+
+config IPANEMA_POLICY_CFS_WWC_LOCAL_NEW_UNBLOCK
+        def_tristate n
+	prompt "cfs_wwc_local_new_unblock"
+	---help---
+	CFS-like policy ensuring Weak Work-Conservation that places threads locally on new and unblock events
+
+config IPANEMA_POLICY_ULE
+        def_tristate n
+	prompt "ule"
+	---help---
+	ULE-like policy
+
+config IPANEMA_POLICY_ULE_WWC
+        def_tristate n
+	prompt "ule_wwc"
+	---help---
+	ULE-like policy ensuring Weak Work-Conservation
