@@ -71,6 +71,7 @@
 #include <asm/futex.h>
 
 #include "locking/rtmutex_common.h"
+#include "sched/monitor.h"
 
 /*
  * READ this before attempting to hack on futexes!
@@ -1533,6 +1534,10 @@ futex_wake(u32 __user *uaddr, unsigned int flags, int nr_wake, u32 bitset)
 	if (!hb_waiters_pending(hb))
 		goto out_put_key;
 
+	sched_monitor_trace(WAKER_FUTEX, task_cpu(current), current,
+			    (unsigned long)hb >> 32,
+			    (unsigned long)hb & 0x00000000ffffffff);
+
 	spin_lock(&hb->lock);
 
 	plist_for_each_entry_safe(this, next, &hb->chain, list) {
@@ -1547,12 +1552,17 @@ futex_wake(u32 __user *uaddr, unsigned int flags, int nr_wake, u32 bitset)
 				continue;
 
 			mark_wake_futex(&wake_q, this);
+			sched_monitor_trace(WAKE_FUTEX, task_cpu(this->task),
+					    this->task,
+					    (unsigned long)hb >> 32,
+					    (unsigned long)hb & 0x00000000ffffffff);
 			if (++ret >= nr_wake)
 				break;
 		}
 	}
 
 	spin_unlock(&hb->lock);
+
 	wake_up_q(&wake_q);
 out_put_key:
 	put_futex_key(&key);
@@ -2642,6 +2652,9 @@ retry:
 		goto out;
 
 	/* queue_me and wait for wakeup, timeout, or a signal. */
+	sched_monitor_trace(WAIT_FUTEX, task_cpu(current), current,
+			    (unsigned long)hb >> 32,
+			    (unsigned long)hb & 0x00000000ffffffff);
 	futex_wait_queue_me(hb, &q, to);
 
 	/* If we were woken (and unqueued), we succeeded, whatever. */

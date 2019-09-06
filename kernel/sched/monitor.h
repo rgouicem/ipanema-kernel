@@ -81,9 +81,6 @@ enum sched_tracer_events {
 	WAKEUP_NEW,  /* timestamp WAKEUP_NEW pid */
 	BLOCK,       /* timestamp BLOCK pid */
 	BLOCK_IO,    /* timestamp BLOCK_IO pid */
-	BLOCK_LOCK,  /* timestamp BLOCK_LOCK pid addr */
-	WAKEUP_LOCK, /* timestamp WAKEUP_LOCK pid addr */
-	WAKER_LOCK,  /* timestamp WAKER_LOCK pid addr */
 	FORK_EVT,    /* timestamp FORK pid ppid */
 	TICK_EVT,    /* timestamp TICK pid need_resched */
 	CTX_SWITCH,  /* timestamp CTX_SWITCH pid next */
@@ -97,6 +94,9 @@ enum sched_tracer_events {
 	IDL_BLN_IPA_END,  /* timestamp IDL_BLN_IPA_END pid sched_group_addr */
 	PER_BLN_IPA_BEG,  /* timestamp PER_BLN_IPA_BEG pid sched_domain_addr */
 	PER_BLN_IPA_END,  /* timestamp PER_BLN_IPA_END pid sched_group_addr */
+	WAIT_FUTEX,	  /* timestamp WAIT_FUTEX pid addr */
+	WAKE_FUTEX,	  /* timestamp WAKE_FUTEX pid addr */
+	WAKER_FUTEX,	  /* timestamp WAKER_FUTEX pid addr */
 	SCHED_MONITOR_TRACER_NR_EVENTS,	/* keep last */
 };
 DECLARE_PER_CPU(struct sched_tracer_log, sched_tracer_log);

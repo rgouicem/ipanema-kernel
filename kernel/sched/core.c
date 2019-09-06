@@ -425,31 +425,17 @@ void wake_q_add(struct wake_q_head *head, struct task_struct *task)
 	 */
 	*head->lastp = node;
 	head->lastp = &node->next;
-
-	/* we pass the 64 bits address in the two 32 bits parameters */
-	sched_monitor_trace(BLOCK_LOCK, task_cpu(task), task,
-			    (unsigned long)head >> 32,
-			    (unsigned long)head & 0x00000000ffffffff);
 }
 
 void wake_up_q(struct wake_q_head *head)
 {
 	struct wake_q_node *node = head->first;
 
-	sched_monitor_trace(WAKER_LOCK, task_cpu(current), current,
-			    (unsigned long)head >> 32,
-			    (unsigned long)head & 0x00000000ffffffff);
-
 	while (node != WAKE_Q_TAIL) {
 		struct task_struct *task;
 
 		task = container_of(node, struct task_struct, wake_q);
 		BUG_ON(!task);
-
-		/* we pass the 64 bits address in the two 32 bits parameters */
-		sched_monitor_trace(WAKEUP_LOCK, task_cpu(task), task,
-				    (unsigned long)head >> 32,
-				    (unsigned long)head & 0x00000000ffffffff);
 
 		/* Task can safely be re-inserted now: */
 		node = node->next;
