@@ -524,6 +524,52 @@ static const struct file_operations sched_monitor_tracer_fops_raw = {
 	.release = seq_release,
 };
 
+static void *monitor_proc_start(struct seq_file *s, loff_t *pos)
+{
+	if (*pos >= SCHED_MONITOR_TRACER_NR_EVENTS)
+		return NULL;
+	return pos;
+}
+
+static void *monitor_proc_next(struct seq_file *s, void *v, loff_t *pos)
+{
+	*pos = *pos + 1;
+	if (*pos >= SCHED_MONITOR_TRACER_NR_EVENTS)
+		return NULL;
+	return pos;
+}
+
+static void monitor_proc_stop(struct seq_file *s, void *v)
+{}
+
+static int monitor_proc_show(struct seq_file *s, void *v)
+{
+	loff_t *pos = v;
+
+	seq_printf(s, "%lld %s\n", *pos, sched_tracer_events_str[*pos]);
+
+	return 0;
+}
+
+static const struct seq_operations monitor_proc_seq_ops = {
+	.start = monitor_proc_start,
+	.next  = monitor_proc_next,
+	.stop  = monitor_proc_stop,
+	.show  = monitor_proc_show
+};
+
+static int monitor_proc_open(struct inode *inode, struct file *file)
+{
+	return seq_open(file, &monitor_proc_seq_ops);
+}
+
+static const struct file_operations sched_monitor_events_fops = {
+	.open = monitor_proc_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = seq_release
+};
+
 bool sched_monitor_tracer_event_enabled[SCHED_MONITOR_TRACER_NR_EVENTS];
 EXPORT_SYMBOL(sched_monitor_tracer_event_enabled);
 
@@ -574,6 +620,10 @@ static int sched_monitor_tracer_init(void)
 		debugfs_create_file(buf, 0444, raw_dir, NULL,
 				    &sched_monitor_tracer_fops_raw);
 	}
+
+	/* Create the /proc/sched_monitor_events file */
+	proc_create("sched_monitor_events", 0444, NULL,
+		    &sched_monitor_events_fops);
 
 	return 0;
 
