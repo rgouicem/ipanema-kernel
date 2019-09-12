@@ -372,9 +372,6 @@ static char *sched_tracer_events_str[] = {
 	"WAKEUP_NEW", /* timestamp WAKEUP_NEW pid */
 	"BLOCK",      /* timestamp BLOCK pid */
 	"BLOCK_IO",   /* timestamp BLOCK_IO pid */
-	"BLOCK_LOCK", /* timestamp BLOCK_LOCK pid addr */
-	"WAKEUP_LOCK",/* timestamp WAKEUP_LOCK pid addr */
-	"WAKER_LOCK", /* timestamp WAKER_LOCK pid addr */
 	"FORK",	      /* timestamp FORK pid ppid fork */
 	"TICK",       /* timestamp TICK pid need_resched */
 	"CTX_SWITCH", /* timestamp CTX_SWITCH pid next */
@@ -388,6 +385,9 @@ static char *sched_tracer_events_str[] = {
 	"IDL_BLN_IPA_END", /* timestamp IDL_BLN_END pid sched_group_addr */
 	"PER_BLN_IPA_BEG", /* timestamp PER_BLN_BEG pid sched_domain_addr */
 	"PER_BLN_IPA_END", /* timestamp PER_BLN_END pid sched_group_addr */
+	"WAIT_FUTEX",	  /* timestamp WAIT_FUTEX pid addr */
+	"WAKE_FUTEX",	  /* timestamp WAKE_FUTEX pid addr */
+	"WAKER_FUTEX",	  /* timestamp WAKER_FUTEX pid addr */
 };
 
 static int tracer_seq_show(struct seq_file *s, void *v)
@@ -396,7 +396,7 @@ static int tracer_seq_show(struct seq_file *s, void *v)
 
 	/* text output */
 	switch (evt->event) {
-		/* no args */
+	/* no args */
 	case EXEC_EVT:
 	case EXIT_EVT:
 	case WAKEUP:
@@ -407,10 +407,7 @@ static int tracer_seq_show(struct seq_file *s, void *v)
 			   evt->timestamp, sched_tracer_events_str[evt->event],
 			   evt->pid);
 		break;
-		/* one pointer arg */
-	case BLOCK_LOCK:
-	case WAKEUP_LOCK:
-	case WAKER_LOCK:
+	/* one pointer arg */
 	case IDL_BLN_FAIR_BEG:
 	case IDL_BLN_FAIR_END:
 	case PER_BLN_FAIR_BEG:
@@ -419,11 +416,14 @@ static int tracer_seq_show(struct seq_file *s, void *v)
 	case IDL_BLN_IPA_END:
 	case PER_BLN_IPA_BEG:
 	case PER_BLN_IPA_END:
+	case WAIT_FUTEX:
+	case WAKE_FUTEX:
+	case WAKER_FUTEX:
 		seq_printf(s, "%llu %s %d 0x%p\n",
 			   evt->timestamp, sched_tracer_events_str[evt->event],
 			   evt->pid, (void *)evt->addr);
 		break;
-		/* one int arg */
+	/* one int arg */
 	case FORK_EVT:
 	case TICK_EVT:
 	case CTX_SWITCH:
@@ -431,7 +431,7 @@ static int tracer_seq_show(struct seq_file *s, void *v)
 			   evt->timestamp, sched_tracer_events_str[evt->event],
 			   evt->pid, evt->arg0);
 		break;
-		/* two int args */
+	/* two int args */
 	case MIGRATE_EVT:
 	case RQ_SIZE:
 		seq_printf(s, "%llu %s %d %d %d\n",
