@@ -1552,7 +1552,7 @@ futex_wake(u32 __user *uaddr, unsigned int flags, int nr_wake, u32 bitset)
 				continue;
 
 			mark_wake_futex(&wake_q, this);
-			sched_monitor_trace(WAKE_FUTEX, task_cpu(this->task),
+			sched_monitor_trace(WAKE_FUTEX, task_cpu(current),
 					    this->task,
 					    (unsigned long)hb >> 32,
 					    (unsigned long)hb & 0x00000000ffffffff);
