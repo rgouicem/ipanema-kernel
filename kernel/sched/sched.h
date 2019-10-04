@@ -947,6 +947,9 @@ struct rq {
 	/* Must be inspected within a rcu lock section */
 	struct cpuidle_state	*idle_state;
 #endif
+
+	/* Frequency measured during the last tick */
+	int                     freq;
 };
 
 static inline int cpu_of(struct rq *rq)
