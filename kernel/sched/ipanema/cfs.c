@@ -14,6 +14,8 @@
 #include <linux/sort.h>
 #include <linux/threads.h>
 
+#include "../monitor.h"
+
 #define ipanema_assert(x)				\
 	do {						\
 		if (!(x))				\
