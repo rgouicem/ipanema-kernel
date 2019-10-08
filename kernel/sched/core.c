@@ -3227,7 +3227,6 @@ void scheduler_tick(void)
 	struct task_struct *curr = rq->curr;
 	struct rq_flags rf;
 	int need_resched = 0;
-	int freq = 0;
 
 	sched_monitor_start(&scheduler_tick);
 
@@ -3242,9 +3241,9 @@ void scheduler_tick(void)
 #ifdef CONFIG_SCHED_MONITOR_TRACER
 	need_resched = curr->thread_info.flags & _TIF_NEED_RESCHED;
 	need_resched = need_resched >> TIF_NEED_RESCHED;
-	freq = my_aperfmperf_get_khz(cpu);
+	rq->freq = my_aperfmperf_get_khz(cpu);
 #endif
-	sched_monitor_trace(TICK_EVT, cpu, curr, need_resched, freq);
+	sched_monitor_trace(TICK_EVT, cpu, curr, need_resched, rq->freq);
 
 	cpu_load_update_active(rq);
 	calc_global_load_tick(rq);

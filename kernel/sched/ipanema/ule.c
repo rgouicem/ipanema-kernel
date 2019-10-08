@@ -15,6 +15,8 @@
 #include <linux/sort.h>
 #include <linux/threads.h>
 
+#include "../monitor.h"
+
 #define ipanema_assert(x)				\
 	do {						\
 		if (!(x))				\
@@ -569,7 +571,9 @@ static void ipanema_ule_newly_idle(struct ipanema_policy *policy,
 		if (!(sd->flags & DOMAIN_CACHE))
 			continue;
 
+		sched_monitor_trace(IDL_BLN_IPA_BEG, c->id, current, 0, 0);
 		steal_for_dom(policy, c, sd);
+		sched_monitor_trace(IDL_BLN_IPA_END, c->id, current, 0, 0);
 		if (c->cload > 0)
 			break;
 	}
@@ -629,7 +633,11 @@ next:
 	}
 
 	if (idlest) {
+		sched_monitor_trace(PER_BLN_IPA_BEG, idlest->id, current,
+				    0, 0);
 		steal_for_dom(policy, idlest, NULL);
+		sched_monitor_trace(PER_BLN_IPA_END, idlest->id, current,
+				    0, 0);
 		goto next;
 	}
 

@@ -15,6 +15,8 @@
 #include <linux/sort.h>
 #include <linux/threads.h>
 
+#include "../monitor.h"
+
 #define ipanema_assert(x)				\
 	do {						\
 		if (!(x))				\
@@ -688,12 +690,14 @@ static void ipanema_cfs_newly_idle(struct ipanema_policy *policy,
 	if (!spin_trylock_irqsave(&lb_lock, flags))
 		return;
 
+	sched_monitor_trace(IDL_BLN_IPA_BEG, c->id, current, 0, 0);
 	while (sd) {
 		steal_for_dom(policy, c, sd);
 		if (ipanema_state(c->id).ready.nr_tasks)
 			break;
 		sd = sd->parent;
 	}
+	sched_monitor_trace(IDL_BLN_IPA_END, c->id, current, 0, 0);
 
 	/* Generated if synchronized keyword is used */
 	spin_unlock_irqrestore(&lb_lock, flags);
@@ -735,7 +739,11 @@ static void ipanema_cfs_balancing(struct ipanema_policy *policy,
 			for (i = 0; i < sd->___sched_group_idx; i++) {
 				sg = sd->groups + i;
 				thief = &ipanema_core(cpumask_first(&sg->cores));
+				sched_monitor_trace(PER_BLN_IPA_BEG, thief->id,
+						    current, 0, 0);
 				steal_for_dom(policy, thief, sd);
+				sched_monitor_trace(PER_BLN_IPA_END, thief->id,
+						    current, 0, 0);
 			}
 		}
 
