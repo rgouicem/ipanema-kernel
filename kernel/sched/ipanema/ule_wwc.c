@@ -660,7 +660,9 @@ static void ipanema_ule_wwc_balancing(struct ipanema_policy *policy,
 
 	for_each_possible_cpu(cpu) {
 		c = &ipanema_core(cpu);
+		sched_monitor_trace(PER_BLN_IPA_BEG, c->id, current, 0, 0);
 		steal_for_dom(policy, c, NULL);
+		sched_monitor_trace(PER_BLN_IPA_END, c->id, current, 0, 0);
 	}
 
 	/* Generated if synchronized keyword is used */
