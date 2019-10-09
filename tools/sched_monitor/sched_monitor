@@ -8,6 +8,7 @@ function usage {
     echo "stop <subsystems>           stop profiling for the given subsystems"
     echo "reset <subsystems>          reset logs for the given subsystems"
     echo "dump <path> <subsystems>    dump results at path for the given subsystems"
+    echo "dump-raw <path> <subsystems>    dump results at path for the given subsystems"
     echo "status <subsystems>         get the status of the given subsystems"
     echo ""
     echo "SUBSYSTEMS:"
@@ -25,7 +26,7 @@ P=${DEBUGFS}/sched_monitor
 
 function check_subsys {
     for v in "$@" ;  do
-	if [ ! -e $P/$1 ] ; then
+	if [ ! -e $P/$v ] ; then
 	    echo "[ERROR] '$1' subsystem is not supported on this system. Exiting"
 	    exit 2
 	fi
@@ -58,10 +59,19 @@ function dump {
     n=$(nproc)
     mkdir -p $1/$2
     for ((i=0; i<n; i++)) ; do
-	if [ "$2" == "tracer-raw" ] ; then
-	    cp -r $P/tracer/raw/$i $1/$2
+	cp -r $P/$2/logs/$i $1/$2/
+    done
+}
+
+function dump-raw {
+    n=$(nproc)
+    mkdir -p $1/$2
+    for ((i=0; i<n; i++)) ; do
+	if [ -e $P/$2/raw/$i ]
+	then
+	    cp -r $P/$2/raw/$i $1/$2
 	else
-	    cp -r $P/$2/logs/$i $1/$2/
+	    cp -r $P/$2/logs/$i $1/$2
 	fi
     done
 }
@@ -115,6 +125,17 @@ case $1 in
 	mkdir -p $path
 	for s in "$@" ; do
 	    dump $path $s
+	done
+	;;
+    "dump-raw")
+	shift
+	check_path $1
+	path=$1
+	shift
+	check_subsys "$@"
+	mkdir -p $path
+	for s in "$@" ; do
+	    dump-raw $path $s
 	done
 	;;
     "status")
