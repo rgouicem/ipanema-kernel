@@ -667,6 +667,22 @@ static void ipanema_cfs_block(struct ipanema_policy *policy,
 	smp_wmb();
 }
 
+DEFINE_PER_CPU(uint32_t, randomval);
+/**
+ *  As defined in BSD
+ */
+static uint32_t sched_random(void)
+{
+	uint32_t *rnd = &get_cpu_var(randomval);
+	uint32_t res;
+
+	*rnd = *rnd * 69069 + 5;
+	res = *rnd >> 16;
+	put_cpu_var(randomval);
+
+	return *rnd >> 16;
+}
+
 static struct cfs_ipa_core *find_idle_cpu(struct ipanema_policy *policy,
 					  struct cfs_ipa_sched_domain *sd)
 {
