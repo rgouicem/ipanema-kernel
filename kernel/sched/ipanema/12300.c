@@ -683,17 +683,23 @@ static uint32_t sched_random(void)
 	return *rnd >> 16;
 }
 
-static struct cfs_ipa_core *find_idle_cpu(struct ipanema_policy *policy,
+static struct cfs_ipa_core *find_random_idle_cpu(struct ipanema_policy *policy,
 					  struct cfs_ipa_sched_domain *sd)
 {
 	int cpu;
+	struct cfs_ipa_core *c = NULL;
+	uint32_t n = 0;
 
 	for_each_cpu(cpu, &sd->cores) {
-		if (cpumask_test_cpu(cpu, &cstate_info.idle_cores))
-			return &ipanema_core(cpu);
+		if (cpumask_test_cpu(cpu, &cstate_info.idle_cores)) {
+			if ( (n == 0) || (sched_random()%n == 0) ) {
+				c = &ipanema_core(cpu);
+			}
+			n++;
+		}
 	}
 
-	return NULL;
+	return c;
 }
 
 static int ipanema_cfs_unblock_prepare(struct ipanema_policy *policy,
@@ -724,7 +730,7 @@ static int ipanema_cfs_unblock_prepare(struct ipanema_policy *policy,
 	while (sd) {
 		if (sd->flags & flags) {
 			highest = sd;
-			idlest = find_idle_cpu(policy, sd);
+			idlest = find_random_idle_cpu(policy, sd);
 			if (idlest)
 				goto end;
 		}
