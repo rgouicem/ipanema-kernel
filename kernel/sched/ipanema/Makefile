@@ -5,3 +5,4 @@ obj-$(CONFIG_IPANEMA_POLICY_CFS_WWC_LOCAL_NEW_UNBLOCK) += cfs_wwc_local_new_unbl
 obj-$(CONFIG_IPANEMA_POLICY_ULE) += ule.o
 obj-$(CONFIG_IPANEMA_POLICY_ULE_WWC) += ule_wwc.o
 obj-m += 12300.o
+obj-m += 10261.o
