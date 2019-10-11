@@ -690,6 +690,8 @@ static int ipanema_cfs_unblock_prepare(struct ipanema_policy *policy,
 	struct cfs_ipa_core *c, *idlest = NULL;
 	int flags = 0;
 
+	sched_monitor_trace(UNBLOCK_PREPARE_IPA_BEG, task_cpu(current), current, 0, 0);
+
 	/* remove min_vruntime from previous cpu */
 	c = &ipanema_core(task_cpu(task_15));
 	p->vruntime -= c->min_vruntime;
