@@ -722,7 +722,7 @@ static int ipanema_cfs_unblock_prepare(struct ipanema_policy *policy,
 	/* if c is idle, choose it */
 	if (cpumask_test_cpu(c->id, &cstate_info.idle_cores)) {
 		idlest = c;
-		remove = 1;
+		reason = 1;
 		goto end;
 	}
 
