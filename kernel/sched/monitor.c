@@ -390,6 +390,7 @@ static char *sched_tracer_events_str[] = {
 	"WAKER_FUTEX",	  /* timestamp WAKER_FUTEX pid addr */
 	"UNBLOCK_PREPARE_IPA_BEG", /* timestamp UNBLOCK_PREPARE_IPA_BEG pid */
 	"UNBLOCK_PREPARE_IPA_END", /* timestamp UNBLOCK_PREPARE_IPA_END pid */
+	"USER_EVT", /* timestamp USER_EVT pid */
 };
 
 static int tracer_seq_show(struct seq_file *s, void *v)
@@ -572,6 +573,28 @@ static const struct file_operations sched_monitor_events_fops = {
 	.release = seq_release
 };
 
+ssize_t sched_monitor_user_event_write(struct file *file,
+				  const char __user *user_buf,
+				  size_t count, loff_t *ppos)
+{
+	u64 val;
+	size_t size = min(sizeof(val), count);
+	if(copy_from_user(&val,user_buf,size))
+		goto out;
+	// pr_info("%llu\n", val);
+	sched_monitor_trace(USER_EVT, task_cpu(current), current,
+			    val>>32,
+			    val & 0x00000000ffffffff);
+out:
+	return count;
+}
+
+static const struct file_operations sched_monitor_user_event_fops = {
+	.open   = simple_open,
+	.llseek = default_llseek,
+	.write  = sched_monitor_user_event_write,
+};
+
 bool sched_monitor_tracer_event_enabled[SCHED_MONITOR_TRACER_NR_EVENTS];
 EXPORT_SYMBOL(sched_monitor_tracer_event_enabled);
 
@@ -626,6 +649,10 @@ static int sched_monitor_tracer_init(void)
 	/* Create the /proc/sched_monitor_events file */
 	proc_create("sched_monitor_events", 0444, NULL,
 		    &sched_monitor_events_fops);
+
+
+	debugfs_create_file("user_event", 0666, tracer_dir, NULL,
+			    &sched_monitor_user_event_fops);
 
 	return 0;
 
