@@ -723,7 +723,10 @@ static int ipanema_cfs_unblock_prepare(struct ipanema_policy *policy,
 	}
 
 	/* domains where fork placement is allowed */
-	flags |= DOMAIN_SMT | DOMAIN_CACHE;
+	/* flags |= DOMAIN_SMT | DOMAIN_CACHE; */
+
+	/* allow any domain */
+	flags |= DOMAIN_SMT | DOMAIN_CACHE | DOMAIN_NUMA;
 
 	/* Search for the closest idle core sharing cache */
 	sd = c->sd;
