@@ -722,6 +722,7 @@ static int ipanema_cfs_unblock_prepare(struct ipanema_policy *policy,
 	struct cfs_ipa_sched_group *sg = NULL;
 	struct cfs_ipa_core *c, *idlest = NULL;
 	int flags = 0;
+	int reason = 0;
 
 	sched_monitor_trace(UNBLOCK_PREPARE_IPA_BEG, task_cpu(current), current, 0, 0);
 
@@ -731,6 +732,7 @@ static int ipanema_cfs_unblock_prepare(struct ipanema_policy *policy,
 
 	/* if c is idle, choose it */
 	if (cpumask_test_cpu(c->id, &cstate_info.idle_cores)) {
+		reason = 1;
 		idlest = c;
 		goto end;
 	}
@@ -744,8 +746,10 @@ static int ipanema_cfs_unblock_prepare(struct ipanema_policy *policy,
 		if (sd->flags & flags) {
 			highest = sd;
 			idlest = find_random_idle_cpu(policy, sd);
-			if (idlest)
+			if (idlest) {
+				reason = 2;
 				goto end;
+			}
 		}
 		sd = sd->parent;
 	}
@@ -760,16 +764,20 @@ static int ipanema_cfs_unblock_prepare(struct ipanema_policy *policy,
 	/* if no core found, wake up on previous core */
 	if (!idlest)
 		idlest = c;
+	else
+		reason = 3;
 
 end:
 	/* if thread cannot be on this cpu, choose any good cpu */
-	if (!cpumask_test_cpu(idlest->id, &task_15->cpus_allowed))
+	if (!cpumask_test_cpu(idlest->id, &task_15->cpus_allowed)) {
+		reason = 4;
 		idlest = &ipanema_core(cpumask_any(&task_15->cpus_allowed));
+	}
 
 	/* add min_vruntime from new cpu */
 	p->vruntime += idlest->min_vruntime;
 
-	sched_monitor_trace(UNBLOCK_PREPARE_IPA_END, task_cpu(current), current, 0, 0);
+	sched_monitor_trace(UNBLOCK_PREPARE_IPA_END, task_cpu(current), current, reason, idlest->id);
 
 	return idlest->id;
 }
