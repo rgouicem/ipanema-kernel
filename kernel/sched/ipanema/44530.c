@@ -693,9 +693,20 @@ static struct cfs_ipa_core *find_random_idle_cpu(struct ipanema_policy *policy,
 	for_each_cpu(cpu, &sd->cores) {
 		if (cpumask_test_cpu(cpu, &cstate_info.idle_cores)) {
 			n++;
-			if ( (n <= 1) || (sched_random()%n == 0) ) {
-				c = &ipanema_core(cpu);
-			}
+			c = &ipanema_core(cpu);
+		}
+	}
+
+	/* No need to choose */
+	if (n<=1)
+		return c;
+
+	n = sched_random() % n;
+	for_each_cpu(cpu, &sd->cores) {
+		if (cpumask_test_cpu(cpu, &cstate_info.idle_cores)) {
+			c = &ipanema_core(cpu);
+			if(n--<=0)
+				break;
 		}
 	}
 
