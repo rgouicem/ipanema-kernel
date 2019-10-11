@@ -388,6 +388,7 @@ static char *sched_tracer_events_str[] = {
 	"WAIT_FUTEX",	  /* timestamp WAIT_FUTEX pid addr */
 	"WAKE_FUTEX",	  /* timestamp WAKE_FUTEX pid addr */
 	"WAKER_FUTEX",	  /* timestamp WAKER_FUTEX pid addr */
+	"UNBLOCK_PREPARE_IPA_BEG", /* timestamp UNBLOCK_PREPARE_IPA_BEG pid */
 };
 
 static int tracer_seq_show(struct seq_file *s, void *v)

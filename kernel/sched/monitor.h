@@ -97,6 +97,7 @@ enum sched_tracer_events {
 	WAIT_FUTEX,	  /* timestamp WAIT_FUTEX pid addr */
 	WAKE_FUTEX,	  /* timestamp WAKE_FUTEX pid addr */
 	WAKER_FUTEX,	  /* timestamp WAKER_FUTEX pid addr */
+	UNBLOCK_PREPARE_IPA_BEG, /* timestamp UNBLOCK_PREPARE_IPA_BEG pid */
 	SCHED_MONITOR_TRACER_NR_EVENTS,	/* keep last */
 };
 DECLARE_PER_CPU(struct sched_tracer_log, sched_tracer_log);
