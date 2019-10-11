@@ -761,6 +761,8 @@ end:
 	/* add min_vruntime from new cpu */
 	p->vruntime += idlest->min_vruntime;
 
+	sched_monitor_trace(UNBLOCK_PREPARE_IPA_END, task_cpu(current), current, 0, 0);
+
 	return idlest->id;
 }
 
