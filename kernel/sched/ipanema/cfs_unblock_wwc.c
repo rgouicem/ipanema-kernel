@@ -60,12 +60,13 @@ struct cfs_ipa_core {
 	int cload;
 	ktime_t min_vruntime;
 	struct cfs_ipa_sched_domain *sd;
+	atomic_long_t nr_placing;
 };
 DEFINE_PER_CPU(struct cfs_ipa_core, core);
 
-static inline int  get_nr_placing(int cpu) { return 0; }
-static inline void add_nr_placing(int cpu, int add) { return; }
-static inline void sub_nr_placing(int cpu, int sub) { return; }
+static inline int  get_nr_placing(int cpu) { return atomic_long_read(&ipanema_core(cpu).nr_placing); }
+static inline void add_nr_placing(int cpu, int add) { atomic_long_add(add, &ipanema_core(cpu).nr_placing); }
+static inline void sub_nr_placing(int cpu, int sub) { atomic_long_sub(sub, &ipanema_core(cpu).nr_placing); }
 
 struct cfs_ipa_sched_group {
 	cpumask_t cores;
