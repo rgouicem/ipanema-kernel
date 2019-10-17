@@ -7,3 +7,4 @@ obj-$(CONFIG_IPANEMA_POLICY_ULE_WWC) += ule_wwc.o
 obj-m += 12300.o
 obj-m += 10261.o
 obj-m += 44530.o
+obj-m += cfs_unblock_wwc.o
