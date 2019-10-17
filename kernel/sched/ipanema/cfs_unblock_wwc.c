@@ -63,6 +63,10 @@ struct cfs_ipa_core {
 };
 DEFINE_PER_CPU(struct cfs_ipa_core, core);
 
+static inline int  get_nr_placing(int cpu) { return 0; }
+static inline void add_nr_placing(int cpu, int add) { return; }
+static inline void sub_nr_placing(int cpu, int sub) { return; }
+
 struct cfs_ipa_sched_group {
 	cpumask_t cores;
 	int capacity;
@@ -673,7 +677,7 @@ static struct cfs_ipa_core *find_idle_cpu(struct ipanema_policy *policy,
 	int cpu;
 
 	for_each_cpu(cpu, &sd->cores) {
-		if (cpumask_test_cpu(cpu, &cstate_info.idle_cores))
+		if (cpumask_test_cpu(cpu, &cstate_info.idle_cores) && get_nr_placing(cpu)==0)
 			return &ipanema_core(cpu);
 	}
 
@@ -746,6 +750,8 @@ end:
 
 	sched_monitor_trace(UNBLOCK_PREPARE_IPA_END, task_cpu(current), current, reason, idlest->id);
 
+	add_nr_placing(idlest->id, 1);
+
 	return idlest->id;
 }
 
@@ -761,6 +767,7 @@ static void ipanema_cfs_unblock_place(struct ipanema_policy *policy,
 	smp_wmb();
 	ipa_change_queue(tgt, &ipanema_state(idlecore_11).ready,
 			 IPANEMA_READY, c->id);
+	sub_nr_placing(idlecore_11, 1);
 }
 
 static void ipanema_cfs_unblock_end(struct ipanema_policy *policy,
