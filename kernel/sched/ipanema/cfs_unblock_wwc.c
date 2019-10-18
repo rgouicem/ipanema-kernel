@@ -265,6 +265,7 @@ static int migrate_from_to(struct cfs_ipa_core *busiest,
 			t->vruntime -= busiest->min_vruntime;
 			ipa_change_queue(t, NULL, IPANEMA_MIGRATING,
 					 self_38->id);
+			inc_nr_placing(self_38->id);
 			dbg_cpt = dbg_cpt + 1;
 			busiest->cload = busiest->cload - t->load;
 			self_cload = self_cload + t->load;
@@ -291,6 +292,7 @@ static int migrate_from_to(struct cfs_ipa_core *busiest,
 		t->vruntime += self_38->min_vruntime;
 		ipa_change_queue(t, &ipanema_state(self_38->id).ready,
 				 IPANEMA_READY, self_38->id);
+		dec_nr_placing(self_38->id);
 		self_38->cload = self_38->cload + t->load;
 		list_del_init(&imd->ipa_tasks);
 		dbg_cpt--;
