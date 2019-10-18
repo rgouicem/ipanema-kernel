@@ -60,14 +60,24 @@ struct cfs_ipa_core {
 	int cload;
 	ktime_t min_vruntime;
 	struct cfs_ipa_sched_domain *sd;
-	atomic_long_t nr_placing;
+	atomic_t nr_placing; // Number of task that will be placed on core.
 };
 DEFINE_PER_CPU(struct cfs_ipa_core, core);
 
-static inline int  get_nr_placing(int cpu) { return atomic_long_read(&ipanema_core(cpu).nr_placing); }
-static inline void add_nr_placing(int cpu, int add) { atomic_long_add(add, &ipanema_core(cpu).nr_placing); }
-static inline void sub_nr_placing(int cpu, int sub) { atomic_long_sub(sub, &ipanema_core(cpu).nr_placing); }
-static inline bool cpu_is_idle(int cpu) { return cpumask_test_cpu(cpu, &cstate_info.idle_cores) && (get_nr_placing(cpu) == 0); }
+static inline void inc_nr_placing(int cpu) {
+	atomic_inc(&ipanema_core(cpu).nr_placing);
+}
+static inline void dec_nr_placing(int cpu) {
+	atomic_dec(&ipanema_core(cpu).nr_placing);
+}
+static inline bool test_idle_inc_nr_placing(int cpu) {
+	if (cpumask_test_cpu(cpu, &cstate_info.idle_cores)) {
+		if (atomic_inc_return(&ipanema_core(cpu).nr_placing)==1)
+			return true;
+		dec_nr_placing(cpu);
+	}
+	return false;
+}
 
 struct cfs_ipa_sched_group {
 	cpumask_t cores;
@@ -487,7 +497,7 @@ forward_next_balance:
 }
 
 static struct cfs_ipa_core *
-find_idlest_cpu_group(struct ipanema_policy *policy,
+find_get_idlest_cpu_group(struct ipanema_policy *policy,
 		      struct cfs_ipa_sched_group *sg)
 {
 	int cpu;
@@ -500,7 +510,7 @@ find_idlest_cpu_group(struct ipanema_policy *policy,
 	for_each_cpu(cpu, &sg->cores) {
 		c = &ipanema_core(cpu);
 		/* if cpu is idle, choose it immediately */
-		if (cpu_is_idle(cpu)) {
+		if (test_idle_inc_nr_placing(cpu)) {
 			idlest = c;
 			goto end;
 		}
@@ -510,8 +520,10 @@ find_idlest_cpu_group(struct ipanema_policy *policy,
 			min_load = c->cload;
 		}
 	}
-
+	if (idlest)
+		inc_nr_placing(idlest->id);
 end:
+	// assert: inc_nr_placing or test_idle_inc_nr_placing was called on idlest->id
 	return idlest;
 }
 
@@ -573,15 +585,19 @@ static int ipanema_cfs_new_prepare(struct ipanema_policy *policy,
 		sd = sd->parent;
 	}
 	sg = find_idlest_group(policy, sd);
-	idlest = find_idlest_cpu_group(policy, sg);
+	idlest = find_get_idlest_cpu_group(policy, sg);
 
 	/* if thread cannot be on this cpu, choose any good cpu */
-	if (!cpumask_test_cpu(idlest->id, &task_15->cpus_allowed))
+	if (!cpumask_test_cpu(idlest->id, &task_15->cpus_allowed)) {
+		dec_nr_placing(idlest->id);
 		idlest = &ipanema_core(cpumask_any(&task_15->cpus_allowed));
+		inc_nr_placing(idlest->id);
+	}
 
 	tgt->vruntime = idlest->min_vruntime;
 	tgt->load = 1024;
 
+	// assert: inc_nr_placing or test_idle_inc_nr_placing was called on idlest->id;
 	return idlest->id;
 }
 
@@ -597,6 +613,7 @@ static void ipanema_cfs_new_place(struct ipanema_policy *policy,
 	smp_wmb();
 	ipa_change_queue(tgt, &ipanema_state(task_cpu(tgt->task)).ready,
 			 IPANEMA_READY, c->id);
+	dec_nr_placing(idlecore_10);
 }
 
 static void ipanema_cfs_new_end(struct ipanema_policy *policy,
@@ -679,7 +696,7 @@ static struct cfs_ipa_core *find_idle_cpu(struct ipanema_policy *policy,
 	int cpu;
 
 	for_each_cpu(cpu, &sd->cores) {
-		if (cpu_is_idle(cpu))
+		if (test_idle_inc_nr_placing(cpu))
 			return &ipanema_core(cpu);
 	}
 
@@ -704,7 +721,7 @@ static int ipanema_cfs_unblock_prepare(struct ipanema_policy *policy,
 	p->vruntime -= c->min_vruntime;
 
 	/* if c is idle, choose it */
-	if (cpu_is_idle(c->id)) {
+	if (test_idle_inc_nr_placing(c->id)) {
 		idlest = c;
 		reason = 1;
 		goto end;
@@ -732,19 +749,23 @@ static int ipanema_cfs_unblock_prepare(struct ipanema_policy *policy,
 	 * sharing cache
 	 */
 	sg = find_idlest_group(policy, highest);
-	idlest = find_idlest_cpu_group(policy, sg);
+	idlest = find_get_idlest_cpu_group(policy, sg);
 
 	/* if no core found, wake up on previous core */
-	if (!idlest)
+	if (!idlest) {
 		idlest = c;
-	else
+		inc_nr_placing(idlest->id);
+	} else {
 		reason = 3;
+	}
 
 end:
 	/* if thread cannot be on this cpu, choose any good cpu */
 	if (!cpumask_test_cpu(idlest->id, &task_15->cpus_allowed)) {
 		reason = 4;
+		dec_nr_placing(idlest->id);
 		idlest = &ipanema_core(cpumask_any(&task_15->cpus_allowed));
+		inc_nr_placing(idlest->id);
 	}
 
 	/* add min_vruntime from new cpu */
@@ -752,8 +773,7 @@ end:
 
 	sched_monitor_trace(UNBLOCK_PREPARE_IPA_END, task_cpu(current), current, reason, idlest->id);
 
-	add_nr_placing(idlest->id, 1);
-
+	// assert: inc_nr_placing or test_idle_inc_nr_placing was called on idlest->id
 	return idlest->id;
 }
 
@@ -769,7 +789,7 @@ static void ipanema_cfs_unblock_place(struct ipanema_policy *policy,
 	smp_wmb();
 	ipa_change_queue(tgt, &ipanema_state(idlecore_11).ready,
 			 IPANEMA_READY, c->id);
-	sub_nr_placing(idlecore_11, 1);
+	dec_nr_placing(idlecore_11);
 }
 
 static void ipanema_cfs_unblock_end(struct ipanema_policy *policy,
