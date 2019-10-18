@@ -67,6 +67,7 @@ DEFINE_PER_CPU(struct cfs_ipa_core, core);
 static inline int  get_nr_placing(int cpu) { return atomic_long_read(&ipanema_core(cpu).nr_placing); }
 static inline void add_nr_placing(int cpu, int add) { atomic_long_add(add, &ipanema_core(cpu).nr_placing); }
 static inline void sub_nr_placing(int cpu, int sub) { atomic_long_sub(sub, &ipanema_core(cpu).nr_placing); }
+static inline bool cpu_is_idle(int cpu) { return cpumask_test_cpu(cpu, &cstate_info.idle_cores); }
 
 struct cfs_ipa_sched_group {
 	cpumask_t cores;
@@ -499,7 +500,7 @@ find_idlest_cpu_group(struct ipanema_policy *policy,
 	for_each_cpu(cpu, &sg->cores) {
 		c = &ipanema_core(cpu);
 		/* if cpu is idle, choose it immediately */
-		if (cpumask_test_cpu(cpu, &cstate_info.idle_cores)) {
+		if (cpu_is_idle(cpu)) {
 			idlest = c;
 			goto end;
 		}
@@ -678,7 +679,7 @@ static struct cfs_ipa_core *find_idle_cpu(struct ipanema_policy *policy,
 	int cpu;
 
 	for_each_cpu(cpu, &sd->cores) {
-		if (cpumask_test_cpu(cpu, &cstate_info.idle_cores) && get_nr_placing(cpu)==0)
+		if (cpu_is_idle(cpu))
 			return &ipanema_core(cpu);
 	}
 
@@ -703,7 +704,7 @@ static int ipanema_cfs_unblock_prepare(struct ipanema_policy *policy,
 	p->vruntime -= c->min_vruntime;
 
 	/* if c is idle, choose it */
-	if (cpumask_test_cpu(c->id, &cstate_info.idle_cores)) {
+	if (cpu_is_idle(c->id)) {
 		idlest = c;
 		reason = 1;
 		goto end;
