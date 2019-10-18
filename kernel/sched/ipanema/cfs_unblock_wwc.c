@@ -67,7 +67,7 @@ DEFINE_PER_CPU(struct cfs_ipa_core, core);
 static inline int  get_nr_placing(int cpu) { return atomic_long_read(&ipanema_core(cpu).nr_placing); }
 static inline void add_nr_placing(int cpu, int add) { atomic_long_add(add, &ipanema_core(cpu).nr_placing); }
 static inline void sub_nr_placing(int cpu, int sub) { atomic_long_sub(sub, &ipanema_core(cpu).nr_placing); }
-static inline bool cpu_is_idle(int cpu) { return cpumask_test_cpu(cpu, &cstate_info.idle_cores); }
+static inline bool cpu_is_idle(int cpu) { return cpumask_test_cpu(cpu, &cstate_info.idle_cores) && (get_nr_placing(cpu) == 0); }
 
 struct cfs_ipa_sched_group {
 	cpumask_t cores;
