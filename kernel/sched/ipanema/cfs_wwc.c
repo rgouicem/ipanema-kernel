@@ -691,7 +691,7 @@ static int ipanema_cfs_unblock_prepare(struct ipanema_policy *policy,
 	int flags = 0;
 	int reason = 0;
 
-	sched_monitor_trace(UNBLOCK_PREPARE_IPA_BEG, task_cpu(current), current, 0, 0);
+	sched_monitor_trace(UNBLOCK_PREPARE_IPA_BEG, task_cpu(current), task_15, 0, 0);
 
 	/* remove min_vruntime from previous cpu */
 	c = &ipanema_core(task_cpu(task_15));
@@ -744,7 +744,7 @@ end:
 	/* add min_vruntime from new cpu */
 	p->vruntime += idlest->min_vruntime;
 
-	sched_monitor_trace(UNBLOCK_PREPARE_IPA_END, task_cpu(current), current, reason, idlest->id);
+	sched_monitor_trace(UNBLOCK_PREPARE_IPA_END, task_cpu(current), task_15, reason, idlest->id);
 
 	return idlest->id;
 }
