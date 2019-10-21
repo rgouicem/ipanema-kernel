@@ -8,3 +8,4 @@ obj-m += 12300.o
 obj-m += 10261.o
 obj-m += 44530.o
 obj-m += cfs_unblock_wwc.o
+obj-m += cfs_ticklike_wwc.o
