@@ -30,6 +30,10 @@ static struct ipanema_policy *policy;
 
 static const int max_quanta_ms = 100;
 static ktime_t max_quanta;
+                                                              /* Config i80 */
+#define sched_period                                24000000  /* 24 ms : /proc/sys/kernel/sched_latency_ns */
+#define sched_min_slice                              3000000  /*  3 ms : /proc/sys/kernel/sched_min_granularity_ns */
+#define sched_nr_period_max (sched_period / sched_min_slice)  /* 24 / 3 = 8 */
 
 struct cfs_ipa_sched_domain;
 struct cfs_ipa_sched_group;
@@ -618,9 +622,21 @@ static inline bool should_preempt(struct ipanema_policy *policy,
 				  struct process_event *e)
 {
 	struct cfs_ipa_process *tgt = policy_metadata(e->target);
+	struct cfs_ipa_core      *c = &ipanema_core(task_cpu(tgt->task));
+	struct ipanema_rq *rq = &ipanema_state(c->id).ready;
+	ktime_t slice = max_quanta;
 	ktime_t now = ktime_get();
 	ktime_t curr_runtime = ktime_sub(now, tgt->last_sched);
-	return ktime_after(curr_runtime, max_quanta);
+
+	if (rq->nr_tasks <=1)
+		return true;
+
+	if (rq->nr_tasks > sched_nr_period_max)
+		slice = sched_min_slice;
+	else
+		slice = sched_period / rq->nr_tasks;
+
+	return ktime_after(curr_runtime, slice);
 }
 
 static void ipanema_cfs_tick(struct ipanema_policy *policy,
