@@ -614,16 +614,23 @@ static void ipanema_cfs_detach(struct ipanema_policy *policy,
 	kfree(tgt);
 }
 
+static inline bool should_preempt(struct ipanema_policy *policy,
+				  struct process_event *e)
+{
+	struct cfs_ipa_process *tgt = policy_metadata(e->target);
+	ktime_t now = ktime_get();
+	ktime_t curr_runtime = ktime_sub(now, tgt->last_sched);
+	return ktime_after(curr_runtime, max_quanta);
+}
+
 static void ipanema_cfs_tick(struct ipanema_policy *policy,
 			     struct process_event *e)
 {
 	struct cfs_ipa_process *tgt = policy_metadata(e->target);
 	struct cfs_ipa_core *c = &ipanema_core(task_cpu(e->target));
-	ktime_t now = ktime_get();
-	ktime_t curr_runtime = ktime_sub(now, tgt->last_sched);
 	int old_load = tgt->load;
 
-	if (ktime_after(curr_runtime, max_quanta)) {
+	if (should_preempt(policy, e)) {
 		update_thread(tgt);
 		update_load(tgt);
 		c->cload += (tgt->load - old_load);
