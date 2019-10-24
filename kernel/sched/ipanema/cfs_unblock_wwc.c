@@ -71,7 +71,7 @@ static inline void dec_nr_placing(int cpu) {
 	atomic_dec(&ipanema_core(cpu).nr_placing);
 }
 static inline bool test_idle_inc_nr_placing(int cpu) {
-	if (cpumask_test_cpu(cpu, &cstate_info.idle_cores)) {
+	if (ipanema_core(cpu).cload == 0) {
 		if (atomic_inc_return(&ipanema_core(cpu).nr_placing)==1)
 			return true;
 		dec_nr_placing(cpu);
