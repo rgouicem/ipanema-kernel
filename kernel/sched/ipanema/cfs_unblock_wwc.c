@@ -713,7 +713,8 @@ static int ipanema_cfs_unblock_prepare(struct ipanema_policy *policy,
 	struct cfs_ipa_sched_domain *sd = NULL, *highest = NULL;
 	struct cfs_ipa_sched_group *sg = NULL;
 	struct cfs_ipa_core *c, *idlest = NULL;
-	int flags = 0;
+	int idle_flags = 0;
+	int highest_flags = 0;
 	int reason = 0;
 
 	sched_monitor_trace(UNBLOCK_PREPARE_IPA_BEG, task_cpu(current), task_15, 0, 0);
@@ -729,14 +730,15 @@ static int ipanema_cfs_unblock_prepare(struct ipanema_policy *policy,
 		goto end;
 	}
 
-	/* Allow all domains */
-	flags |= DOMAIN_SMT | DOMAIN_CACHE | DOMAIN_NUMA;
+	idle_flags    |= DOMAIN_SMT | DOMAIN_CACHE | DOMAIN_NUMA;
+	highest_flags |= DOMAIN_SMT | DOMAIN_CACHE;
 
-	/* Search for the closest idle core sharing cache */
+	/* Search for idle core */
 	sd = c->sd;
 	while (sd) {
-		if (sd->flags & flags) {
-			highest = sd;
+		if (sd->flags & idle_flags) {
+			if (sd->flags & highest_flags)
+				highest = sd;
 			idlest = find_idle_cpu(policy, sd);
 			if (idlest) {
 				reason = 2;
