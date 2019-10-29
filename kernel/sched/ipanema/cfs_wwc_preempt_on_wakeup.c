@@ -749,6 +749,21 @@ end:
 	return idlest->id;
 }
 
+static inline bool check_preempt_wakeup(struct ipanema_policy *policy,
+					struct process_event *e)
+{
+	/*
+	 * TODO:
+	 * compute if e->target needs to preempt get_ipanema_current
+	 *
+	 * HINT:
+	 * fair.c: wakeup_preempt_entity()
+	 *
+	 * For now, always preempt on wakeup.
+	 */
+	return true;
+}
+
 static void ipanema_cfs_unblock_place(struct ipanema_policy *policy,
 				       struct process_event *e)
 {
@@ -759,8 +774,12 @@ static void ipanema_cfs_unblock_place(struct ipanema_policy *policy,
 	c->cload += tgt->load;
 	/* Memory barrier for proofs */
 	smp_wmb();
-	ipa_change_queue(tgt, &ipanema_state(idlecore_11).ready,
-			 IPANEMA_READY, c->id);
+	if (check_preempt_wakeup(policy, e))
+		ipa_change_queue(tgt, &ipanema_state(idlecore_11).ready,
+				 IPANEMA_RUNNING, c->id);
+	else
+		ipa_change_queue(tgt, &ipanema_state(idlecore_11).ready,
+				 IPANEMA_READY, c->id);
 }
 
 static void ipanema_cfs_unblock_end(struct ipanema_policy *policy,
