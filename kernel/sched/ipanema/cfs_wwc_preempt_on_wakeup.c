@@ -763,8 +763,9 @@ static void ipanema_cfs_unblock_place(struct ipanema_policy *policy,
 			 IPANEMA_READY, c->id);
 
 	tgt = ipanema_state(c->id).current_0;
-	ipa_change_queue(tgt, &ipanema_state(task_cpu(tgt->task)).ready,
-			 IPANEMA_READY, c->id);
+	if (tgt)
+		ipa_change_queue(tgt, &ipanema_state(task_cpu(tgt->task)).ready,
+				 IPANEMA_READY, c->id);
 }
 
 static void ipanema_cfs_unblock_end(struct ipanema_policy *policy,
