@@ -391,6 +391,7 @@ static char *sched_tracer_events_str[] = {
 	"UNBLOCK_PREPARE_IPA_BEG", /* timestamp UNBLOCK_PREPARE_IPA_BEG pid */
 	"UNBLOCK_PREPARE_IPA_END", /* timestamp UNBLOCK_PREPARE_IPA_END pid */
 	"USER_EVT", /* timestamp USER_EVT pid */
+	"WAIT_PID", /* timestamp WAIT_PID pid waited_pid */
 };
 
 static int tracer_seq_show(struct seq_file *s, void *v)
@@ -430,6 +431,7 @@ static int tracer_seq_show(struct seq_file *s, void *v)
 	case FORK_EVT:
 	case TICK_EVT:
 	case CTX_SWITCH:
+	case WAIT_PID:
 		seq_printf(s, "%llu %s %d %d\n",
 			   evt->timestamp, sched_tracer_events_str[evt->event],
 			   evt->pid, evt->arg0);
