@@ -327,7 +327,7 @@ static void *tracer_seq_start(struct seq_file *s, loff_t *pos)
 	spin_lock_irqsave(&log->lock, flags);
 
 	if (*pos == 0 && log->dropped)
-		seq_printf(s, "Dropped %llu events!!!!\n", log->dropped);
+		pr_info("cpu%lu dropped %llu schedlog events\n", cpu, log->dropped);
 
 	i = (log->consumer + *pos) % log->size;
 	if (i == log->producer)
