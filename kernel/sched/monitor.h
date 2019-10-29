@@ -100,6 +100,7 @@ enum sched_tracer_events {
 	UNBLOCK_PREPARE_IPA_BEG, /* timestamp UNBLOCK_PREPARE_IPA_BEG pid */
 	UNBLOCK_PREPARE_IPA_END, /* timestamp UNBLOCK_PREPARE_IPA_END pid */
 	USER_EVT, /* timestamp USER_EVT pid */
+	WAIT_PID, /* timestamp WAIT_PID pid waited_pid */
 	SCHED_MONITOR_TRACER_NR_EVENTS,	/* keep last */
 };
 DECLARE_PER_CPU(struct sched_tracer_log, sched_tracer_log);
