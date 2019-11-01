@@ -1040,6 +1040,11 @@ static struct task_struct *pick_next_task_ipanema(struct rq *rq,
 	if (unlikely(ipanema_sched_class_log))
 		pr_info("In %s [pid=%d, rq=%d]\n",
 			__func__, prev->pid, rq->cpu);
+	if (task_has_ipanema_policy(prev) && test_tsk_need_resched(prev))
+		pr_info("%s:%d: preempt=true pid=%d cpu=%d\n",
+			__func__, __LINE__,
+			prev->pid, task_cpu(prev));
+
 
 	/*
 	 * If ipanema_current is not NULL, it means that pick_next_task() is
@@ -1049,46 +1054,61 @@ static struct task_struct *pick_next_task_ipanema(struct rq *rq,
 	 * not dequeued in order to handle the pending signals, and still in
 	 * ipanema_current. For now, we keep the same task as ipanema_current,
 	 * it will be removed when signals are handled (through a call to
-	 * dequeue and the correct ipanema event handler)
+	 * dequeue and the correct ipanema event handler).
+	 * This might also happen if __schedule() is called with preempt set to
+	 * true. This can happen with some syscalls. In this case, we want to
+	 * force a preemption, so we're going to simulate a yield().
 	 */
 	if (per_cpu(ipanema_current, rq->cpu)) {
-		result = per_cpu(ipanema_current, rq->cpu);
-		if (prev->state != TASK_RUNNING)
-			pr_warn("[WARN] %s: ipanema_current != NULL and task is not TASK_RUNNING. Should not happen\n",
-				__func__);
-	} else {
-		read_lock_irqsave(&ipanema_rwlock, flags);
-		list_for_each_entry(policy, &ipanema_policies, list) {
-			ipanema_schedule(policy, rq->cpu);
+		if (prev->state != TASK_RUNNING) {
+			/* current has signals pending, leave it running */
 			result = per_cpu(ipanema_current, rq->cpu);
-			/* if a task is found, schedule it */
-			if (result)
-				break;
-			/*
-			 * Policy has no ready task on this cpu. If cpu is
-			 * already idle, try next policy. Else, call the
-			 * newly_idle() event and retry once.
-			 */
-			cstate = ipanema_get_core_state(policy, rq->cpu);
-			if (cstate == IPANEMA_IDLE_CORE)
-				continue;
+			pr_info("%s:%d: pending signal pid=%d cpu=%d\n",
+				__func__, __LINE__,
+				current->pid, task_cpu(current));
+			goto end;
+		} else {
+			/* yield to force preemption */
+			struct process_event e = { .target = current };
 
-			sched_monitor_ipanema_start(start_lb);
+			pr_info("%s:%d: yielding for preemption pid=%d cpu=%d\n",
+				__func__, __LINE__,
+				current->pid, task_cpu(current));
 
-			ipanema_newly_idle(policy, rq->cpu, rf);
-
-			sched_monitor_ipanema_stop(LB_IDLE, start_lb);
-
-			ipanema_schedule(policy, rq->cpu);
-			result = per_cpu(ipanema_current, rq->cpu);
-			/* if a task is found, schedule it */
-			if (result)
-				break;
-			/* else call enter_idle() handler for this policy/cpu */
-			ipanema_enter_idle(policy, rq->cpu);
+			ipanema_yield(&e);
 		}
-		read_unlock_irqrestore(&ipanema_rwlock, flags);
 	}
+	read_lock_irqsave(&ipanema_rwlock, flags);
+	list_for_each_entry(policy, &ipanema_policies, list) {
+		ipanema_schedule(policy, rq->cpu);
+		result = per_cpu(ipanema_current, rq->cpu);
+		/* if a task is found, schedule it */
+		if (result)
+			break;
+		/*
+		 * Policy has no ready task on this cpu. If cpu is
+		 * already idle, try next policy. Else, call the
+		 * newly_idle() event and retry once.
+		 */
+		cstate = ipanema_get_core_state(policy, rq->cpu);
+		if (cstate == IPANEMA_IDLE_CORE)
+			continue;
+
+		sched_monitor_ipanema_start(start_lb);
+
+		ipanema_newly_idle(policy, rq->cpu, rf);
+
+		sched_monitor_ipanema_stop(LB_IDLE, start_lb);
+
+		ipanema_schedule(policy, rq->cpu);
+		result = per_cpu(ipanema_current, rq->cpu);
+		/* if a task is found, schedule it */
+		if (result)
+			break;
+		/* else call enter_idle() handler for this policy/cpu */
+		ipanema_enter_idle(policy, rq->cpu);
+	}
+	read_unlock_irqrestore(&ipanema_rwlock, flags);
 
 	if (!result)
 		goto end;
