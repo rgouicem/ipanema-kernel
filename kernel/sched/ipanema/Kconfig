@@ -11,6 +11,12 @@ config IPANEMA_POLICY_CFS_WWC
 	---help---
 	CFS-like policy ensuring Weak Work-Conservation
 
+config IPANEMA_POLICY_CFS_WWC_FLAT
+        def_tristate n
+	prompt "cfs_wwc_flat"
+	---help---
+	CFS-like policy ensuring Weak Work-Conservation with a flat hierarchy
+
 config IPANEMA_POLICY_CFS_WWC_LOCAL_NEW_UNBLOCK
         def_tristate n
 	prompt "cfs_wwc_local_new_unblock"
