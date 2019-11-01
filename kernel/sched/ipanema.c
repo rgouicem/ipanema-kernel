@@ -1040,11 +1040,6 @@ static struct task_struct *pick_next_task_ipanema(struct rq *rq,
 	if (unlikely(ipanema_sched_class_log))
 		pr_info("In %s [pid=%d, rq=%d]\n",
 			__func__, prev->pid, rq->cpu);
-	if (task_has_ipanema_policy(prev) && test_tsk_need_resched(prev))
-		pr_info("%s:%d: preempt=true pid=%d cpu=%d\n",
-			__func__, __LINE__,
-			prev->pid, task_cpu(prev));
-
 
 	/*
 	 * If ipanema_current is not NULL, it means that pick_next_task() is
@@ -1063,17 +1058,10 @@ static struct task_struct *pick_next_task_ipanema(struct rq *rq,
 		if (prev->state != TASK_RUNNING) {
 			/* current has signals pending, leave it running */
 			result = per_cpu(ipanema_current, rq->cpu);
-			pr_info("%s:%d: pending signal pid=%d cpu=%d\n",
-				__func__, __LINE__,
-				current->pid, task_cpu(current));
 			goto end;
 		} else {
 			/* yield to force preemption */
 			struct process_event e = { .target = current };
-
-			pr_info("%s:%d: yielding for preemption pid=%d cpu=%d\n",
-				__func__, __LINE__,
-				current->pid, task_cpu(current));
 
 			ipanema_yield(&e);
 		}
