@@ -392,6 +392,7 @@ static char *sched_tracer_events_str[] = {
 	"UNBLOCK_PREPARE_IPA_END", /* timestamp UNBLOCK_PREPARE_IPA_END pid */
 	"USER_EVT", /* timestamp USER_EVT pid */
 	"WAIT_PID", /* timestamp WAIT_PID pid waited_pid */
+	"DEBUG_EVT",
 };
 
 static int tracer_seq_show(struct seq_file *s, void *v)
