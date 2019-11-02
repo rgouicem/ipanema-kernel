@@ -66,16 +66,21 @@ DEFINE_PER_CPU(struct cfs_ipa_core, core);
 
 static inline void inc_nr_placing(int cpu) {
 	atomic_inc(&ipanema_core(cpu).nr_placing);
+	sched_monitor_trace(DEBUG_EVT, task_cpu(current), current, cpu, 0);
 }
 static inline void dec_nr_placing(int cpu) {
 	atomic_dec(&ipanema_core(cpu).nr_placing);
+	sched_monitor_trace(DEBUG_EVT, task_cpu(current), current, cpu, 1);
 }
 static inline bool test_idle_inc_nr_placing(int cpu) {
 	if (ipanema_core(cpu).cload == 0) {
-		if (atomic_inc_return(&ipanema_core(cpu).nr_placing)==1)
+		if (atomic_inc_return(&ipanema_core(cpu).nr_placing)==1) {
+			sched_monitor_trace(DEBUG_EVT, task_cpu(current), current, cpu, 2);
 			return true;
+		}
 		dec_nr_placing(cpu);
 	}
+	sched_monitor_trace(DEBUG_EVT, task_cpu(current), current, cpu, 3);
 	return false;
 }
 
