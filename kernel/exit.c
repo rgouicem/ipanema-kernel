@@ -1496,7 +1496,7 @@ static long do_wait(struct wait_opts *wo)
 
 	trace_sched_process_wait(wo->wo_pid);
 	sched_monitor_trace(WAIT_PID, task_cpu(current), current,
-			    pid_nr(wo->wo_pid), 0);
+			    pid_nr(wo->wo_pid), wo->wo_flags);
 
 	init_waitqueue_func_entry(&wo->child_wait, child_wait_callback);
 	wo->child_wait.private = current;
