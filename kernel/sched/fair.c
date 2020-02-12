@@ -1849,11 +1849,17 @@ static int task_numa_migrate(struct task_struct *p)
 
 	best_rq = cpu_rq(env.best_cpu);
 	if (env.best_task == NULL) {
+fuckoff_cfs:
 		ret = migrate_task_to(p, env.best_cpu);
 		WRITE_ONCE(best_rq->numa_migrate_on, 0);
 		if (ret != 0)
 			trace_sched_stick_numa(p, env.src_cpu, env.best_cpu);
 		return ret;
+	}
+
+	if (env.best_task->sched_class == &ipanema_sched_class) {
+		put_task_struct(env.best_task);
+		goto fuckoff_cfs;
 	}
 
 	ret = migrate_swap(p, env.best_task, env.best_cpu, env.src_cpu);
@@ -6868,6 +6874,15 @@ idle:
 	if (!rf)
 		return NULL;
 
+	/*
+	 * We added the SCHED_IPANEMA scheduling class as a lower priority
+	 * policy than SCHED_NORMAL. This means that we can be here while
+	 * SCHED_IPANEMA has tasks to schedule. Check this and perform idle
+	 * balancing only if SCHED_IPANEMA has no runnable task
+	 */
+	if (rq->nr_ipanema_running)
+		return NULL;
+
 	new_tasks = newidle_balance(rq, rf);
 
 	/*
@@ -10425,7 +10440,7 @@ static unsigned int get_rr_interval_fair(struct rq *rq, struct task_struct *task
  * All the scheduling class methods:
  */
 const struct sched_class fair_sched_class = {
-	.next			= &idle_sched_class,
+	.next			= &ipanema_sched_class,
 	.enqueue_task		= enqueue_task_fair,
 	.dequeue_task		= dequeue_task_fair,
 	.yield_task		= yield_task_fair,

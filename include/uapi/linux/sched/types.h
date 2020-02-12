@@ -65,6 +65,7 @@ struct sched_param {
  *  @sched_deadline	representative of the task's deadline
  *  @sched_runtime	representative of the task's runtime
  *  @sched_period	representative of the task's period
+ *  @sched_ipa_policy   id of the ipanema policy to use (SCHED_IPANEMA)
  *
  * Given this task model, there are a multiplicity of scheduling algorithms
  * and policies, that can be used to ensure all the tasks will make their
@@ -73,6 +74,10 @@ struct sched_param {
  * As of now, the SCHED_DEADLINE policy (sched_dl scheduling class) is the
  * only user of this new interface. More information about the algorithm
  * available in the scheduling class file or in Documentation/.
+ *
+ * Ipanema Scheduling Class
+ * ========================
+ * SCHED_IPANEMA uses this interface to allow policy choice.
  *
  * Task Utilization Attributes
  * ===========================
@@ -114,10 +119,14 @@ struct sched_attr {
 	__u64 sched_deadline;
 	__u64 sched_period;
 
+	/* SCHED_IPANEMA */
+	__u32 sched_ipa_policy;
+	__u32 sched_ipa_attr_size;
+	void  *sched_ipa_attr;
+
 	/* Utilization hints */
 	__u32 sched_util_min;
 	__u32 sched_util_max;
-
 };
 
 #endif /* _UAPI_LINUX_SCHED_TYPES_H */

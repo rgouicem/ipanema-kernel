@@ -28,6 +28,7 @@
 #include <linux/sched/sysctl.h>
 #include <linux/sched/task.h>
 #include <linux/sched/task_stack.h>
+#include <linux/ipanema.h>
 #include <linux/sched/topology.h>
 #include <linux/sched/user.h>
 #include <linux/sched/wake_q.h>
@@ -148,6 +149,11 @@ extern long calc_load_fold_active(struct rq *this_rq, long adjust);
  */
 #define RUNTIME_INF		((u64)~0ULL)
 
+static inline int ipanema_policy(int policy)
+{
+       return policy == SCHED_IPANEMA;
+}
+
 static inline int idle_policy(int policy)
 {
 	return policy == SCHED_IDLE;
@@ -169,7 +175,8 @@ static inline int dl_policy(int policy)
 static inline bool valid_policy(int policy)
 {
 	return idle_policy(policy) || fair_policy(policy) ||
-		rt_policy(policy) || dl_policy(policy);
+		rt_policy(policy) || dl_policy(policy) ||
+		ipanema_policy(policy);
 }
 
 static inline int task_has_idle_policy(struct task_struct *p)
@@ -185,6 +192,11 @@ static inline int task_has_rt_policy(struct task_struct *p)
 static inline int task_has_dl_policy(struct task_struct *p)
 {
 	return dl_policy(p->policy);
+}
+
+static inline int task_has_ipanema_policy(struct task_struct *p)
+{
+	return ipanema_policy(p->policy);
 }
 
 #define cap_scale(v, s) ((v)*(s) >> SCHED_CAPACITY_SHIFT)
@@ -317,6 +329,15 @@ extern bool dl_param_changed(struct task_struct *p, const struct sched_attr *att
 extern int  dl_task_can_attach(struct task_struct *p, const struct cpumask *cs_cpus_allowed);
 extern int  dl_cpuset_cpumask_can_shrink(const struct cpumask *cur, const struct cpumask *trial);
 extern bool dl_cpu_busy(unsigned int cpu);
+
+extern bool __checkparam_ipanema(const struct sched_attr *attr,
+				 struct ipanema_policy *policy);
+extern void __setparam_ipanema(struct task_struct *p,
+			       const struct sched_attr *attr);
+extern void __getparam_ipanema(struct task_struct *p,
+			       struct sched_attr *attr);
+extern bool ipanema_attr_changed(struct task_struct *p,
+				 const struct sched_attr *attr);
 
 #ifdef CONFIG_CGROUP_SCHED
 
@@ -858,6 +879,7 @@ struct rq {
 	unsigned int		nr_preferred_running;
 	unsigned int		numa_migrate_on;
 #endif
+	unsigned int            nr_ipanema_running;
 #ifdef CONFIG_NO_HZ_COMMON
 #ifdef CONFIG_SMP
 	unsigned long		last_load_update_tick;
@@ -900,6 +922,7 @@ struct rq {
 	struct task_struct	*idle;
 	struct task_struct	*stop;
 	unsigned long		next_balance;
+	unsigned long           next_balance_ipanema;
 	struct mm_struct	*prev_mm;
 
 	unsigned int		clock_update_flags;
@@ -1677,6 +1700,12 @@ extern const u32		sched_prio_to_wmult[40];
  * ENQUEUE_REPLENISH - CBS (replenish runtime and postpone deadline)
  * ENQUEUE_MIGRATED  - the task was migrated during wakeup
  *
+ * The next flags are only used by the ipanema sched class for now:
+ * SWITCHING_CLASS   - the task is switching scheduling class
+ * ATTR_CHANGE       - the task is changing its attributes (sched_setattr)
+ * OUSTED            - the task is migrated because it cannot stay on its
+ *                     current cpu (set_cpus_allowed())
+ *
  */
 
 #define DEQUEUE_SLEEP		0x01
@@ -1696,6 +1725,10 @@ extern const u32		sched_prio_to_wmult[40];
 #else
 #define ENQUEUE_MIGRATED	0x00
 #endif
+
+#define SWITCHING_CLASS         0x100
+#define ATTR_CHANGE             0x200
+#define OUSTED                  0x400
 
 #define RETRY_TASK		((void *)-1UL)
 
@@ -1799,6 +1832,7 @@ extern const struct sched_class stop_sched_class;
 extern const struct sched_class dl_sched_class;
 extern const struct sched_class rt_sched_class;
 extern const struct sched_class fair_sched_class;
+extern const struct sched_class ipanema_sched_class;
 extern const struct sched_class idle_sched_class;
 
 static inline bool sched_stop_runnable(struct rq *rq)
@@ -1826,6 +1860,7 @@ static inline bool sched_fair_runnable(struct rq *rq)
 extern void update_group_capacity(struct sched_domain *sd, int cpu);
 
 extern void trigger_load_balance(struct rq *rq);
+extern void trigger_load_balance_ipanema(struct rq *rq);
 
 extern void set_cpus_allowed_common(struct task_struct *p, const struct cpumask *new_mask);
 
@@ -1865,6 +1900,7 @@ extern void update_max_interval(void);
 extern void init_sched_dl_class(void);
 extern void init_sched_rt_class(void);
 extern void init_sched_fair_class(void);
+extern void init_sched_ipanema_class(void);
 
 extern void reweight_task(struct task_struct *p, int prio);
 

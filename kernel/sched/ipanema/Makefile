@@ -1,0 +1,2 @@
+
+obj-$(CONFIG_IPANEMA_POLICY_CFS) += cfs.o

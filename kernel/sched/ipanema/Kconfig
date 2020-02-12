@@ -1,0 +1,6 @@
+
+config IPANEMA_POLICY_CFS
+        def_tristate n
+	prompt "cfs"
+	---help---
+	CFS-like policy
