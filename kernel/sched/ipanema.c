@@ -13,6 +13,7 @@
 #include <linux/percpu-rwsem.h>
 #include <linux/module.h>
 #include <linux/kref.h>
+#include <trace/events/sched.h>
 
 LIST_HEAD(ipanema_policies);
 s64 num_ipanema_policies;
