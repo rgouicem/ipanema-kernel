@@ -622,23 +622,24 @@ static void ipanema_ule_balancing(struct ipanema_policy *policy,
 		c->balanced = false;
 	}
 
-next:
-	idlest = NULL;
-	for_each_possible_cpu(cpu) {
-		c = &ipanema_core(cpu);
-		if (c->balanced)
-			continue;
-		if (!idlest || c->cload < idlest->cload)
-			idlest = c;
-	}
+	for (;;) {
+		idlest = NULL;
+		for_each_possible_cpu(cpu) {
+			c = &ipanema_core(cpu);
+			if (c->balanced)
+				continue;
+			if (!idlest || c->cload < idlest->cload)
+				idlest = c;
+		}
 
-	if (idlest) {
-		sched_monitor_trace(PER_BLN_IPA_BEG, idlest->id, current,
-				    0, 0);
-		steal_for_dom(policy, idlest, NULL);
-		sched_monitor_trace(PER_BLN_IPA_END, idlest->id, current,
-				    0, 0);
-		goto next;
+		if (idlest) {
+			sched_monitor_trace(PER_BLN_IPA_BEG, idlest->id,
+					    current, 0, 0);
+			steal_for_dom(policy, idlest, NULL);
+			sched_monitor_trace(PER_BLN_IPA_END, idlest->id,
+					    current, 0, 0);
+		} else
+			break;
 	}
 
 end:
