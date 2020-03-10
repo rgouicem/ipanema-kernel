@@ -12,3 +12,4 @@ obj-m += cfs_unblock_wwc.o
 obj-m += cfs_ticklike_wwc.o
 obj-m += cfs_wwc_preempt_on_wakeup.o
 obj-m += ule_rip.o
+obj-m += ule_wwc_rip.o
