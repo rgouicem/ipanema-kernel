@@ -314,7 +314,7 @@ static struct ule_ipa_core *pickup_core(struct ipanema_policy *policy,
 	while (sd) {
 		if (!(sd->flags & DOMAIN_CACHE))
 			goto next;
-		for_each_cpu_warp(cpu, &sd->cores, random_start) {
+		for_each_cpu_wrap(cpu, &sd->cores, random_start) {
 			if (!cpumask_test_cpu(cpu, &t->task->cpus_allowed))
 				continue;
 			c = &ipanema_core(cpu);
@@ -326,7 +326,7 @@ next:
 	}
 
 	/* default: get idlest cpu */
-	for_each_cpu_warp(cpu, &t->task->cpus_allowed, random_start) {
+	for_each_cpu_wrap(cpu, &t->task->cpus_allowed, random_start) {
 		c = &ipanema_core(cpu);
 		if (c->cload < min_cload) {
 			min_cload = c->cload;
