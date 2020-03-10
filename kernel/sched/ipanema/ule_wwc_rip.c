@@ -333,7 +333,7 @@ static int ipanema_ule_wwc_new_prepare(struct ipanema_policy *policy,
 	struct ule_wwc_ipa_core *c, *idlest = NULL;
 	struct task_struct *task_15;
 	int cpu;
-	int random_start = sched_random() % num_possible_cpus;
+	int random_start = sched_random() % num_possible_cpus();
 	/* static int next_cpu = 0; */
 
 	task_15 = e->target;
@@ -503,7 +503,7 @@ static struct ule_wwc_ipa_core *pickup_core(struct ipanema_policy *policy,
 	struct ule_wwc_ipa_core *idlest = &ipanema_core(t->last_core);
 	struct ule_wwc_ipa_sched_domain *sd = c->sd;
 	int cpu;
-	int random_start = sched_random() % num_possible_cpus;
+	int random_start = sched_random() % num_possible_cpus();
 
 	/* Run interrupt threads on their core */
 	if (t->prio == INTERRUPT)
