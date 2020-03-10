@@ -326,6 +326,57 @@ static void steal_for_dom(struct ipanema_policy *policy,
 	} while (core_31->cload == 0 && cpumask_weight(&stealable_cores));
 }
 
+DEFINE_PER_CPU(uint32_t, randomval);
+/**
+ *  As defined in BSD
+ */
+static uint32_t sched_random(void)
+{
+	uint32_t *rnd = &get_cpu_var(randomval);
+	uint32_t res;
+
+	*rnd = *rnd * 69069 + 5;
+	res = *rnd >> 16;
+	put_cpu_var(randomval);
+
+	return *rnd >> 16;
+}
+
+static struct ule_wwc_ipa_core *pickup_core(struct ipanema_policy *policy,
+					    struct ule_wwc_ipa_process *t)
+{
+	struct ule_wwc_ipa_core *c = &ipanema_core(task_cpu(t->task));
+	struct ule_wwc_ipa_core *idlest = &ipanema_core(t->last_core);
+	struct ule_wwc_ipa_sched_domain *sd = c->sd;
+	int cpu;
+	int random_start = sched_random() % num_possible_cpus();
+
+	/* Run interrupt threads on their core */
+	if (t->prio == INTERRUPT)
+		return idlest;
+
+	/* Pick up an idle cpu that shares a L2 */
+	while (sd) {
+		if (sd->flags & DOMAIN_CACHE) {
+			for_each_cpu_wrap(cpu, &sd->cores, random_start) {
+				c = &ipanema_core(cpu);
+				if (c->cload == 0)
+					return c;
+			}
+		}
+		sd = sd->parent;
+	}
+
+	/* default */
+	for_each_cpu_wrap(cpu, cpu_possible_mask, random_start) {
+		c = &ipanema_core(cpu);
+		if (c->cload < idlest->cload)
+			idlest = c;
+	}
+
+	return idlest;
+}
+
 static int ipanema_ule_wwc_new_prepare(struct ipanema_policy *policy,
 				       struct process_event *e)
 {
@@ -478,57 +529,6 @@ static void ipanema_ule_wwc_block(struct ipanema_policy *policy,
 	c->cload -= old_load;
 	/* Memory barrier for proofs */
 	smp_wmb();
-}
-
-DEFINE_PER_CPU(uint32_t, randomval);
-/**
- *  As defined in BSD
- */
-static uint32_t sched_random(void)
-{
-	uint32_t *rnd = &get_cpu_var(randomval);
-	uint32_t res;
-
-	*rnd = *rnd * 69069 + 5;
-	res = *rnd >> 16;
-	put_cpu_var(randomval);
-
-	return *rnd >> 16;
-}
-
-static struct ule_wwc_ipa_core *pickup_core(struct ipanema_policy *policy,
-					    struct ule_wwc_ipa_process *t)
-{
-	struct ule_wwc_ipa_core *c = &ipanema_core(task_cpu(t->task));
-	struct ule_wwc_ipa_core *idlest = &ipanema_core(t->last_core);
-	struct ule_wwc_ipa_sched_domain *sd = c->sd;
-	int cpu;
-	int random_start = sched_random() % num_possible_cpus();
-
-	/* Run interrupt threads on their core */
-	if (t->prio == INTERRUPT)
-		return idlest;
-
-	/* Pick up an idle cpu that shares a L2 */
-	while (sd) {
-		if (sd->flags & DOMAIN_CACHE) {
-			for_each_cpu_wrap(cpu, &sd->cores, random_start) {
-				c = &ipanema_core(cpu);
-				if (c->cload == 0)
-					return c;
-			}
-		}
-		sd = sd->parent;
-	}
-
-	/* default */
-	for_each_cpu_wrap(cpu, cpu_possible_mask, random_start) {
-		c = &ipanema_core(cpu);
-		if (c->cload < idlest->cload)
-			idlest = c;
-	}
-
-	return idlest;
 }
 
 static bool update_realtime(struct ule_wwc_ipa_process *t)
