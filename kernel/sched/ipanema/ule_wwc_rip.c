@@ -333,6 +333,7 @@ static int ipanema_ule_wwc_new_prepare(struct ipanema_policy *policy,
 	struct ule_wwc_ipa_core *c, *idlest = NULL;
 	struct task_struct *task_15;
 	int cpu;
+	int random_start = sched_random() % num_possible_cpus;
 	/* static int next_cpu = 0; */
 
 	task_15 = e->target;
@@ -350,7 +351,7 @@ static int ipanema_ule_wwc_new_prepare(struct ipanema_policy *policy,
 	/* find idlest core on machine */
 	c = &ipanema_core(task_cpu(task_15));
 	idlest = c;
-	for_each_cpu(cpu, &task_15->cpus_allowed) {
+	for_each_cpu_wrap(cpu, &task_15->cpus_allowed, random_start) {
 		c = &ipanema_core(cpu);
 		if (c->cload < idlest->cload)
 			idlest = c;
@@ -479,6 +480,22 @@ static void ipanema_ule_wwc_block(struct ipanema_policy *policy,
 	smp_wmb();
 }
 
+DEFINE_PER_CPU(uint32_t, randomval);
+/**
+ *  As defined in BSD
+ */
+static uint32_t sched_random(void)
+{
+	uint32_t *rnd = &get_cpu_var(randomval);
+	uint32_t res;
+
+	*rnd = *rnd * 69069 + 5;
+	res = *rnd >> 16;
+	put_cpu_var(randomval);
+
+	return *rnd >> 16;
+}
+
 static struct ule_wwc_ipa_core *pickup_core(struct ipanema_policy *policy,
 					    struct ule_wwc_ipa_process *t)
 {
@@ -486,6 +503,7 @@ static struct ule_wwc_ipa_core *pickup_core(struct ipanema_policy *policy,
 	struct ule_wwc_ipa_core *idlest = &ipanema_core(t->last_core);
 	struct ule_wwc_ipa_sched_domain *sd = c->sd;
 	int cpu;
+	int random_start = sched_random() % num_possible_cpus;
 
 	/* Run interrupt threads on their core */
 	if (t->prio == INTERRUPT)
@@ -494,7 +512,7 @@ static struct ule_wwc_ipa_core *pickup_core(struct ipanema_policy *policy,
 	/* Pick up an idle cpu that shares a L2 */
 	while (sd) {
 		if (sd->flags & DOMAIN_CACHE) {
-			for_each_cpu(cpu, &sd->cores) {
+			for_each_cpu_wrap(cpu, &sd->cores, random_start) {
 				c = &ipanema_core(cpu);
 				if (c->cload == 0)
 					return c;
@@ -504,7 +522,7 @@ static struct ule_wwc_ipa_core *pickup_core(struct ipanema_policy *policy,
 	}
 
 	/* default */
-	for_each_possible_cpu(cpu) {
+	for_each_cpu_wrap(cpu, cpu_possible_mask, random_start) {
 		c = &ipanema_core(cpu);
 		if (c->cload < idlest->cload)
 			idlest = c;
