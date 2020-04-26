@@ -437,6 +437,9 @@ static void ipanema_cfs_block(struct ipanema_policy *policy,
 	update_thread((struct cfs_ipa_process *)tgt);
 	update_load((struct cfs_ipa_process *)tgt);
 	ipa_change_queue(tgt, NULL, IPANEMA_BLOCKED, c->id);
+
+	tgt->vruntime -= idlest->min_vruntime;
+
 	/* Memory barrier for proofs */
 	smp_wmb();
 	c->cload -= old_load;
@@ -452,9 +455,7 @@ static int ipanema_cfs_unblock_prepare(struct ipanema_policy *policy,
 	struct cfs_ipa_core *c, *idlest;
 	int cpu;
 
-	/* remove min_vruntime from previous cpu */
 	idlest = &ipanema_core(task_cpu(task_15));
-	p->vruntime -= idlest->min_vruntime;
 
 	/* Search for the idlest core on the machine */
 	for_each_cpu(cpu, &task_15->cpus_allowed) {
