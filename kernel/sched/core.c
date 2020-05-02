@@ -3226,7 +3226,9 @@ void scheduler_tick(void)
 	struct rq *rq = cpu_rq(cpu);
 	struct task_struct *curr = rq->curr;
 	struct rq_flags rf;
+#ifdef CONFIG_SCHED_MONITOR_TRACER
 	int need_resched = 0;
+#endif
 
 	sched_monitor_start(&scheduler_tick);
 

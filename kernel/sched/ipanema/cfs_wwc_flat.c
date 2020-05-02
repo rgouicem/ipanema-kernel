@@ -438,7 +438,7 @@ static void ipanema_cfs_block(struct ipanema_policy *policy,
 	update_load((struct cfs_ipa_process *)tgt);
 	ipa_change_queue(tgt, NULL, IPANEMA_BLOCKED, c->id);
 
-	tgt->vruntime -= idlest->min_vruntime;
+	tgt->vruntime -= c->min_vruntime;
 
 	/* Memory barrier for proofs */
 	smp_wmb();
