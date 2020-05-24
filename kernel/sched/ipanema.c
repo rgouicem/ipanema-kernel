@@ -1061,7 +1061,8 @@ static struct task_struct *pick_next_task_ipanema(struct rq *rq,
 			goto end;
 		} else {
 			/* yield to force preemption */
-			struct process_event e = { .target = current };
+			struct process_event e = { .target = current,
+						   .cpu = smp_processor_id() };
 
 			ipanema_yield(&e);
 		}
